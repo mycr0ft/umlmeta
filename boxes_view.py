@@ -214,6 +214,92 @@ def as_bdd_boxes(scope, frame_kind='bdd', element_kind=None,
     return d
 
 
+def as_deployment_boxes(scope, frame_kind='deployment',
+                        element_kind=None, element_name=None):
+    """Build a UML 2.5.1 deployment diagram (ch19) from uml2py data.
+
+    - Node, Device, ExecutionEnvironment, or an InstanceSpecification
+      of one = a perspective cube (instance labels are the ':name'
+      string); the deployment's elements connect in.
+    - Artifact = a Class rectangle + the keyword artifact.
+    - Deployment.deployedArtifact x location/deployment's owner = the
+      dashed 'deploy' dependency arrow (19.2.4).
+    - Artifact.manifestation[] = dashed 'manifest' lines (19.3.x).
+    - CommunicationPath memberEnds = plain association links (19.4.4).
+    """
+    d = Diagram()
+    if frame_kind:
+        d.add_frame(frame_kind, element_kind, element_name, None)
+
+    def _name(el, default='unnamed'):
+        return getattr(el, 'name', None) or default
+
+    def _node_of(el, inst=False):
+        kinds = []
+        st = getattr(el, '_applied_stereotypes', None)
+        if st:
+            kinds = [s[1] for s in st]
+        return d.node(_name(el), kinds=kinds)
+
+    node_map = {}
+
+    def _add(el, cube):
+        cube_ = d.node(_name(el), kinds=[]) if cube else d.add_node(
+            _name(el), stereotypes=['artifact'])
+        node_map[id(el)] = cube_
+        d.nodes.append(cube_)
+        return cube_
+
+    def _walk(pkg):
+        for child in (getattr(pkg, 'packagedElement', None) or []):
+            tn = type(child).__name__
+            if tn == 'Package':
+                _walk(child)
+            elif tn == 'Node':
+                node_map[id(child)] = _node_of(child)
+            elif tn == 'Artifact':
+                node_map[id(child)] = d.artifact(_name(child))
+            elif tn == 'InstanceSpecification':
+                node_map[id(child)] = d.node(_name(child))
+            elif tn == 'Component':
+                node_map[id(child)] = d.add_node(_name(child))
+        # CommunicationPath (19.4.4): a plain association link between
+        # its endpoint types
+        for child in (getattr(pkg, 'packagedElement', None) or []):
+            if type(child).__name__ != 'CommunicationPath':
+                continue
+            ends = [p for p in (getattr(child, 'memberEnd', None) or [])
+                    if getattr(p, 'type', None) is not None]
+            if len(ends) == 2:
+                d.add_edge(node_map.get(id(ends[0].type)),
+                           node_map.get(id(ends[1].type)))
+        # deployments owned by each element
+        for child in (getattr(pkg, 'packagedElement', None) or []):
+            for dep in (getattr(child, 'deployment', None) or []):
+                for art in (getattr(dep, 'deployedArtifact', None) or []):
+                    if isinstance(art, (str, int)):
+                        continue
+                    if id(art) not in node_map:
+                        node_map[id(art)] = d.artifact(_name(art))
+                    d.deploy(node_map[id(art)], node_map[id(child)])
+            for man in (getattr(child, 'manifestation', None) or []):
+                util = getattr(man, 'utilizedElement', None)
+                if util is None:
+                    continue
+                if id(util) not in node_map:
+                    node_map[id(util)] = d.add_node(_name(util))
+                d.manifest(node_map[id(child)], node_map[id(util)])
+
+    if isinstance(scope, (list, tuple)):
+        for el in scope:
+            _walk(el)
+    else:
+        _walk(scope)
+
+    d.render()
+    return d
+
+
 def render_bdd_boxes(scope, routing='orthogonal', **layout_kw) -> str:
     d = as_bdd_boxes(scope)
     d.render()
