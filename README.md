@@ -103,4 +103,4 @@ PLAN.md                plan for the exporter/QoL waves (E1-E6: XMI/CMOF/EMOF wri
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MPL-2.0 — see [LICENSE](LICENSE).
