@@ -1,4 +1,10 @@
 # Check that the package imports and the metamodel is usable.
+#
+# The generated metamodel modules and the textual emitter are pure stdlib, so
+# the suites below run without lxml or sysmlpy.
+#
+# 3.9 is tested on ubuntu-22.04: the ubuntu-24.04+ runner images do not ship
+# a 3.9 build, and the package still supports 3.9 (see requires-python).
 name: check
 
 on:
@@ -9,10 +15,19 @@ on:
 
 jobs:
   check:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
-        python-version: ["3.9", "3.12", "3.13"]
+        include:
+          - os: ubuntu-22.04
+            python-version: "3.9"
+          - os: ubuntu-24.04
+            python-version: "3.12"
+          - os: ubuntu-24.04
+            python-version: "3.13"
+          - os: ubuntu-24.04
+            python-version: "3.14"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
