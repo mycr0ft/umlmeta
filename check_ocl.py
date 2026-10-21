@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Wave-7 checks: OCL constraint evaluation over gen.uml25 objects.
+"""Wave-7 checks: OCL constraint evaluation over umlmeta.uml25 objects.
 
 The translator (ocl_translator.py) converts the generated CONSTRAINTS
 bodies (normative OCL text) into Python and evaluates them against
@@ -20,10 +20,10 @@ import json
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-import gen.uml25 as U  # noqa: E402
-import derived as D  # noqa: E402
-import ocl_translator as T  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
+from umlmeta import uml25 as U  # noqa: E402
+from umlmeta import derived as D  # noqa: E402
+from umlmeta import ocl_translator as T  # noqa: E402
 
 PASS, FAIL = [], []
 

@@ -15,7 +15,7 @@ hrefs (KerML.xmi). This generator parses BOTH files in one pass:
     resolve to the KerML class's *name*
   - attributes carried by href'd KerML ends resolve via kerml.xmi ids
 
-Writes gen/sysml2.py + gen/kerml.py + sysml2_stats.json.
+Writes src/umlmeta/sysml2.py + src/umlmeta/kerml.py + sysml2_stats.json.
 
 Usage: <venv-with-lxml>/bin/python generate_sysml2.py [sysml.xmi] [kerml.xmi]
 """
@@ -905,10 +905,9 @@ def main(argv):
         for e in sorted(enums.values(), key=lambda e: e.name)) + "}")
     w("")
     code = "\n".join(o) + "\n"
-    dest = HERE / "gen"
-    dest.mkdir(exist_ok=True)
-    (dest / "__init__.py").write_text("")
-    (dest / "sysml2.py").write_text(code)
+    dest = HERE / "src" / "umlmeta"
+    dest.mkdir(exist_ok=True, parents=True)
+        (dest / "sysml2.py").write_text(code)
     stats = {
         "source_sysml": str(sysml_path),
         "source_kerml": str(kerml_path),

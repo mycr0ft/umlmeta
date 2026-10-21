@@ -4,8 +4,8 @@
 Requirement 3 of the transformation conformance clause (§2 of
 ptc/2025-04-07): transform an abstract-syntax representation of an input
 SysML v1 model into an abstract-syntax representation of a SysML v2
-model. This module constructs gen.sysml2 objects (R2 artifact) from
-gen.uml25 + gen.sysml objects (R1 artifacts) — the same normative
+model. This module constructs umlmeta.sysml2 objects (R2 artifact) from
+umlmeta.uml25 + umlmeta.sysml objects (R1 artifacts) — the same normative
 mappings v1_to_v2.py implements for textual notation, but building the
 AS the clause demands.
 
@@ -39,9 +39,9 @@ Honest elisions (documented, no data invented silently):
 """
 from __future__ import annotations
 
-import gen.uml25 as U
-import gen.sysml2 as S2
-import gen.sysml as S
+from . import uml25 as U
+from . import sysml2 as S2
+from . import sysml as S
 
 
 class UnmappedFeature(Exception):
@@ -798,9 +798,9 @@ def _transform_allocate(al, out, index):
 
 def transform_xmi(path):
     """R1→R2→R3 pipeline entry: read a SysML v1 XMI 2.1 file into
-    gen.uml25 objects (R1), transform every root Package (R3), and
-    return the list of gen.sysml2 Packages (R2 artifacts)."""
-    import xmi21
+    umlmeta.uml25 objects (R1), transform every root Package (R3), and
+    return the list of umlmeta.sysml2 Packages (R2 artifacts)."""
+    from . import xmi21
     model = xmi21.read_xmi21(path)
     out = []
     for root in model.roots:

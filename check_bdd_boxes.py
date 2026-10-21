@@ -1,19 +1,19 @@
 #!/usr/bin/env python
-"""checks: uml2py boxes_view — Block Definition Diagrams from v1 data.
+"""checks: umlmeta boxes_view — Block Definition Diagrams from v1 data.
 
 Builds an in-memory vehicle model (blocks, parts, ports, a reference,
 values, a generalization, sub-packages) via gen/uml25, renders through
 boxes_view.as_bdd_boxes, and checks the content model + both renderers.
-Run under ~/proj/uml2py/.venv (lxml + drawille) as plain python3:
+Run under the umlmeta venv (lxml + drawille) as plain python3:
     .venv/bin/python check_bdd_boxes.py
 Oracles follow Delligatti's Chapter 3/4/10 notation contract.
 """
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-import gen.uml25 as U           # noqa: E402
-import boxes_view as BV         # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
+from umlmeta import uml25 as U           # noqa: E402
+from umlmeta import boxes_view as BV         # noqa: E402
 
 PASS, FAIL = [], []
 

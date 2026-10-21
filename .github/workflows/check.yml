@@ -1,0 +1,38 @@
+# Check that the package imports and the metamodel is usable.
+name: check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+      - name: Import the package
+        run: python -c "import umlmeta; print('umlmeta', umlmeta.__version__)"
+      - name: UML metamodel checks (stdlib only)
+        run: python check.py
+      - name: Profile checks (stdlib only)
+        run: python check_profiles.py
+      - name: BPMN metamodel checks (stdlib only)
+        run: python check_bpmn.py
+      - name: SysML v2 abstract syntax checks (stdlib only)
+        run: python check_sysml2.py
+      - name: EMOF writer checks (stdlib only)
+        run: python check_emof_write.py
+      - name: OCL translation checks (stdlib only)
+        run: python check_ocl.py

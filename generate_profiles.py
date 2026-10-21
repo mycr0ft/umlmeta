@@ -25,7 +25,7 @@ UML = HERE / "gen" / "uml25.py"
 
 import sys
 sys.path.insert(0, str(HERE))
-from gen import uml25 as U  # noqa: E402
+from umlmeta import uml25 as U  # noqa: E402
 
 PROFILES = [
     (Path("/mnt/TBFox/surfacebackup_512GB/uml_xmi/StandardProfile.xmi"), None),
@@ -331,7 +331,7 @@ def gen_tag(t, metaclasses, local_enums):
     if tk in ("stereo", "extstereo"):
         # stereotype-typed tagged values are late-bound by name: the target
         # stereotype may be defined later in the module (topological order
-        # only covers inheritance) or in gen.sysml; _Ref stores its type as
+        # only covers inheritance) or in umlmeta.sysml; _Ref stores its type as
         # opaque metadata, so a string reference is safe
         expr = f"'sysml.{tname}'" if tk == "extstereo" else f"'{tname}'"
     elif tname == "UnlimitedNatural":
@@ -368,7 +368,7 @@ def emit_module(d, metaclasses, warns):
                 "UAF": "uaf"}[d["profile"]]
     if d.get("_mod_override"):
         mod_name = d["_mod_override"]
-    import gen.sysml as _sysml
+    from umlmeta.sysml import _sysml
     from itertools import permutations
     created = {}
 
@@ -452,12 +452,12 @@ def emit_module(d, metaclasses, warns):
     w("")
     w("import enum as _enum")
     w("")
-    w("from gen import uml25 as U")
+    w("from . import uml25 as U")
     uses_sysml = any(s.bases_ext for s in st.values()) or any(
         t[8] == "extstereo" for s in st.values() for t in s.tags)
     if uses_sysml:
-        w("import gen.sysml as sysml")
-    w("from gen.uml25 import _Ref  # noqa: F401")
+        w("from . import sysml as sysml")
+    w("from .uml25 import _Ref  # noqa: F401")
     w("")
     # profile URI, as carried by the OMG profile XMI (UAF.xmi has one;
     # StandardProfile.xmi / sysml.xmi do not - the applied URI is then
@@ -559,10 +559,10 @@ def emit_module(d, metaclasses, warns):
     w("")
 
     code = "\n".join(o) + "\n"
-    dest = HERE / "gen"
-    dest.mkdir(exist_ok=True)
+    dest = HERE / "src" / "umlmeta"
+    dest.mkdir(exist_ok=True, parents=True)
     (dest / f"{mod_name}.py").write_text(code)
-    return dict(profile=d["profile"], module=f"gen/{mod_name}.py",
+    return dict(profile=d["profile"], module=f"src/umlmeta/{mod_name}.py",
                 stereotypes=len(st), enums=sorted(d["enums"]),
                 lines=code.count("\n"))
 

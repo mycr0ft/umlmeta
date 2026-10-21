@@ -11,11 +11,11 @@ Run under ~/ams-gra-sim/.venv (lxml)."""
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-import gen.uml25 as U  # noqa: E402
-import canon  # noqa: E402
-import xmi21  # noqa: E402
-import xmi_write as W  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
+from umlmeta import uml25 as U  # noqa: E402
+from umlmeta import canon  # noqa: E402
+from umlmeta import xmi21  # noqa: E402
+from umlmeta import xmi_write as W  # noqa: E402
 
 DODAF = "/mnt/TBFox/DoDAFLibrary.xmi"
 RT = "/tmp/dodaf_e1_roundtrip.xmi"
@@ -193,8 +193,8 @@ except W.WriteError:
 check("dangling reference raises WriteError", raised)
 
 print("== E2: MeasurementsLibrary.xmi (XMI 2.5.1-era EMF dialect, P10) ==")
-import gen.uaf as UA  # noqa: E402
-import gen.sysml as SY  # noqa: E402
+from umlmeta import uaf as UA  # noqa: E402
+from umlmeta import sysml as SY  # noqa: E402
 
 ML = "/mnt/TBFox/uml_xmi/MeasurementsLibrary.xmi"
 MLRT = "/tmp/ml_e1_roundtrip.xmi"

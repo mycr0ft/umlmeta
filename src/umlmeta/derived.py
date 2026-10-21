@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""UML 2.5.1 normative derived properties over gen.uml25 objects.
+"""UML 2.5.1 normative derived properties over umlmeta.uml25 objects.
 
 Clean-room implementations of the spec's derivation bodies (OCL quoted
 per clause from formal/2017-12-05, chapter 7/9/12). The generated
@@ -31,7 +31,7 @@ Classifier.inherit over all members, ActivityNode logic constraints.
 """
 from __future__ import annotations
 
-import gen.uml25 as uml
+from . import uml25 as uml
 
 _SEPARATOR = "::"
 

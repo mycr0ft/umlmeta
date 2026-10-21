@@ -24,7 +24,7 @@ normative OCL/prose text.
 | `…/uml_xmi/sysml.xmi` | SysML v1 profile (56 stereotypes) — next target, not yet parsed |
 | `…/uml_xmi/StandardProfile.xmi` | Standard profile — same |
 
-## What was generated (`gen/uml25.py`, 7,835 lines, stdlib-only)
+## What was generated (`src/umlmeta/uml25.py`, 7,835 lines, stdlib-only)
 
 | Metric | Count |
 |---|---|
@@ -117,8 +117,8 @@ SysML's `Trace`/`Refine`/`Copy` must not shadow StandardProfile's):
 
 | Module | Contents |
 |---|---|
-| `gen/standard_profile.py` | 33 stereotypes (`Derive(Abstraction)`, `Document(File)`, `Metaclass(Class)`…) |
-| `gen/sysml.py` | **56 SysML v1 stereotypes**, 4 profile enums (ControlValueKind, FeatureDirectionKind, FlowDirectionKind, VerdictKind), 143 profile constraints as metadata |
+| `src/umlmeta/standard_profile.py` | 33 stereotypes (`Derive(Abstraction)`, `Document(File)`, `Metaclass(Class)`…) |
+| `src/umlmeta/sysml.py` | **56 SysML v1 stereotypes**, 4 profile enums (ControlValueKind, FeatureDirectionKind, FlowDirectionKind, VerdictKind), 143 profile constraints as metadata |
 
 Key design: **stereotype = fold-in**. `Block(U.Class)` — applying the
 stereotype is Python instantiation; tagged values are `_Ref` descriptors
@@ -258,7 +258,7 @@ With the metamodel, profiles, and emitter in place, the missing piece
 for real models was an instance reader. `xmi21.py` (clean-room, from
 the XMI 2.1 spec's published behavior plus the OMG-published example
 files themselves as corpus) reads EMF-style XMI 2.1 instance documents
-into the generated `gen.uml25` metaclasses, so the whole v1→v2 pipeline
+into the generated `umlmeta.uml25` metaclasses, so the whole v1→v2 pipeline
 runs on published models unchanged.
 
 ## The dialect it handles (distinct from the metamodel XMI)
@@ -308,7 +308,7 @@ XMI (published models) differ in almost every convention:
 ## End-to-end result (check_dodaf.py, 32 checks)
 
 DoDAFLibrary.xmi (OMG UPDM example; 68,999 bytes) → reader →
-`gen.uml25` Model → `emit_v2` → **sysmlpy-parsed v2**:
+`umlmeta.uml25` Model → `emit_v2` → **sysmlpy-parsed v2**:
 
 ```
 package <'DoDAF Class Library'> {
@@ -343,7 +343,7 @@ Output kept at `dodaf_library_v2.sysml`.
 
 ```bash
 ~/ams-gra-sim/.venv/bin/python generate.py           # UML core (lxml)
-~/ams-gra-sim/.venv/bin/python generate_profiles.py  # profiles (lxml + gen.uml25)
+~/ams-gra-sim/.venv/bin/python generate_profiles.py  # profiles (lxml + umlmeta.uml25)
 python check.py                                      # 45 checks (stdlib only)
 python check_profiles.py                             # 21 checks
 ~/sysmlpy/.venv/bin/python check_v1_to_v2.py         # 47 checks (needs sysmlpy)
@@ -570,15 +570,15 @@ packages (Operational, Strategic, Resources, Services, Security, ...).
   SysML.xmi (#SysML.Block x14, #SysML.Allocate x17, ProxyPort,
   InterfaceBlock, ValueType, Requirement, Trace, Refine,
   DeriveReqt, ItemFlow, View, Viewpoint). The emitter folds them as
-  Python bases from `gen.sysml` (e.g. `Capability(sysml.Block,
+  Python bases from `umlmeta.sysml` (e.g. `Capability(sysml.Block,
   U.Class, PropertySet, ...)`, `View(sysml.View, ...)`) with the
-  emitted module importing `gen.sysml` when needed.
+  emitted module importing `umlmeta.sysml` when needed.
 - **Stereotype-typed tagged values**: 104 properties typed by
   stereotype xmi:id refs. Since `_Ref` stores its type as opaque
   metadata, these are late-bound as string references (`'Resource'`,
   `'sysml.Block'`) - topological order only covers inheritance, so a
   forward class reference would be unsafe; strings are checked to
-  resolve against gen.uaf/gen.sysml.
+  resolve against umlmeta.uaf/umlmeta.sysml.
 - **SysML library types**: 4 tagged values typed through
   `_SysML_Libraries_...-String_PackageableElement` hrefs map to `str`.
 - **Duplicate serializations**: UAF.xmi repeats `base_Element` on
@@ -591,12 +591,12 @@ packages (Operational, Strategic, Resources, Services, Security, ...).
 
 ## Result
 
-- `gen/uaf.py`: 3,750 lines, 256 stereotype classes, 112 tagged
+- `src/umlmeta/uaf.py`: 3,750 lines, 256 stereotype classes, 112 tagged
   values, 259 constraints, 20 enums, 252 extension entries.
 - `check_profiles.py` extended 21 -> 40 checks (all green): counts,
   abstract flagging (44), cross-profile folds, constraint text,
   extension table, late-bound tags, enum literals, no shadowing.
-- Regression: `gen/standard_profile.py` and `gen/sysml.py` are
+- Regression: `src/umlmeta/standard_profile.py` and `src/umlmeta/sysml.py` are
   byte-identical to the previous commit.
 - Suite totals: check.py 45, check_profiles.py 40,
   check_v1_to_v2.py 47, check_dodaf.py 32 = **164 checks**.
@@ -648,14 +648,14 @@ representation - downloaded to `/mnt/TBFox/uml_xmi/`.
 
 ## Result
 
-- `gen/bpmn.py`: 2,247 lines; reuses `gen.uml25._Ref` descriptors on a
+- `src/umlmeta/bpmn.py`: 2,247 lines; reuses `umlmeta.uml25._Ref` descriptors on a
   local `_MOFBase` base - BPMN instances are deliberately NOT UML
   Elements (checked).
 - `check_bpmn.py`: 25 checks, all green (counts, hierarchy, multi-
   inheritance fold, instantiation/kw-args, abstract guards, enum
   literals incl. the keyword-guarded `'None'` literal, opposite
   wiring, composite/derived flags, DOM/external late-bound types,
-  no collision with gen.uml25 objects).
+  no collision with umlmeta.uml25 objects).
 - Generator warnings: none. 29 back-ends synthesized; 17 both-ends-
   class-owned associations wired as opposites.
 - Suite totals: check.py 45, check_profiles.py 40, check_v1_to_v2.py
@@ -948,7 +948,7 @@ the OMG CMOF file with canonical parity.
 
 # Part 12: Wave E3 - normative UML 2.5.1 derivations (derived.py)
 
-The spec-normative derivation layer: free functions over `gen.uml25`
+The spec-normative derivation layer: free functions over `umlmeta.uml25`
 objects (generated modules stay byte-frozen), implemented from the
 OCL bodies of UML 2.5.1 formal/2017-12-05 (downloaded to `spec/`,
 gitignored). Standard library only.
@@ -1022,7 +1022,7 @@ instances of the 9 redefinition-gap classes.
 - Corpus set: DoDAFLibrary + MeasurementsLibrary. UAF.xmi (P10 profile
   file) is profile-source only: its root <uml:Profile> is not in the
   reader's root dispatch (Model/Package only), and its stereotype
-  definitions are not gen.uml25 metaclasses - instance-level UAF load
+  definitions are not umlmeta.uml25 metaclasses - instance-level UAF load
   is out of scope for E3 (documented, not attempted).
 - excludeCollisions: the literal OCL
   `imps->exists(imp2 | not imp1.isDistinguishableFrom(imp2, self))`
@@ -1047,7 +1047,7 @@ check_derived.py: 42 checks. Suites: 45 + 40 + 47 + 32 + 25 + 48 + 20
 
 # Part 13: Wave E4 - query helpers (query.py)
 
-Search API over `gen.uml25` instance graphs; standard library only;
+Search API over `umlmeta.uml25` instance graphs; standard library only;
 builds directly on E3's union evaluation and `qualified_name`.
 
 ## API
@@ -1193,7 +1193,7 @@ checks**, all green. The exporter plan (E1-E6) is complete.
 - Profile URI moves to `http://www.omg.org/spec/UAF/20241101/UAF`
   (1.2: `https://www.omg.org/spec/UAF/20211201/UAF`). Both files carry the
   profile *name* "UAF", so the emitted module is overridden to
-  `gen/uaf13.py` via a PROFILES name override; the URI carries version
+  `src/umlmeta/uaf13.py` via a PROFILES name override; the URI carries version
   identity.
 - **NEW href form**: tagged values typed by SysML library datatypes, e.g.
   `SysML.xmi#SysML_dataType.String` (Capability.customKind,
@@ -1208,7 +1208,7 @@ checks**, all green. The exporter plan (E1-E6) is complete.
 
 - `generate_profiles.py`: PROFILES entries became (path, module-override)
   tuples; `emit_module` honors the override; SysML_dataType primitive hrefs.
-- `gen/uaf13.py`: 272 stereotypes, 21 enums, 3,946 lines.
+- `src/umlmeta/uaf13.py`: 272 stereotypes, 21 enums, 3,946 lines.
 - `check_profiles.py`: +20 pinned checks (60 total).
 
 ## Result
@@ -1323,7 +1323,7 @@ checks**, all green. The exporter plan (E1-E6) is complete.
   `<tagDefinition href="#...">` (the defining Property) and `<value/>`.
   Harvested into `imp.tag_values[app][tag-name] = value` (values re-keyed
   after tag-definition names resolve) and removed from the tree
-  (gen.uml25 has no such metaclasses).
+  (umlmeta.uml25 has no such metaclasses).
 - **Type-tagged nesting** (`<uml:Profile>` under a Package, AML): the
   containment feature is derived from the metamodel -- first composite
   descriptor of the parent whose type the child satisfies wins; the tag
@@ -1436,7 +1436,7 @@ checks**, all green. The exporter plan (E1-E6) is complete.
   profile.mdzip -> profile2.mdzip in the same commit); the correct
   before/after pair (166 -> 172, 6 added) is now in _revisions.
 
-# Part 17: mdzip_import.py - .mdzip -> gen.uml25 objects
+# Part 17: mdzip_import.py - .mdzip -> umlmeta.uml25 objects
 
 ## Architecture
 
@@ -1467,7 +1467,7 @@ checks**, all green. The exporter plan (E1-E6) is complete.
   holding_bin package.
 - **Type inference without an ID map**: the raw metamodel IDs
   (`_9_0_2_91a0295_…`) resolve structurally -- rule 1 (parent-feature):
-  the parent feature descriptor in gen.uml25 names the metaclass; rule 2
+  the parent feature descriptor in umlmeta.uml25 names the metaclass; rule 2
   (property-signature): MD's tag definitions have a fixed property shape.
   585 coercions on APE, 3 left over.  The speculative ID table from
   Part 16 is unnecessary -- the metamodel itself is the map.
@@ -1538,7 +1538,7 @@ check_sysml2.py grew the derived-union reads (26 checks, green).
 ## R3 - v1_to_v2_as.py (wave A)
 
 Same normative mappings as the validated textual emitter (v1_to_v2.py),
-but constructing gen.sysml2 objects. Architecture:
+but constructing umlmeta.sysml2 objects. Architecture:
 
 - **Index identity (the conformance-critical rule)**: one v1 element maps
   to exactly ONE AS object; pass 1 builds definitions, pass 2 features/
@@ -1635,7 +1635,7 @@ fallback). Evidence: check_sysml2.py 26 (MRO PartDefinition→…
 Subclassification wiring, owner back-wire).
 
 **R3 - v1 AS → v2 AS transformation: MET for an identified subset.**
-v1_to_v2_as.py constructs gen.sysml2 objects from gen.uml25+gen.sysml
+v1_to_v2_as.py constructs umlmeta.sysml2 objects from umlmeta.uml25+umlmeta.sysml
 objects, with the conformance-critical identity rule (one v1 element →
 one AS object; every typing/specialization end references the indexed
 object). All 78 normative To*_Init helpers carry an identified

@@ -1,0 +1,53 @@
+[project]
+name = "umlmeta"
+version = "0.1.0"
+description = "Clean-room Python UML 2.5.1 / SysML v1 metamodel, XMI readers and writers, and the SysML v1 to v2 transformation"
+readme = "README.md"
+requires-python = ">=3.9"
+license = "MPL-2.0"
+authors = [{ name = "Jon R. Fox", email = "jon.fox@drfox.com" }]
+keywords = ["uml", "sysml", "metamodel", "xmi", "cmof", "emof", "modeling", "mof", "step"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dependencies = []
+
+[project.optional-dependencies]
+# lxml is only needed by the XMI/CMOF/EMOF readers and writers and the
+# generators; the generated metamodel modules and the textual emitter are
+# pure stdlib.
+xmi = ["lxml>=4.9"]
+dev = ["lxml>=4.9", "pytest>=7.0"]
+
+[project.urls]
+Homepage = "https://github.com/mycr0ft/umlmeta"
+Repository = "https://github.com/mycr0ft/umlmeta"
+Issues = "https://github.com/mycr0ft/umlmeta/issues"
+Changelog = "https://github.com/mycr0ft/umlmeta/blob/main/CHANGELOG.md"
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["umlmeta*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "corpus: checks that need the external OMG/mdzip corpora",
+]

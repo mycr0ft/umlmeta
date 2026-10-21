@@ -10,10 +10,10 @@ Run under ~/sysmlpy/.venv (needs sysmlpy + pint)."""
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-import gen.uml25 as U  # noqa: E402
-import gen.sysml as S  # noqa: E402
-import v1_to_v2 as M  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
+from umlmeta import uml25 as U  # noqa: E402
+from umlmeta import sysml as S  # noqa: E402
+from umlmeta import v1_to_v2 as M  # noqa: E402
 
 PASS, FAIL = [], []
 

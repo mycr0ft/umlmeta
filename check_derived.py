@@ -16,10 +16,10 @@ Standard library only. Run under ~/ams-gra-sim/.venv."""
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-import gen.uml25 as U  # noqa: E402
-import derived as D  # noqa: E402
-import xmi21  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
+from umlmeta import uml25 as U  # noqa: E402
+from umlmeta import derived as D  # noqa: E402
+from umlmeta import xmi21  # noqa: E402
 
 PASS, FAIL = [], []
 
@@ -231,7 +231,7 @@ check("opposite null for n-ary", D.opposite(n1) is None)
 
 print("== OMG corpora: DoDAFLibrary + MeasurementsLibrary ==")
 # UAF.xmi is a P10 profile file: its root <uml:Profile> is not yet in the
-# reader's root dispatch (profile-defined stereotypes are not gen.uml25
+# reader's root dispatch (profile-defined stereotypes are not umlmeta.uml25
 # metaclasses), so the instance-level corpus set is DoDAF + ML (E2-verified).
 CORPORA = [("DoDAF", "/mnt/TBFox/DoDAFLibrary.xmi"),
            ("ML", "/mnt/TBFox/uml_xmi/MeasurementsLibrary.xmi")]

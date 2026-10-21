@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """ocl_translator.py — clean-room OCL-to-Python translator for the
-constraint bodies carried in gen.uml25 (UML 2.5.1).
+constraint bodies carried in umlmeta.uml25 (UML 2.5.1).
 
 The generator froze 449 normative constraint bodies as OCL text
 (`CONSTRAINTS` tuples).  This module translates a body into a Python
@@ -43,7 +43,7 @@ from __future__ import annotations
 
 import re
 
-import gen.uml25 as U
+from . import uml25 as U
 
 
 class UnmappedFeature(Exception):
@@ -172,7 +172,7 @@ def ocl_range(lo, hi):
 def is_mult(me, lo, hi):
     """MultiplicityElement::is(lower, upper) (§7.8.8): every
     cardinality in [lo, hi] is included by this multiplicity."""
-    from derived import lower_bound, upper_bound
+    from .derived import lower_bound, upper_bound
     lb = lower_bound(me)
     ub = upper_bound(me)
     def un(v):
@@ -191,7 +191,7 @@ def all_instances(tname):
 def containing_activity(node):
     """ActivityNode::containingActivity (§12.4.1.6): the nearest
     owning Activity, through StructuredActivityNode containers."""
-    import derived as D
+    from . import derived as D
     o = node.owner
     while o is not None:
         if isinstance(o, U.Activity):
@@ -203,7 +203,7 @@ def containing_activity(node):
 def containing_state_machine(v):
     """Vertex::containingStateMachine (§13.3.7): climb containers to
     the owning StateMachine, entering submachine states on the way."""
-    import derived as D
+    from . import derived as D
     o = v.owner
     while o is not None:
         if isinstance(o, U.StateMachine):
@@ -229,7 +229,7 @@ def containing_behavior(beh_el):
 def end_type(p):
     """Property::endType (§9.9.17.7): the ends' types that this end
     connects (types of the other ends, plus own type)."""
-    import derived as D
+    from . import derived as D
     a = p.association
     out = []
     if a is None:
@@ -244,7 +244,7 @@ def end_type(p):
 def all_actions(a):
     """Action::allActions (§12.3.3): self plus all contained actions
     (owned nodes that are Actions, recursively)."""
-    import derived as D
+    from . import derived as D
     out, seen = [], set()
     def rec(n):
         if id(n) in seen:
@@ -261,7 +261,7 @@ def all_actions(a):
 
 def all_pins(a):
     """Action::allPins (§12.3.3): all Pins of all contained Actions."""
-    import derived as D
+    from . import derived as D
     out, seen = [], set()
     for act in all_actions(a):
         for e in D.all_owned_elements(act):
@@ -275,7 +275,7 @@ def all_pins(a):
 def all_owned_nodes(node):
     """StructuredActivityNode::allOwnedNodes (§12.10.3.4): owned nodes
     plus their owned nodes transitively (activity-group scope)."""
-    import derived as D
+    from . import derived as D
     out, seen = [], set()
     def rec(n):
         if id(n) in seen:
@@ -310,14 +310,14 @@ def all_included_use_cases(uc):
 def all_roles(sc):
     """StructuredClassifier::allRoles (§9.10.3.4): member->select(oclIsKindOf
     (ConnectableElement)) — full normative member (derived.member)."""
-    import derived as D
+    from . import derived as D
     return [m for m in D.member(sc) if isinstance(m, U.ConnectableElement)]
 
 
 def all_slottable_features(cl):
     """InstanceSpecification::allSlottableFeatures (§9.7.3.4): all
     direct and inherited attributes, excluding association ends."""
-    import derived as D
+    from . import derived as D
     return [f for f in D.all_attributes(cl)
             if f.association is None]
 
@@ -331,7 +331,7 @@ def is_attribute(p):
 def is_multivalued(me):
     """MultiplicityElement::isMultivalued (§7.8.8): upperBound() > 1
     or = '*'."""
-    from derived import upper_bound
+    from .derived import upper_bound
     ub = upper_bound(me)
     return ub == "*" or ub is None or ub > 1
 
@@ -419,7 +419,7 @@ def ocl_compatible_with(me, other):
     than or the same as self, i.e. self.includesMultiplicity(other):
     lowerBound(other) <= lowerBound(self) and upperBound(self) <=
     upperBound(other) (with '*' unbounded)."""
-    from derived import lower_bound, upper_bound
+    from .derived import lower_bound, upper_bound
 
     def un(v):
         return "*" if v == "*" or v is None else int(v)

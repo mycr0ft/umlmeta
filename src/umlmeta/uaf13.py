@@ -9,9 +9,9 @@ from __future__ import annotations
 
 import enum as _enum
 
-from gen import uml25 as U
-import gen.sysml as sysml
-from gen.uml25 import _Ref  # noqa: F401
+from . import uml25 as U
+from . import sysml as sysml
+from .uml25 import _Ref  # noqa: F401
 
 _URI = 'http://www.omg.org/spec/UAF/20241101/UAF'
 

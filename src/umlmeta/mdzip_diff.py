@@ -32,7 +32,7 @@ from collections import Counter
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from mdzip_import import import_mdzip, MdZipImportError  # noqa: E402
+from .mdzip_import import import_mdzip, MdZipImportError  # noqa: E402
 
 # metaclasses whose instances are worth reporting (model content AND the
 # profile layer -- "modelers become addicted to adding new stereos");
@@ -51,7 +51,7 @@ FEATURE_SKIP = {"ownedComment", "ownedRule", "nameExpression",
 
 
 def _flat(obj, path, path_by_obj=None):
-    """Yield (path, value) leaf pairs for gen.uml25 object features."""
+    """Yield (path, value) leaf pairs for umlmeta.uml25 object features."""
     for feat in sorted(obj._props):
         if feat in FEATURE_SKIP:
             continue

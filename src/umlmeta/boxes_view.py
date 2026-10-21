@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""uml2py boxes_view — render v1 data (UML 2.5.1 / SysML v1 model
+"""umlmeta boxes_view — render v1 data (UML 2.5.1 / SysML v1 model
 objects) as SysML v1 diagrams through the sibling diagramboxes package,
 the same pattern as sysmlpy's boxes_view adapters.
 
@@ -51,11 +51,11 @@ def _block_sides(n):
 
 def as_bdd_boxes(scope, frame_kind='bdd', element_kind=None,
                  element_name=None, diagram_name=None):
-    """Build a Block Definition Diagram from uml2py data.
+    """Build a Block Definition Diagram from umlmeta data.
 
     Parameters
     ----------
-    scope : a Package / Model / Namespace object (uml2py generated
+    scope : a Package / Model / Namespace object (umlmeta generated
         metaclasses), or a list of elements.
     frame_* : the diagram-kind frame strings (Delligatti §2.4).
 
@@ -216,7 +216,7 @@ def as_bdd_boxes(scope, frame_kind='bdd', element_kind=None,
 
 def as_deployment_boxes(scope, frame_kind='deployment',
                         element_kind=None, element_name=None):
-    """Build a UML 2.5.1 deployment diagram (ch19) from uml2py data.
+    """Build a UML 2.5.1 deployment diagram (ch19) from umlmeta data.
 
     - Node, Device, ExecutionEnvironment, or an InstanceSpecification
       of one = a perspective cube (instance labels are the ':name'

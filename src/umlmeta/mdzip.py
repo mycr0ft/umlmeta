@@ -19,7 +19,7 @@ This module is the extraction/forensics layer of a clean-room importer:
                     encoded as hex digits inside XMI attributes) decoded and
                     sniffed (SVG/PNG/JPEG/GIF/ZIP/GZIP)
   - model members:  the umodel snapshot XMLs, aliased Nomagic->UML for
-                    downstream XMI processing (xmi21.py / gen.uml25)
+                    downstream XMI processing (xmi21.py / umlmeta.uml25)
 
 Usage:
     python mdzip.py <file.mdzip> members|info|usages|versions|images <outdir>

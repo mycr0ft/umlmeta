@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""checks: uml2py boxes_view — UML 2.5.1 deployment diagrams (ch19).
+"""checks: umlmeta boxes_view — UML 2.5.1 deployment diagrams (ch19).
 
 As_deployment_boxes maps in-memory gen/uml25 deployment models
 (Instances of Node, Artifact, Deployment, CommunicationPath,
@@ -11,16 +11,16 @@ Manifestation) to diagramboxes' ch19 notation:
 - Manifestation = dashed line with the manifest keyword
 - CommunicationPath = a plain association link
 
-Run under ~/proj/uml2py/.venv:
+Run under the umlmeta venv:
     .venv/bin/python check_deployment_boxes.py
 Oracles quoted from formal/2017-12-05 sections 19.2.4, 19.3.4, 19.4.4.
 """
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-import gen.uml25 as U           # noqa: E402
-import boxes_view as BV         # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
+from umlmeta import uml25 as U           # noqa: E402
+from umlmeta import boxes_view as BV         # noqa: E402
 import diagramboxes as db       # noqa: E402
 
 PASS, FAIL = [], []

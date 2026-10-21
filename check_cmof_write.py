@@ -2,7 +2,7 @@
 """E5 checks: CMOF writer (mm_write.py) over the BPMN 2.0.2 metamodel.
 
 Oracles:
-  1. canonical structural parity: write(gen.bpmn) vs the OMG-published
+  1. canonical structural parity: write(umlmeta.bpmn) vs the OMG-published
      BPMN20.cmof, with Package.ownedMember order normalized as a multiset
      (MOF ownedMember is a set; the file's member order is hand-edited);
   2. structural round-trip: re-parsing the written file with the
@@ -12,11 +12,11 @@ Run under ~/ams-gra-sim/.venv (lxml)."""
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-import canon  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
+from umlmeta import canon  # noqa: E402
 import generate_bpmn as G  # noqa: E402
-import gen.bpmn as B  # noqa: E402
-import mm_write  # noqa: E402
+from umlmeta import bpmn as B  # noqa: E402
+from umlmeta import mm_write  # noqa: E402
 
 SRC = "/mnt/TBFox/uml_xmi/BPMN20.cmof"
 RT = "/tmp/bpmn20_roundtrip.cmof"
@@ -31,7 +31,7 @@ def check(name, cond, detail=""):
 
 print("== generated-module serialization table (_SYNTH) ==")
 synth = B._SYNTH
-check("gen.bpmn carries the _SYNTH table",
+check("umlmeta.bpmn carries the _SYNTH table",
       isinstance(synth, dict)
       and {"package", "tags", "hrefs", "ends", "props", "synth_attrs"}
       <= set(synth))

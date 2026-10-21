@@ -7,11 +7,11 @@ under ~/ams-gra-sim/.venv."""
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-import gen.uml25 as U  # noqa: E402
-import derived as D  # noqa: E402
-import query as Q  # noqa: E402
-import xmi21  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
+from umlmeta import uml25 as U  # noqa: E402
+from umlmeta import derived as D  # noqa: E402
+from umlmeta import query as Q  # noqa: E402
+from umlmeta import xmi21  # noqa: E402
 
 PASS, FAIL = [], []
 
@@ -22,7 +22,7 @@ def check(name, cond, detail=""):
 
 
 # ---- programmatic graph -----------------------------------------------------
-import gen.sysml as S  # noqa: E402
+from umlmeta import sysml as S  # noqa: E402
 
 V = U.Package(name="VehicleExample")
 sub = U.Package(name="Structure")

@@ -15,9 +15,9 @@ Standard library except lxml. Run under ~/ams-gra-sim/.venv."""
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-import gen.bpmn as B  # noqa: E402
-import mm_write  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
+from umlmeta import bpmn as B  # noqa: E402
+from umlmeta import mm_write  # noqa: E402
 
 PASS, FAIL = [], []
 

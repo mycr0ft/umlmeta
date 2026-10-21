@@ -17,8 +17,8 @@ import json
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-import gen.sysml2 as S2  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
+from umlmeta import sysml2 as S2  # noqa: E402
 
 PASS, FAIL = [], []
 

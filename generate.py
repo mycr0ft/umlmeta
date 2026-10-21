@@ -9,7 +9,7 @@ subsets, redefines, association opposites), enumerations, operation stubs,
 and normative OCL constraints / spec comments as metadata.
 
 Usage:  <venv-with-lxml>/bin/python generate.py [path/to/UML.xmi]
-Writes: gen/uml25.py and stats.json next to this file.
+Writes: src/umlmeta/uml25.py and stats.json next to this file.
 """
 import json
 import sys
@@ -711,10 +711,9 @@ def gen():
     w("")
 
     code = "\n".join(o) + "\n"
-    dest = HERE / "gen"
-    dest.mkdir(exist_ok=True)
-    (dest / "__init__.py").write_text("")
-    (dest / "uml25.py").write_text(code)
+    dest = HERE / "src" / "umlmeta"
+    dest.mkdir(exist_ok=True, parents=True)
+        (dest / "uml25.py").write_text(code)
 
     stats = dict(
         source=str(src), classes=len(classes), attributes=n_attrs,

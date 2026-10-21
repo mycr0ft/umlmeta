@@ -5,7 +5,7 @@ association back-refs), 193 associations, 9 enumerations, 28 literals (metadata)
 Source: https://www.omg.org/spec/BPMN/20100501/BPMN20.cmof
 (OMG BPMN 2.0.2). CMOF dialect: superClass attributes, memberEnd
 name-pairs, href-typed primitives. The CMOF carries no OCL - BPMN
-constraints are normative prose in the spec. Reuses gen.uml25's
+constraints are normative prose in the spec. Reuses umlmeta.uml25's
 _Ref/_RefList descriptors (their wiring hooks are UML-scoped and
 no-op here); BPMN classes are deliberately NOT UML Elements.
 """
@@ -13,11 +13,11 @@ from __future__ import annotations
 
 import enum as _enum
 
-from gen.uml25 import _Ref  # noqa: F401  (descriptor machinery)
+from .uml25 import _Ref  # noqa: F401  (descriptor machinery)
 
 
 class _MOFBase:
-    """Common base of all BPMN classes (mirrors gen.uml25._Element
+    """Common base of all BPMN classes (mirrors umlmeta.uml25._Element
     mechanics: _vals storage, _union reads, add() helper - without
     UML composite-ownership wiring)."""
     _DECL: dict = {}

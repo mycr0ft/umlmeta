@@ -32,14 +32,14 @@ Dialect features handled (all distinct from the UML 2.5 metamodel XMI):
   - Both XMI attribute namespaces are accepted: the 2.1 schema.omg URI
     and the 20131001 omg.org URI (the corpora carry one or the other).
 
-Objects are instances of the generated gen.uml25 metaclasses, so the
+Objects are instances of the generated umlmeta.uml25 metaclasses, so the
 v1->v2 emitter works on the result unchanged.
 """
 from __future__ import annotations
 
 from lxml import etree
 
-import gen.uml25 as U
+from . import uml25 as U
 
 XMI_NS = "{http://schema.omg.org/spec/XMI/2.1}"
 
@@ -59,7 +59,7 @@ REF_MULTI = {"memberEnd", "annotatedElement", "client", "supplier"}
 # multiplicity literal features
 LITERAL = {"lowerValue", "upperValue", "defaultValue"}
 
-# metaclass names constructible in gen.uml25 (instances, not abstract)
+# metaclass names constructible in umlmeta.uml25 (instances, not abstract)
 CONSTRUCTIBLE = {"Model", "Package", "Class", "DataType", "Enumeration",
                  "PrimitiveType", "Association", "AssociationClass",
                  "Property", "Port", "Profile", "Stereotype", "Extension",
@@ -86,7 +86,7 @@ class XMI21Model:
     """Result of reading an XMI 2.1 instance file."""
 
     def __init__(self):
-        self.objects = {}        # xmi:id -> gen.uml25 element (metamodel only)
+        self.objects = {}        # xmi:id -> umlmeta.uml25 element (metamodel only)
         self.apps = {}           # base xmi:id -> [(profile, stereo, app_id)]
         self.hrefs = []          # (xmi:id, feature, href) external refs
         self.synthetic_types = {}  # href -> synthetic U.DataType

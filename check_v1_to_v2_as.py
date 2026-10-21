@@ -2,9 +2,9 @@
 """check_v1_to_v2_as.py — checks for v1_to_v2_as.py, the R3 leg of the
 SysML v1 -> v2 transformation conformance chain:
 
-  R1  xmi21.py / mdzip_import.py read SysML v1 XMI into gen.uml25 +
-      gen.sysml objects (abstract-syntax representation of the input);
-  R3  v1_to_v2_as.py transforms those objects into gen.sysml2 objects
+  R1  xmi21.py / mdzip_import.py read SysML v1 XMI into umlmeta.uml25 +
+      umlmeta.sysml objects (abstract-syntax representation of the input);
+  R3  v1_to_v2_as.py transforms those objects into umlmeta.sysml2 objects
       (abstract-syntax representation of the output) per ptc/2025-04-07;
   R2  gen/sysml2.py IS the normative SysML v2 abstract syntax (from the
       OMG CMOF XMI) and provides the runtime the transformed graph
@@ -31,12 +31,12 @@ import sys
 import tempfile
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-import gen.uml25 as U  # noqa: E402
-import gen.sysml as S  # noqa: E402
-import gen.sysml2 as S2  # noqa: E402
-import v1_to_v2 as MT  # noqa: E402  (textual pipeline, parity oracle)
-import v1_to_v2_as as A  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
+from umlmeta import uml25 as U  # noqa: E402
+from umlmeta import sysml as S  # noqa: E402
+from umlmeta import sysml2 as S2  # noqa: E402
+from umlmeta import v1_to_v2 as MT  # noqa: E402  (textual pipeline, parity oracle)
+from umlmeta import v1_to_v2_as as A  # noqa: E402
 
 PASS, FAIL = [], []
 
@@ -65,7 +65,7 @@ def typing_of(feature):
     return feature.ownedTyping[0].type if feature.ownedTyping else None
 
 
-# == 1. R1 leg: v1 XMI file -> gen.uml25 -> transform -> gen.sysml2 ========
+# == 1. R1 leg: v1 XMI file -> umlmeta.uml25 -> transform -> umlmeta.sysml2 ========
 print("== R1 leg: v1 XMI -> AS ==")
 XMI = """<?xml version="1.0" encoding="UTF-8"?>
 <xmi:XMI xmi:version="2.1" xmlns:uml="http://schema.omg.org/spec/UML/2.0"
@@ -130,7 +130,7 @@ try:
     # R1 dialect honesty: the UML-20090901 reader does not carry the
     # <aggregation> child (XMI 2.1 records it as an unmapped feature),
     # so the AS usage is referential rather than silently composite
-    import xmi21  # noqa: E402
+    from umlmeta import xmi21  # noqa: E402
     reader = xmi21.read_xmi21(xmi_path)
     check("R1 reader records <aggregation> as unmapped (no silent loss)",
           ("a_piston", "aggregation") in reader.unmapped_features

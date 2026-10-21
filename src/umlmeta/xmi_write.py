@@ -39,7 +39,7 @@ import enum as _enum
 
 from lxml import etree
 
-import gen.uml25 as U
+from . import uml25 as U
 
 XMI_NS = "http://schema.omg.org/spec/XMI/2.1"
 UML_NS_DEFAULT = "http://www.omg.org/spec/UML/20090901"

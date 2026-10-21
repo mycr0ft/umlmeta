@@ -87,8 +87,8 @@ each anchored to the published document:
 Honesty rule: elements with no normative mapping handled here raise
 UnmappedFeature naming the v1 metaclass, rather than guessing.
 
-Operates on models built with the generated metaclasses (gen.uml25) and
-stereotypes (gen.sysml); stereotype application is the fold-in itself
+Operates on models built with the generated metaclasses (umlmeta.uml25) and
+stereotypes (umlmeta.sysml); stereotype application is the fold-in itself
 (a Block IS a Class carrying Block's tagged values).
 
 Textual forms are calibrated against sysmlpy (the authoritative v2
@@ -100,8 +100,8 @@ from __future__ import annotations
 import tempfile
 from pathlib import Path
 
-import gen.uml25 as U
-import gen.sysml as S
+from . import uml25 as U
+from . import sysml as S
 
 
 class UnmappedFeature(Exception):
@@ -151,7 +151,7 @@ def _doc_lines(el):
 
 
 def _is_stereo_class(t) -> bool:
-    """True if t carries a SysML v1 stereotype (a gen.sysml subclass)."""
+    """True if t carries a SysML v1 stereotype (a umlmeta.sysml subclass)."""
     return isinstance(t, (S.Block, S.ValueType, S.ConstraintBlock,
                           S.Requirement, S.TestCase, S.InterfaceBlock))
 

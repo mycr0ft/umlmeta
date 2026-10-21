@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import enum as _enum
 
-from gen import uml25 as U
-from gen.uml25 import _Ref  # noqa: F401
+from . import uml25 as U
+from .uml25 import _Ref  # noqa: F401
 
 _URI = None  # profile XMI carries no <URI>; applied URI is dialect-dependent
 

@@ -3,9 +3,9 @@
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-import gen.bpmn as B  # noqa: E402
-import gen.uml25 as U  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
+from umlmeta import bpmn as B  # noqa: E402
+from umlmeta import uml25 as U  # noqa: E402
 
 PASS, FAIL = [], []
 
@@ -20,7 +20,7 @@ check("137 BPMN classes", len(B._CLASSES) == 137, f"{len(B._CLASSES)}")
 check("9 enumerations",
       sum(1 for n in dir(B) if isinstance(getattr(B, n), type)
           and issubclass(getattr(B, n), __import__("enum").Enum)
-          and getattr(B, n).__module__ == "gen.bpmn") == 9)
+          and getattr(B, n).__module__ == B.__name__) == 9)
 check("193 associations in _ASSOCIATIONS", len(B._ASSOCIATIONS) == 193)
 check("class_of lookup", B.class_of("ExclusiveGateway").__name__ == "ExclusiveGateway")
 
@@ -93,7 +93,7 @@ check("primitive types map to Python builtins",
       and B.CatchEvent._DECL["parallelMultiple"].t is bool)
 
 print("== separation from UML machinery ==")
-check("gen.bpmn does not collide with gen.uml25 class objects",
+check("umlmeta.bpmn does not collide with umlmeta.uml25 class objects",
       B.Event is not U.Event and B.Association is not U.Association)
 check("_finish assembled _props across MRO",
       B.Task._props["documentation"].name == "documentation")

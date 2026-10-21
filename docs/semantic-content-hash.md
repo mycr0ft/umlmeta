@@ -1,6 +1,6 @@
 # The Semantic Content Hash for MagicDraw/Cameo Projects
 
-**Design and rationale — uml2py `mdzip_diff.model_hash()`**
+**Design and rationale — umlmeta `mdzip_diff.model_hash()`**
 
 Jon R. Fox (github.com/mycr0ft) · September 2026 · MIT
 
@@ -83,7 +83,7 @@ is to first *understand* them:
   → mdzip.py scrape            (member selection, namespace aliasing)
   → mdzip_import               (type coercion, ref scrubbing, profile
                                 harvest, keep-last dedup)
-  → gen.uml25 objects          (one in-memory model)
+  → umlmeta.uml25 objects          (one in-memory model)
   → records: (metaclass, qualified path, feature dict)
        · reference features resolved to qualified paths
        · xmi:ids dropped entirely

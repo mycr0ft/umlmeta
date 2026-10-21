@@ -3,12 +3,12 @@
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-import gen.uml25 as U  # noqa: E402
-import gen.standard_profile as SP  # noqa: E402
-import gen.sysml as S  # noqa: E402
-import gen.uaf as F  # noqa: E402
-import gen.uaf13 as F13  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
+from umlmeta import uml25 as U  # noqa: E402
+from umlmeta import standard_profile as SP  # noqa: E402
+from umlmeta import sysml as S  # noqa: E402
+from umlmeta import uaf as F  # noqa: E402
+from umlmeta import uaf13 as F13  # noqa: E402
 
 PASS, FAIL = [], []
 

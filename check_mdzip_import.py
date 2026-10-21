@@ -10,8 +10,8 @@ import os
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from mdzip_import import import_mdzip, MdZipImportError  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
+from umlmeta.mdzip_import import import_mdzip, MdZipImportError  # noqa: E402
 
 CORPUS = Path(os.environ.get("MDZIP_CORPUS", "/mnt/TBFox/mdzip_corpus"))
 PROBE = Path(os.environ.get("MDZIP_PROBE", "/tmp/mdzip_probe"))

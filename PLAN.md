@@ -19,7 +19,7 @@ Close the write-path and QoL gaps identified in the OpenAPI-coverage survey:
 4. **E4** **Query helpers** (`query.py`) — walk/find/exists over loaded
    instance graphs; qualified names via E3.
 5. **E5** **CMOF writer** (`mm_write.py`, CMOF mode) — BPMN20.cmof round-trip
-   parity (parse → gen.bpmn → write → canonical-compare vs original).
+   parity (parse → umlmeta.bpmn → write → canonical-compare vs original).
 6. **E6** **EMOF writer** (`mm_write.py`, EMOF mode) — verification-grade
    round-trip of a small package.
 
@@ -46,7 +46,7 @@ Close the write-path and QoL gaps identified in the OpenAPI-coverage survey:
   root-level non-metamodel elements (UML 2.1-style unprefixed dialect).
 - `gen/{standard_profile,sysml,uaf}.py` carry **no profile `uri`** metadata —
   required for E2 application namespaces.
-- `gen/bpmn.py` loses the parse-time `synthesized` flag (only a source
+- `src/umlmeta/bpmn.py` loses the parse-time `synthesized` flag (only a source
   comment survives) — required for E5 to know which class-attrs were
   association-owned ends.
 - Writers will use lxml (~/ams-gra-sim/.venv); runtime modules
@@ -55,7 +55,7 @@ Close the write-path and QoL gaps identified in the OpenAPI-coverage survey:
 ## Corpus & normative sources
 
 Repo stays OMG-corpus-clean; spec texts live locally (gitignored, like
-transition.txt), downloaded to `/mnt/TBFox/` or `~/uml2py/*.txt`:
+transition.txt), downloaded to `/mnt/TBFox/` or `~/umlmeta/*.txt`:
 
 - **Instance corpora** (already on disk): `/mnt/TBFox/DoDAFLibrary.xmi`,
   `/mnt/TBFox/uml_xmi/MeasurementsLibrary.xmi` (UAF applications),
@@ -133,7 +133,7 @@ pyface black-box parity discipline.
 ### E3 — Derived properties & union evaluation (`derived.py`)
 
 - Fetch UML 2.5.1 text; extract OCL; implement tractable normative
-  derivations as free functions over `gen.uml25` objects (generated modules
+  derivations as free functions over `umlmeta.uml25` objects (generated modules
   stay byte-frozen):
   - `owner`, `all_owned_elements`, `must_be_owned`
   - `qualified_name` (namespace chain, `::` separator, spec special cases)
@@ -149,7 +149,7 @@ pyface black-box parity discipline.
 
 ### E4 — Query helpers (`query.py`)
 
-- API sketch (stdlib-only, operates on `gen.uml25` objects):
+- API sketch (stdlib-only, operates on `umlmeta.uml25` objects):
 
   ```python
   walk(root)            # DFS over composite containment, yields Elements
@@ -168,14 +168,14 @@ pyface black-box parity discipline.
 ### E5 — CMOF writer (`mm_write.py`, CMOF mode)
 
 - Generator change: `generate_bpmn.py` emits a `_SYNTH = {"Partner": ("backRef", ...)}` table (association-owned ends recovered from the parse-time
-  `synthesized` flags); regenerate `gen/bpmn.py`; `check_bpmn.py` green.
+  `synthesized` flags); regenerate `src/umlmeta/bpmn.py`; `check_bpmn.py` green.
 - Writer reconstructs `cmof:Package` per the BPMN20.cmof dialect: classes
   with `superClass` attrs, `ownedAttribute` with full multiplicity
   (P8 absent-vs-default mirroring), enums with `ownedLiteral`, href
   primitives (`cmof.xml#String` etc.), synthesized ends back as
   association-owned `ownedEnd` + `memberEnd` name-pairs, deterministic
   `A_*` association ids; external BPMNDI href preserved.
-- Oracle: parse(BPMN20.cmof) → gen.bpmn → write → canon-compare vs
+- Oracle: parse(BPMN20.cmof) → umlmeta.bpmn → write → canon-compare vs
   original. Gate: structural parity; stretch: byte parity (documented, not
   gating). `check_cmof_write.py`: ~15–20 checks.
 

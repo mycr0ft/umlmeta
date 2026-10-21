@@ -15,8 +15,8 @@ import os
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from mdzip_diff import import_records, diff_records  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
+from umlmeta.mdzip_diff import import_records, diff_records  # noqa: E402
 
 REV = Path(os.environ.get("MDZIP_REVISIONS",
                           "/mnt/TBFox/mdzip_corpus/_revisions"))
@@ -63,7 +63,7 @@ if p:
           c["matched"] == c["old"] == c["new"], json.dumps(c))
     # the re-save DID touch a table diagram: SAF_changelog Table gained a
     # usedElements row (new changelog entry) -- visible as a Diagram diff
-    from mdzip_diff import model_hash
+    from umlmeta.mdzip_diff import model_hash
     da = [r for r in ra if r["mc"] == "Diagram"
           and "changelog" in (r["name"] or "")]
     db = [r for r in rb if r["mc"] == "Diagram"

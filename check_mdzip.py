@@ -18,8 +18,8 @@ import sys
 import zipfile
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from mdzip import MdZip, sniff_bytes  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
+from umlmeta.mdzip import MdZip, sniff_bytes  # noqa: E402
 
 CORPUS = Path(os.environ.get("MDZIP_CORPUS", "/tmp/mdzip_probe"))
 FILES = {n: CORPUS / f"{n}.mdzip" for n in ("APE", "MPS", "maas-warehouse")}

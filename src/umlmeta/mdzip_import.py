@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""mdzip_import.py - MagicDraw/Cameo .mdzip -> gen.uml25 objects.
+"""mdzip_import.py - MagicDraw/Cameo .mdzip -> umlmeta.uml25 objects.
 
 Increment 2 of the mdzip pipeline (mdzip.py is the scrape/forensics layer).
 Strategy: mdzip model members are XMI 2.0 snapshots of ONE model, split so
@@ -10,7 +10,7 @@ that references resolve globally by xmi:id.  So the importer
      in-document for read_xmi21);
   2. coerces element types that MagicDraw serializes as raw metamodel IDs
      (xmi:type="_9_0_2_91a0295_...") -- first from the parent feature's
-     declared metaclass in gen.uml25 (the metamodel itself is the map),
+     declared metaclass in umlmeta.uml25 (the metamodel itself is the map),
      then from a small structural signature table;
   3. rewrites cross-project references (local:/PROJECT-<id>?resource=...,
      the proxy/usage mechanism) into http-synthetic hrefs so read_xmi21
@@ -34,9 +34,9 @@ from pathlib import Path
 from xml.etree import ElementTree as ET
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from mdzip import MdZip  # noqa: E402
-from xmi21 import read_xmi21, CONSTRUCTIBLE  # noqa: E402
-from gen import uml25 as U  # noqa: E402
+from .mdzip import MdZip  # noqa: E402
+from .xmi21 import read_xmi21, CONSTRUCTIBLE  # noqa: E402
+from . import uml25 as U  # noqa: E402
 
 OMG_XMI = "http://www.omg.org/XMI"              # XMI 2.0 (Nomagic spells attrs here)
 OMG_XMI_25 = "http://www.omg.org/spec/XMI/20131001"   # what read_xmi21 accepts
@@ -115,7 +115,7 @@ class MdZipImport:
 
 
 class _PropsCache:
-    """gen.uml25 feature descriptors without re-instantiating constantly."""
+    """umlmeta.uml25 feature descriptors without re-instantiating constantly."""
 
     def __init__(self):
         self._d = {}
@@ -310,7 +310,7 @@ def _extract_profile_layer(root, imp):
                     key = (tagdefs.get(tagdef_id) or {}).get("name") or tagdef_id
                     imp.tag_values.setdefault(app_id, {})[key] = val
                     tv_seen += 1
-                parent.remove(el)     # no ElementTaggedValue in gen.uml25
+                parent.remove(el)     # no ElementTaggedValue in umlmeta.uml25
             elif ln == "appliedStereotype":
                 href = el.get("href") or ""
                 sid = href.split("#")[-1]
@@ -446,7 +446,7 @@ def _content_refs_iter(el):
 def _harvest_diagrams(root, imp):
     """MagicDraw carries diagrams as <ownedDiagram xmi:type="uml:Diagram">
     under <xmi:Extension><modelExtension> wrappers on model elements.
-    gen.uml25 has no Diagram metaclass; harvest each diagram as a record
+    umlmeta.uml25 has no Diagram metaclass; harvest each diagram as a record
     {id, name, context, owner_ref, n_contents, owner_obj} into
     imp.diagrams.  The xmi:Extension wrapper element itself is removed
     from the tree (the reader records it as an unmapped feature

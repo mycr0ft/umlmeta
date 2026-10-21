@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """End-to-end check: read the OMG-published UPDM example model
 DoDAFLibrary.xmi (XMI 2.1 / EMF dialect) with the clean-room instance
-reader, verify the resulting gen.uml25 objects, then emit SysML v2
+reader, verify the resulting umlmeta.uml25 objects, then emit SysML v2
 textual notation and validate it with sysmlpy.
 
 Corpus eligibility: OMG-published model (see REPORT.md; commercial
@@ -11,10 +11,10 @@ Run under ~/sysmlpy/.venv (needs sysmlpy + pint)."""
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-import gen.uml25 as U  # noqa: E402
-import v1_to_v2 as M  # noqa: E402
-import xmi21  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
+from umlmeta import uml25 as U  # noqa: E402
+from umlmeta import v1_to_v2 as M  # noqa: E402
+from umlmeta import xmi21  # noqa: E402
 
 DODAF = "/mnt/TBFox/DoDAFLibrary.xmi"
 

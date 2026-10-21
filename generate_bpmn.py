@@ -22,12 +22,12 @@ CMOF dialect handled here (distinct from the UML 2.5.1 EMF dialect):
   Integer), MOF DOM Element by href, and one external BPMNDI.cmof
   href kept as a late-bound string.
 
-The emitted gen/bpmn.py reuses gen.uml25's _Ref/_RefList descriptors
+The emitted src/umlmeta/bpmn.py reuses umlmeta.uml25's _Ref/_RefList descriptors
 (their wiring hooks are UML-scoped and no-op for BPMN instances) on a
 local _MOFBase base - BPMN classes are deliberately NOT UML Elements.
 
 Usage: <venv-with-lxml>/bin/python generate_bpmn.py
-Writes: gen/bpmn.py and bpmn_stats.json
+Writes: src/umlmeta/bpmn.py and bpmn_stats.json
 """
 import json
 import re
@@ -253,7 +253,7 @@ def emit_module(classes, assocs, warns, meta):
     w("Source: https://www.omg.org/spec/BPMN/20100501/BPMN20.cmof")
     w("(OMG BPMN 2.0.2). CMOF dialect: superClass attributes, memberEnd")
     w("name-pairs, href-typed primitives. The CMOF carries no OCL - BPMN")
-    w("constraints are normative prose in the spec. Reuses gen.uml25's")
+    w("constraints are normative prose in the spec. Reuses umlmeta.uml25's")
     w("_Ref/_RefList descriptors (their wiring hooks are UML-scoped and")
     w("no-op here); BPMN classes are deliberately NOT UML Elements.")
     w('"""')
@@ -261,11 +261,11 @@ def emit_module(classes, assocs, warns, meta):
     w("")
     w("import enum as _enum")
     w("")
-    w("from gen.uml25 import _Ref  # noqa: F401  (descriptor machinery)")
+    w("from umlmeta.uml25 import _Ref  # noqa: F401  (descriptor machinery)")
     w("")
     w("")
     w("class _MOFBase:")
-    w('    """Common base of all BPMN classes (mirrors gen.uml25._Element')
+    w('    """Common base of all BPMN classes (mirrors umlmeta.uml25._Element')
     w('    mechanics: _vals storage, _union reads, add() helper - without')
     w('    UML composite-ownership wiring)."""')
     w("    _DECL: dict = {}")
@@ -496,8 +496,8 @@ def emit_module(classes, assocs, warns, meta):
     w("")
 
     code = "\n".join(o) + "\n"
-    dest = HERE / "gen"
-    dest.mkdir(exist_ok=True)
+    dest = HERE / "src" / "umlmeta"
+    dest.mkdir(exist_ok=True, parents=True)
     (dest / "bpmn.py").write_text(code)
     return warns
 

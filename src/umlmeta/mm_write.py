@@ -72,7 +72,7 @@ def _class_name(module, b):
 def write_cmof(module) -> bytes:
     """Serialize the generated BPMN metamodel as CMOF XMI bytes.
 
-    `module` is gen.bpmn (or an equivalent generated CMOF module) carrying
+    `module` is umlmeta.bpmn (or an equivalent generated CMOF module) carrying
     _CLASSES, _ASSOCIATIONS and the _SYNTH table."""
     synth = getattr(module, "_SYNTH", None)
     if synth is None:
@@ -239,7 +239,7 @@ _EMOF_DEFAULTS = {"lower": "1", "upper": "1", "isOrdered": "false",
 def write_emof(module, classes):
     """Serialize a trimmed metamodel subset in the EMOF dialect.
 
-    `module` is gen.bpmn (or equivalent); `classes` is an iterable of
+    `module` is umlmeta.bpmn (or equivalent); `classes` is an iterable of
     runtime class objects to include (their enums are auto-included if
     any property is enum-typed; superClasses are written verbatim even
     when outside the subset - the reference stays resolvable by name)."""

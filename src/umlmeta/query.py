@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Query helpers over gen.uml25 instance graphs (stdlib only).
+"""Query helpers over umlmeta.uml25 instance graphs (stdlib only).
 
 - walk(root): deterministic DFS over composite containment (derived
   unions via derived.union, cycle-guarded); yields the root first.
@@ -20,8 +20,8 @@
 """
 from __future__ import annotations
 
-import gen.uml25 as uml
-import derived as D
+from . import uml25 as uml
+from . import derived as D
 
 
 def _cls(spec):
@@ -93,13 +93,13 @@ def count(root, **kw):
 
 def _stereo_registry(modules=None):
     """(profile, localname) -> full _STEREO label, from the generated
-    profile modules (gen.uaf / gen.sysml / gen.standard_profile unless
+    profile modules (umlmeta.uaf / umlmeta.sysml / umlmeta.standard_profile unless
     overridden)."""
     reg = {}
     if modules is None:
         modules = []
         import importlib
-        for name in ("gen.uaf", "gen.sysml", "gen.standard_profile"):
+        for name in ("umlmeta.uaf", "umlmeta.sysml", "umlmeta.standard_profile"):
             try:
                 modules.append(importlib.import_module(name))
             except ImportError:
