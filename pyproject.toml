@@ -33,7 +33,7 @@ dev = ["lxml>=4.9", "pytest>=7.0"]
 Homepage = "https://github.com/mycr0ft/umlmeta"
 Repository = "https://github.com/mycr0ft/umlmeta"
 Issues = "https://github.com/mycr0ft/umlmeta/issues"
-Changelog = "https://github.com/mycr0ft/umlmeta/blob/main/CHANGELOG.md"
+Changelog = "https://github.com/mycr0ft/umlmeta/blob/master/CHANGELOG.md"
 
 [build-system]
 requires = ["setuptools>=68", "wheel"]
