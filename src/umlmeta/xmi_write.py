@@ -44,6 +44,10 @@ from . import uml25 as U
 XMI_NS = "http://schema.omg.org/spec/XMI/2.1"
 UML_NS_DEFAULT = "http://www.omg.org/spec/UML/20090901"
 
+# Cameo/MagicDraw's UML 2.5.1 XMI dialect.
+XMI_NS_CAMEO = "http://www.omg.org/spec/XMI/20131001"
+UML_NS_CAMEO = "http://www.omg.org/spec/UML/20131001"
+
 
 class WriteError(Exception):
     """A reference target outside the containment graph (dangling)."""
@@ -163,7 +167,9 @@ def apps_from_model(m):
 
 
 def write_xmi(roots, apps=None, nsmap=None, profile_applications=(),
-              uml_ns=UML_NS_DEFAULT, profiles=None):
+              uml_ns=UML_NS_DEFAULT, profiles=None, *,
+              xmi_version=None, applications_after_roots=False,
+              root_metaclass=None, wrap_roots=False, root_name="Model"):
     """Serialize an object graph (and optional profile applications) as
     EMF-dialect XMI. Returns bytes.
 
@@ -173,7 +179,12 @@ def write_xmi(roots, apps=None, nsmap=None, profile_applications=(),
     2.5.1-era EMF form - prefixed application elements with base_<Meta>
     (and tag) attributes. nsmap['uml'] likewise overrides uml_ns.
     `profiles` maps a profile name to its generated module (with _URI /
-    _EXTENSIONS) for applications whose URI is not in nsmap."""
+    _EXTENSIONS) for applications whose URI is not in nsmap.
+
+    The optional Cameo-oriented controls add ``xmi:version``, place
+    stereotype applications after the UML roots, override the root
+    metaclass (for example, ``Model``), and can wrap package roots inside
+    a real UML Model so the package remains visible in Cameo."""
     apps = sorted(apps or [], key=_apps_key)
     nsmap = dict(nsmap or {"xmi": XMI_NS, "uml": uml_ns})
     xmi_uri = nsmap.get("xmi", XMI_NS)
@@ -186,6 +197,8 @@ def write_xmi(roots, apps=None, nsmap=None, profile_applications=(),
     in_graph = {id(el) for el in graph}
 
     root = etree.Element(f"{{{xmi_uri}}}XMI", nsmap=nsmap)
+    if xmi_version is not None:
+        root.set(f"{{{xmi_uri}}}version", str(xmi_version))
 
     def ref_child(parent, name, target):
         href = getattr(target, "_external_href", None)
@@ -200,36 +213,40 @@ def write_xmi(roots, apps=None, nsmap=None, profile_applications=(),
         c.set(f"{{{xmi_uri}}}idref", ids.ident(target))
         return c
 
-    # ---- stereotype applications first (corpus document order) -----------
-    for app in apps:
-        profile, stereo, base, app_id, base_feat = app[:5]
-        tags = app[5] if len(app) > 5 else None
-        uri = _app_uri(profile, nsmap, profiles)
-        a = etree.SubElement(root, f"{{{uri}}}{stereo}")
-        if app_id:
-            a.set(f"{{{xmi_uri}}}id", app_id)
-        if isinstance(base, str):
-            base_id = base
-            if not base_feat:
-                base_feat = _ext_base(profiles, profile, stereo)
-                if base_feat is None:
-                    raise WriteError(
-                        f"application {profile}::{stereo}: base element "
-                        f"given as id without base_<Meta> feature and no "
-                        f"profiles module to resolve it")
-        else:
-            base_id = ids.ident(base)
-        bf = base_feat or "base_" + type(base).__name__
-        if p10:
-            a.set(bf, base_id)
-            for tk, tv in sorted((tags or {}).items()):
-                a.set(tk, tv)
-        else:
-            etree.SubElement(a, bf).set(f"{{{xmi_uri}}}idref", base_id)
-            if tags:
-                for tk, tv in sorted(tags.items()):
-                    tc = etree.SubElement(a, tk)
-                    tc.text = tv
+    def write_apps():
+        # ---- stereotype applications --------------------------------------
+        for app in apps:
+            profile, stereo, base, app_id, base_feat = app[:5]
+            tags = app[5] if len(app) > 5 else None
+            uri = _app_uri(profile, nsmap, profiles)
+            a = etree.SubElement(root, f"{{{uri}}}{stereo}")
+            if app_id:
+                a.set(f"{{{xmi_uri}}}id", app_id)
+            if isinstance(base, str):
+                base_id = base
+                if not base_feat:
+                    base_feat = _ext_base(profiles, profile, stereo)
+                    if base_feat is None:
+                        raise WriteError(
+                            f"application {profile}::{stereo}: base element "
+                            f"given as id without base_<Meta> feature and no "
+                            f"profiles module to resolve it")
+            else:
+                base_id = ids.ident(base)
+            bf = base_feat or "base_" + type(base).__name__
+            if p10:
+                a.set(bf, base_id)
+                for tk, tv in sorted((tags or {}).items()):
+                    a.set(tk, tv)
+            else:
+                etree.SubElement(a, bf).set(f"{{{xmi_uri}}}idref", base_id)
+                if tags:
+                    for tk, tv in sorted(tags.items()):
+                        tc = etree.SubElement(a, tk)
+                        tc.text = tv
+
+    if not applications_after_roots:
+        write_apps()
 
     # ---- UML elements ------------------------------------------------------
     def build(el, parent, tag, owner=None, opp_name=None):
@@ -289,8 +306,30 @@ def write_xmi(roots, apps=None, nsmap=None, profile_applications=(),
                         ref_child(e, name, it)
         return e
 
-    built_roots = [build(r, root, f"{{{uml_ns}}}{type(r).__name__}")
-                   for r in roots]
+    if wrap_roots:
+        if not roots:
+            built_roots = []
+        else:
+            # Do not mutate the metamodel graph just to add Cameo's UML
+            # project wrapper.  The original Package is retained as a
+            # packagedElement beneath a synthetic Model element.
+            model = etree.SubElement(root, f"{{{uml_ns}}}Model")
+            model.set(f"{{{xmi_uri}}}type", "uml:Model")
+            model.set(f"{{{xmi_uri}}}id", ids.ident(roots[0]) + "_model")
+            model.set("name", root_name)
+            for r in roots:
+                build(r, model, "packagedElement")
+            built_roots = [model]
+    else:
+        built_roots = [build(
+            r, root, f"{{{uml_ns}}}{root_metaclass or type(r).__name__}")
+            for r in roots]
+        if root_metaclass:
+            for e in built_roots:
+                e.set(f"{{{xmi_uri}}}type", f"uml:{root_metaclass}")
+
+    if applications_after_roots:
+        write_apps()
 
     # profile applications recorded on the first root (one per applied
     # profile href; the reader flattens the corpus form)
@@ -303,3 +342,32 @@ def write_xmi(roots, apps=None, nsmap=None, profile_applications=(),
 
     return etree.tostring(root, xml_declaration=True, encoding="UTF-8",
                           pretty_print=True)
+
+
+def write_cameo_xmi(roots, apps=None, nsmap=None, profile_applications=(),
+                    profiles=None):
+    """Serialize a UML/SysML model in Cameo/MagicDraw's XMI dialect.
+
+    Cameo expects the UML 2.5.1 namespace pair, an explicit XMI version,
+    ``uml:Model`` as the document root, unqualified primitive/reference
+    attributes, and top-level stereotype applications after the UML root.
+    """
+    supplied = dict(nsmap or {})
+    # These three namespaces are dialect-defining and must not inherit the
+    # older OMG-corpus values when a caller reuses its namespace map.
+    supplied["xmi"] = XMI_NS_CAMEO
+    supplied["uml"] = UML_NS_CAMEO
+    # Cameo exports the profile package URI, not merely the SysML standard
+    # namespace used by the older OMG corpus.
+    supplied["sysml"] = "http://www.omg.org/spec/SysML/20181001/SysML"
+    return write_xmi(
+        roots,
+        apps=apps,
+        nsmap=supplied,
+        profile_applications=profile_applications,
+        profiles=profiles,
+        xmi_version="2.1",
+        applications_after_roots=True,
+        root_metaclass="Model",
+        wrap_roots=True,
+    )

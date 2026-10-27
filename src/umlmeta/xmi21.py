@@ -37,6 +37,8 @@ v1->v2 emitter works on the result unchanged.
 """
 from __future__ import annotations
 
+import enum as _enum
+
 from lxml import etree
 
 from . import uml25 as U
@@ -48,12 +50,21 @@ COMPOSITE = {"packagedElement", "nestedClassifier", "ownedAttribute",
              "ownedLiteral", "ownedEnd", "ownedComment", "ownedConnector",
              "ownedParameter", "ownedOperation", "ownedMember", "region",
              "subvertex", "transition", "packageImport", "slot",
-             "generalization", "ownedRule"}
+             "generalization", "ownedRule",
+             # SysML v1 profile bases (synthetic VehicleExample,
+             # check_xmi_vehicle.py): Connector ends, UseCase includes
+             "end", "include"}
 # single-value string features
 STRING = {"name", "body", "visibility", "language", "URI"}
 # single reference features
 REF_SINGLE = {"type", "association", "general", "classifier",
-              "specification", "importedPackage", "owningPackage"}
+              "specification", "importedPackage", "owningPackage",
+              # containment opposite on PackageImport (idempotent with the
+              # add() hook's wiring)
+              "importingNamespace",
+              # SysML v1 profile bases: ConnectorEnd role, Transition
+              # source/target, Include addition
+              "role", "source", "target", "addition"}
 # multi reference features (may arrive before their targets)
 REF_MULTI = {"memberEnd", "annotatedElement", "client", "supplier"}
 # multiplicity literal features
@@ -69,7 +80,14 @@ CONSTRUCTIBLE = {"Model", "Package", "Class", "DataType", "Enumeration",
                  "OpaqueExpression", "Connector", "ConnectorEnd",
                  "Generalization", "InstanceSpecification", "Slot",
                  "InstanceValue", "Dependency", "Interface",
-                 "PackageImport"}
+                 "PackageImport",
+                 # SysML v1 profile stereotype bases (synthetic
+                 # VehicleExample, check_xmi_vehicle.py): behavior /
+                 # requirement metaclasses absent from the
+                 # DoDAF/Measurements corpora
+                 "Parameter", "Abstraction", "Behavior", "Actor",
+                 "StateMachine", "Region", "State", "Transition",
+                 "Activity", "UseCase", "Include"}
 
 # metaclasses for which a missing name is derived from the xmi:id tail
 # (recorded in derived_names, never silently invented)
@@ -200,6 +218,17 @@ def read_xmi21(path) -> XMI21Model:
                         # feature default: 0 for UnlimitedNatural (so an
                         # empty <lowerValue/> = 0, i.e. [0..*] with '*').
                         lit._vals["value"] = U.UnlimitedNatural(0)
+                continue
+            d = obj._props.get(feat)
+            if c.text is not None and c.text.strip() \
+                    and d is not None and isinstance(d.t, type) \
+                    and issubclass(d.t, _enum.Enum):
+                # enum-valued feature as a text child (2.1 dialect):
+                # aggregation, direction, ...
+                try:
+                    obj._vals[feat] = d.t(c.text.strip())
+                except ValueError:
+                    xmi.unmapped_features.append((xid(el), feat))
                 continue
             idref = _xget(c, "idref")
             href = c.get("href")
