@@ -26,6 +26,11 @@ DoDAFLibrary.xmi, the E1 oracle corpus; see PLAN.md probes P1-P3):
   - deterministic ids: stored _xmi_id is reused (round-trip stable);
     otherwise '_<n>' in traversal order.
 
+Cameo/MagicDraw output is available through ``write_cameo_xmi``. It uses the
+UML 2.5.1 namespace pair and P10 attribute form, wraps supplied packages in a
+real ``uml:Model``, and writes top-level stereotype applications after the
+model. See ``docs/CAMEO_XMI.md`` for the interoperability rationale.
+
 Usage (round-trip of a reader result):
     m = xmi21.read_xmi21(path)
     data = xmi_write.write_xmi(m.roots,
