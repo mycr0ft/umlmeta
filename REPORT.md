@@ -2534,3 +2534,24 @@ sites).
 - check_v1_to_v2_as.py: 117 passed (wave-P block; defaults oracle now
   exercised through the fixed membership path).
 - Full sweep green (19 suites + text 49 + vehicle 12 + cameo 15).
+
+# Part 35: wave Q - the value-specification literal family
+
+ValueSpecification_Mapping (7.7.14.3.33) + the literal family
+(7.7.14.3.8-.16) now real: a v1 literal default maps to its SysML v2
+LiteralExpression itself - LiteralBoolean, LiteralInteger,
+LiteralString, LiteralReal -> LiteralRational, LiteralNull ->
+NullExpression, LiteralUnlimitedNatural -> LiteralInfinity when -1
+(the unlimited filter) else LiteralInteger - each carrying the .33
+return membership and its own LiteralSpecificationTyping when the
+literal states a type. The instance/opaque-expression default shapes
+keep their calibrated machinery (the feature-reference forms).
+
+Runtime fact pinned: the _Ref single descriptors store raw - no
+coercion through the declared type (LiteralRational(value='2.5')
+stays a string) - the transformer coerces.
+
+## Result
+
+- check_v1_to_v2_as.py: 119 passed (wave-Q block).
+- Full sweep green.

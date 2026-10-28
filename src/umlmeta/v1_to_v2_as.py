@@ -431,6 +431,17 @@ def _attach_feature_extras(prop, usage, index):
         usage.ownedRelationship.append(rd)
     dflt = prop._vals.get("defaultValue")
     if dflt is not None:
+        if isinstance(dflt, list):        # raw single-store unwraps
+            dflt = dflt[0] if dflt else None
+    if dflt is not None:
+        vs2 = _map_value_spec(dflt, index)
+        if vs2 is not None:
+            # 7.7.14.3.33: a literal default maps to the Literal-
+            # Expression itself (return membership + typing)
+            fv = S2.FeatureValue()
+            fv.value = vs2
+            usage.ownedRelationship.append(fv)
+            return
         fv = S2.FeatureValue()
         val = dflt._vals.get("value") if isinstance(dflt, U.InstanceValue) \
             else None
@@ -912,6 +923,50 @@ def _populate_statemachine(sm, v2def, index):
                         _trigger_carrier(tg, tg._vals.get("event"), index))
                 _own_membership(v2def, tu)
                 index[id(tr)] = tu
+
+
+def _map_value_spec(vs, index):
+    """ValueSpecification_Mapping (7.7.14.3.33) + the literal family
+    (7.7.14.3.8-.16): a LiteralSpecification maps to its SysML v2
+    LiteralExpression - LiteralInteger -> LiteralInteger (.9),
+    LiteralBoolean -> LiteralBoolean (.8), LiteralString ->
+    LiteralString (.14), LiteralReal -> LiteralRational (.11),
+    LiteralNull -> NullExpression (.10), LiteralUnlimitedNatural ->
+    LiteralInfinity when -1 (the unlimited filter, .15) else
+    LiteralInteger (.16) - carrying the .33 return membership
+    (CommonReturnParameterFeatureMembership) and the literal's own
+    typing when it states one (LiteralSpecificationTyping). Returns
+    None for value-specification kinds without a literal mapping (the
+    caller's calibrated machinery applies)."""
+    lit = None
+    if isinstance(vs, U.LiteralUnlimitedNatural):
+        if vs._vals.get("value") == -1:
+            lit = S2.LiteralInfinity()
+        else:
+            lit = S2.LiteralInteger(value=int(vs._vals.get("value") or 0))
+    elif isinstance(vs, U.LiteralInteger):
+        lit = S2.LiteralInteger(value=int(vs._vals.get("value") or 0))
+    elif isinstance(vs, U.LiteralString):
+        lit = S2.LiteralString(value=vs._vals.get("value") or "")
+    elif isinstance(vs, U.LiteralBoolean):
+        lit = S2.LiteralBoolean(value=bool(vs._vals.get("value")))
+    elif isinstance(vs, U.LiteralReal):
+        lit = S2.LiteralRational(value=float(vs._vals.get("value") or 0.0))
+    elif isinstance(vs, U.LiteralNull):
+        lit = S2.NullExpression()
+    else:
+        return None
+    rpm = S2.ReturnParameterMembership()
+    rpm.ownedRelatedElement.append(S2.ReferenceUsage(direction="out"))
+    lit.ownedRelationship.append(rpm)
+    ty = vs._vals.get("type") if hasattr(vs, "_vals") else None
+    if ty is not None:
+        ty2 = index.get(id(ty)) if index is not None else None
+        if ty2 is not None:
+            ft = S2.FeatureTyping()
+            ft.type = ty2
+            lit.ownedTyping.append(ft)
+    return lit
 
 
 def _opaque_repr(lang, body):

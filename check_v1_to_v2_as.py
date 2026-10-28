@@ -1426,6 +1426,72 @@ check("guarded ObjectFlow keeps the flow AND the guard transition "
               == "Water" for ft in of_in_ref[0].ownedTyping))
 
 print()
+print("== wave Q: value-specification literals (7.7.14.3.33, .8-.16) ==")
+qpkg = U.Package(name="LitPkg")
+qb = U.Class(name="Lits")
+q_specs = {}
+
+def _qlit(cls, **kw):
+    lit = cls()
+    for k, v in kw.items():
+        lit._vals[k] = v
+    return lit
+
+q_lit_props = [
+    ("pi", U.LiteralInteger, {"value": 5}),
+    ("pb", U.LiteralBoolean, {"value": True}),
+    ("ps", U.LiteralString, {"value": "the"},
+     ),
+    ("pn", U.LiteralNull, {}),
+]
+for pname, lcls, kw in q_lit_props:
+    pr = U.Property(name=pname)
+    lit = _qlit(lcls, **kw)
+    pr._vals["defaultValue"] = [lit]
+    qb.ownedAttribute.append(pr)
+pr_r = U.Property(name="pr")
+pr_r._vals["defaultValue"] = [_qlit(U.LiteralReal, value="2.5")]
+qb.ownedAttribute.append(pr_r)
+pr_inf = U.Property(name="pinf")
+pr_inf._vals["defaultValue"] = [_qlit(U.LiteralUnlimitedNatural, value=-1)]
+qb.ownedAttribute.append(pr_inf)
+qpkg.add("packagedElement", qb)
+qout = A.transform_package(qpkg)
+qb_def = [e for e in qout.ownedElement if e.declaredName == "Lits"][0]
+
+def _featurevalues(owner):
+    out = {}
+    for r in owner.ownedRelationship:
+        if type(r).__name__ != "FeatureMembership":
+            continue
+        for x in r.ownedRelatedElement:
+            fvs = [rel for rel in x.ownedRelationship
+                   if type(rel).__name__ == "FeatureValue"]
+            if fvs:
+                out[x.declaredName] = fvs[0]._vals.get("value")
+    return out
+
+q_fv = _featurevalues(qb_def)
+qexpect = {"pi": ("LiteralInteger", 5), "pb": ("LiteralBoolean", True),
+           "ps": ("LiteralString", "the"),
+           "pn": ("NullExpression", None),
+           "pr": ("LiteralRational", 2.5),
+           "pinf": ("LiteralInfinity", None)}
+check("literal defaults map to the LiteralExpression classes "
+      "(7.7.14.3.8-.16)",
+      set(q_fv) == set(qexpect)
+      and all(type(q_fv[k]).__name__ == qexpect[k][0]
+              and (getattr(q_fv[k], "value", None) == qexpect[k][1]
+                   if qexpect[k][1] is not None else True)
+              for k in qexpect), str({k: type(v).__name__
+                                      for k, v in q_fv.items()}))
+if "pi" in q_fv:
+    pi_rels = [type(r).__name__ for r in q_fv["pi"].ownedRelationship]
+    check("the literal carries its .33 return membership "
+          "(CommonReturnParameterFeatureMembership)",
+          pi_rels.count("ReturnParameterMembership") == 1, str(pi_rels))
+
+print()
 print("== honesty: unmapped features refuse to guess ==")
 orphan = U.Package(name="Orphan")
 orphan.add("packagedElement", U.Continuation(name="CX"))
