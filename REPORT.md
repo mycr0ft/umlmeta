@@ -2664,3 +2664,29 @@ OpaqueExpressionFeature in operator contexts, TimeExpression struct
 forms), continuous/discrete/ControlValues metadata, and the
 library-external redefinitions (name-only in all waves). Every one is
 an itemized row in the realization table + the module docstring.
+
+# Part 40: wave T2 - rate specializations + time expressions
+
+- Rate specializations (7.8.2.3.8/.9): Continuous/Discrete map to the
+  RateData MetadataUsage with 'isContinuous'/'isDiscrete' =
+  LiteralBoolean(true) (the ContinuousFeatureMembership/Discrete
+  forms). Per the normative text ('The mapping of the rate instance
+  value is not specified yet') the 'rate' tag VALUE stays uncarried -
+  the wave-T value-carry of the rate was removed (never invented
+  data); the probability VALUE stays mapped (the .3.5 machinery).
+  Runtime facts pinned along the way: MetadataUsage carries its
+  feature memberships via ownedRelationship (no
+  ownedRelatedElement); FeatureValue carries the value EXPRESSION via
+  the normative FeatureValue::value field - the wave-D defaults path
+  had used the membership-own form and also silently carried an EMPTY
+  literal for an OpaqueExpression-backed default (the body never
+  read; now read - both fixed as class-of-bug).
+- TimeExpression (7.7.14.3.32): a standalone TimeExpression (outside
+  a trigger) maps via its inner expr - the shell elides (itemized);
+  an OpaqueExpression inner carries as the feature-reference body,
+  literal inners map through the literal family.
+
+## Result
+
+- check_v1_to_v2_as.py: 132 passed.
+- Full sweep green.

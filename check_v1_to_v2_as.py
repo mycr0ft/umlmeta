@@ -1609,9 +1609,9 @@ tcls = U.Class(name="Pump")
 tpr = U.Property(name="flow")
 # the reader attaches the applied stereotypes + tag values directly:
 tpr._applied_stereotypes = [("SysML", "Probability", "app1"),
-                            ("SysML", "Rate", "app2")]
+                            ("SysML", "Discrete", "app2")]
 tpr._stereo_tags = {"Probability": {"probability": "0.5"},
-                    "Rate": {"rate": "12"}}
+                    "Discrete": {}}
 tcls.ownedAttribute.append(tpr)
 tpr2 = U.Property(name="plain")
 tcls.ownedAttribute.append(tpr2)
@@ -1634,20 +1634,79 @@ check("Probability/Rate -> MetadataUsages on the mapped property "
       "(7.8.2.3.1/.8)",
       len(mus) == 2
       and munames == ["SysMLv1Library::Probability",
-                      "SysMLv1Library::Rate"], str(munames))
+                      "SysMLv1Library::RateData"], str(munames))
 mvals = [getattr(_fv.value, "value", None)
          for m in mus
          for fm3 in m.ownedRelationship
          for ru3 in fm3.ownedRelatedElement
          for _fv in ru3.ownedRelationship
          if type(_fv).__name__ == "FeatureValue"]
-check("the tag values ride FeatureValues (LiteralRational)",
-      sorted(mvals) == [0.5, 12.0], str(mvals))
+nflags = [getattr(_fv.value, "value", None)
+          for m in mus
+          for fm3 in m.ownedRelationship
+          for ru3 in fm3.ownedRelatedElement
+          for _fv in ru3.ownedRelationship
+          if type(_fv).__name__ == "FeatureValue"
+          and type(_fv.value).__name__ == "LiteralBoolean"]
+check("the tag value rides a LiteralRational; the Discrete marker "
+      "carries isDiscrete = true (7.8.2.3.8)",
+      0.5 in mvals and nflags == [True], str((mvals, nflags)))
 check("a plain property carries no metadata",
       not any(type(r).__name__ == "OwningMembership"
               and any(type(x).__name__ == "MetadataUsage"
                       for x in r.ownedRelatedElement)
               for r in tuses["plain"].ownedRelationship))
+
+print()
+print("== wave T2: continuous metadata + time expressions "
+      "(7.8.2.3.9, 7.7.14.3.32) ==")
+cpkg = U.Package(name="ContPkg")
+ccls = U.Class(name="C")
+cpr = U.Property(name="cparam")
+cpr._applied_stereotypes = [("SysML", "Continuous", "a3")]
+cpr._stereo_tags = {"Continuous": {}}
+ccls.ownedAttribute.append(cpr)
+tpr3 = U.Property(name="td")
+te = U.TimeExpression()
+oe3 = U.OpaqueExpression()
+oe3._vals["language"] = "OCL2.0"
+oe3._vals["body"] = "3s"
+te._vals["expr"] = oe3
+tpr3._vals["defaultValue"] = [te]
+ccls.ownedAttribute.append(tpr3)
+cpkg.add("packagedElement", ccls)
+cout = A.transform_package(cpkg)
+c_def = [e for e in cout.ownedElement if e.declaredName == "C"][0]
+cuses = {}
+for r in c_def.ownedRelationship:
+    if type(r).__name__ != "FeatureMembership":
+        continue
+    for x in r.ownedRelatedElement:
+        cuses[x.declaredName] = x
+cmus = [m for r in cuses["cparam"].ownedRelationship
+        if type(r).__name__ == "OwningMembership"
+        for m in r.ownedRelatedElement
+        if type(m).__name__ == "MetadataUsage"]
+cnames = sorted(m.declaredName for m in cmus)
+cflags = ([] if not cmus else
+          [getattr(_fv.value, "value", None)
+           for m in cmus
+           for fm3 in m.ownedRelationship
+           for ru3 in fm3.ownedRelatedElement
+           for _fv in ru3.ownedRelationship
+           if type(_fv).__name__ == "FeatureValue"])
+check("Continuous -> RateData with isContinuous = true (7.8.2.3.9)",
+      cnames == ["SysMLv1Library::RateData"] and cflags == [True],
+      str((cnames, cflags)))
+tv = _featurevalues(c_def).get("td")
+tlit = ([q.value
+         for om in tv.ownedRelationship
+         if type(om).__name__ == "OwningMembership"
+         for q in om.ownedRelatedElement
+         if type(q).__name__ == "LiteralString"] if tv else [])
+check("a TimeExpression default maps via its inner expr "
+      "(7.7.14.3.32; the shell elides, the body carries)",
+      tv is not None and tlit == ["3s"], str(tlit))
 
 print()
 print("== honesty: unmapped features refuse to guess ==")

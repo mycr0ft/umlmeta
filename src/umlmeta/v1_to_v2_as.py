@@ -430,18 +430,46 @@ def _stereo_metadata(el, feature):
     ControlValues library (Table 21's item definitions) are queued."""
     sters = getattr(el, "_applied_stereotypes", None) or []
     for _profile, stereo, _app_id in sters:
-        if stereo not in ("Probability", "Rate"):
+        if stereo not in ("Probability", "Rate", "Continuous",
+                          "Discrete"):
             continue
         tag = (getattr(el, "_stereo_tags", None) or {}).get(stereo, {})
-        mu = S2.MetadataUsage(declaredName="SysMLv1Library::" + stereo)
+        if stereo == "Continuous":
+            # 7.8.2.3.8/.9: the Continuous specialization of Rate
+            # carries the RateData MetadataUsage with isContinuous
+            # = LiteralBoolean(true) (the ContinuousFeatureMembership;
+            # the library typing/redefinition stay name-only)
+            stereo = "Rate"
+            attr, val = "isContinuous", True
+        elif stereo == "Discrete":
+            stereo = "Rate"
+            attr, val = "isDiscrete", True
+        elif stereo == "Rate":
+            # 7.8.2.3.8: 'The mapping of the rate instance value is
+            # not specified yet' - a Rate without the isDiscrete/
+            # isContinuous specialization carries the bare RateData
+            # metadata usage; the tag VALUE stays uncarried
+            # (itemized Part 40), never invented
+            tag.pop("rate", None)
+            attr = None
+        else:
+            attr = "probability"
+        mu = S2.MetadataUsage(declaredName="SysMLv1Library::"
+                              + ("RateData" if stereo == "Rate"
+                                 else "Probability"))
         fm = S2.FeatureMembership()
         ru = S2.ReferenceUsage(
             declaredName="probability" if stereo == "Probability"
-            else "rate")
-        pv = tag.get("probability" if stereo == "Probability" else "rate")
-        if pv not in (None, ""):
+            else (attr or "rate"))
+        if stereo == "Probability":
+            pv = tag.get("probability")
+            if pv not in (None, ""):
+                fv = S2.FeatureValue()
+                fv.value = S2.LiteralRational(value=float(pv))
+                ru.ownedRelationship.append(fv)
+        elif attr is not None:
             fv = S2.FeatureValue()
-            fv.value = S2.LiteralRational(value=float(pv))
+            fv.value = S2.LiteralBoolean(value=val)
             ru.ownedRelationship.append(fv)
         fm.ownedRelatedElement.append(ru)
         mu.ownedRelationship.append(fm)
@@ -503,13 +531,19 @@ def _attach_feature_extras(prop, usage, index):
         else:
             spec = dflt._vals.get("specification") if hasattr(dflt, "_vals") \
                 else None
+            if spec is None and getattr(dflt, "_vals", {}).get("body") \
+                    is not None:
+                # an OpaqueExpression default: the body carries
+                spec = dflt
             _own_membership(expr, S2.LiteralString(
-                value=str(getattr(spec, "body", "") or "")))
+                value=str(getattr(spec, "_vals", {})
+                          .get("body", "") or "")))
         try:
             expr.referent = usage
         except AttributeError:
             pass
-        fv.ownedRelatedElement.append(expr)
+        # the normative field: FeatureValue::value (7.7.4.2.16)
+        fv.value = expr
         usage.ownedRelationship.append(fv)
 
 
@@ -987,6 +1021,24 @@ def _map_value_spec(vs, index):
     None for value-specification kinds without a literal mapping (the
     caller's calibrated machinery applies)."""
     lit = None
+    if isinstance(vs, U.TimeExpression):
+        # 7.7.14.3.32: a standalone TimeExpression maps to an
+        # Expression owning its expr (ElementOwningMembership); the
+        # realization carries the mapped INNER expression (the shell
+        # is elided, itemized) - an OpaqueExpression inner carries as
+        # the feature-reference body (the calibrated value-carry);
+        # literal inners map through the literal family
+        inner = vs._vals.get("expr")
+        if inner is not None and isinstance(inner, U.OpaqueExpression):
+            body = inner._vals.get("body")
+            if body:
+                fre = S2.FeatureReferenceExpression()
+                _own_membership(fre, S2.LiteralString(value=body))
+                return fre
+            return None
+        if inner is None:
+            return None
+        return _map_value_spec(inner, index)
     if isinstance(vs, U.LiteralUnlimitedNatural):
         if vs._vals.get("value") == -1:
             lit = S2.LiteralInfinity()
