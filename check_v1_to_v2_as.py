@@ -561,6 +561,34 @@ check("Extend/ExtensionPoint not mapped: no AS artifact, no guess "
       and not any(type(x).__name__ == "IncludeUseCaseUsage"
                   for d in eout.ownedElement for x in d.ownedElement))
 
+apkg = U.Package(name="ActorPkg")
+drv = U.Actor(name="Driver")
+use = U.UseCase(name="Drive")
+apkg.packagedElement.extend([drv, use])
+ae_uc = U.Property(name="case"); ae_uc.type = use
+ae_drv = U.Property(name="who"); ae_drv.type = drv
+actor_assoc = U.Association(name="driving")
+actor_assoc.add("ownedEnd", ae_uc)
+actor_assoc.add("ownedEnd", ae_drv)
+actor_assoc.add("memberEnd", ae_uc)
+actor_assoc.add("memberEnd", ae_drv)
+apkg.packagedElement.append(actor_assoc)
+ao = A.transform_package(apkg)
+drive_def = [e for e in ao.ownedElement if e.declaredName == "Drive"][0]
+am = [r for r in drive_def.ownedRelationship
+      if type(r).__name__ == "ActorMembership"]
+drv_as = [e for e in ao.ownedElement if e.declaredName == "Driver"][0]
+actor_pu = [x for r in am for x in r.ownedRelatedElement]
+check("actor association end -> ActorMembership w/ PartUsage typed "
+      "by the actor (UseCaseActor_Mapping family)",
+      len(am) == 1 and len(actor_pu) == 1
+      and type(actor_pu[0]).__name__ == "PartUsage"
+      and actor_pu[0].declaredName == "who"
+      and any(t.type is drv_as for t in actor_pu[0].ownedTyping),
+      str([(type(x).__name__, x.declaredName,
+            [t.type.declaredName for t in x.ownedTyping])
+           for x in actor_pu]))
+
 print()
 print("== wave F: imports (7.7.9.3.12) ==")
 # R1 leg: the reader carries PackageImport/ElementImport

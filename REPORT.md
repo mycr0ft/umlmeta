@@ -2011,3 +2011,28 @@ realization-table rows were "item flows need Flow machinery").
   flow not-mapped).
 - Sweep: check 45, profiles 60, sysml2 26, ocl 19, textual 47, vehicle
   12 - all green.
+
+# Part 25: use-case actors - ToActorMembership/ToUseCaseActorMembership wiring
+
+The last elided piece of the wave-E use-case family: the normative
+UseCaseActorMembership_Mapping (ownedMemberParameter =
+UseCaseActor_Mapping result: "the PartUsage representing an actor of the
+use case", declaredName = from.name, owns a FeatureTyping typed by the
+mapped element) closes the actor machinery.
+
+- Wiring: associations in scope with a memberEnd typed by the use case
+  contribute each OTHER memberEnd as an ActorMembership member - a
+  PartUsage named from the end, typed by the actor's AS definition
+  (identity through the index). Actor end types outside the transformed
+  scope raise UnmappedFeature.
+- Association handling note: the actor-carrying Association itself maps
+  to a ConnectionDefinition (wave G); both artifacts exist - the
+  connection is the relationship view, the actor membership the
+  use-case-context view, matching the mapping classes' independent
+  dispatch (AssociationCommon_Mapping vs UseCaseActorMembership_Mapping).
+
+check_v1_to_v2_as.py: 78 passed (one new check). Realization table
+ToUseCaseActorMembership_Init moved elided -> wiring; module docstring
+elision list updated. Remaining elided: objectives (v1 has none),
+assignments, function synthesis, object-flow item ends, interaction
+machinery, conjugated ports, end qualifiers/subsettings/defaults.

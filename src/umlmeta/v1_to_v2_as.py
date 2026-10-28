@@ -91,7 +91,7 @@ Honest elisions (documented, no data invented silently):
   - association end qualifiers/subsettings/defaults: later wave.
   - interaction machinery, conjugated ports, object-flow item ends
     (ObjectFlowItemFlowEnd/ToSuccessionItemFlow family), function
-    synthesis, assignments, use-case actors/objectives: elided (see
+    synthesis, assignments, use-case objectives: elided (see
     the realization table) or raise UnmappedFeature.
 """
 from __future__ import annotations
@@ -495,6 +495,33 @@ def _populate_usecase(uc, v2def, index, pkg):
         sm = S2.SubjectMembership()
         sm.ownedRelatedElement.append(ru)
         v2def.ownedRelationship.append(sm)
+
+    # actors: associations with a memberEnd typed by this use case carry
+    # the actor end (each OTHER memberEnd) as a PartUsage (named from
+    # the end) owned via ActorMembership — UseCaseActorMembership_Mapping
+    # (ownedMemberParameter = UseCaseActor_Mapping result: "the PartUsage
+    # representing an actor of the use case", typed by the actor's AS
+    # definition via UseCaseActorFeatureTyping).
+    for assoc in pkg_members:
+        if not isinstance(assoc, U.Association):
+            continue
+        ends = [e for e in (assoc._vals.get("memberEnd") or [])]
+        if not any(e._vals.get("type") is uc for e in ends):
+            continue
+        for end in ends:
+            actor_type = end._vals.get("type")
+            if actor_type is uc or actor_type is None:
+                continue
+            adef = index.get(id(actor_type))
+            if adef is None:
+                raise UnmappedFeature(
+                    f"use case actor end {_name(end)!r} typed by "
+                    f"external/unordered {type(actor_type).__name__}")
+            pu = S2.PartUsage(declaredName=_name(end))
+            _type_feature(pu, adef)
+            am = S2.ActorMembership()
+            am.ownedRelatedElement.append(pu)
+            v2def.ownedRelationship.append(am)
 
 
 def _populate_association(assoc, conn, index):
@@ -1182,7 +1209,12 @@ def _transform_allocate(al, out, index):
 #                                    the EmptySubjectReferenceUsage stub
 #                                    is left un-carried (factory default)
 # ToUseCaseObjectiveMembership_Init elided (v1 has no objective)
-# ToUseCaseActorMembership_Init elided (ToActorMembership_Init above)
+# ToUseCaseActorMembership_Init wiring wave E add-on: association ends
+#                                    typed by the use case -> ActorMembership
+#                                    with a PartUsage (named from the end)
+#                                    typed by the actor's definition
+#                                    (UseCaseActor_Mapping family);
+#                                    was ToActorMembership_Init-elided
 # ToIncludeFeatureTyping_Init wiring  wave E: Include → IncludeUseCaseUsage
 #                                    owned by the including definition
 #                                    (FeatureMembership), typed by the
