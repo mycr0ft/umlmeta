@@ -400,9 +400,15 @@ check("activity: 2 ActionUsages + 1 SuccessionAsUsage",
       and kinds.count("SuccessionAsUsage") == 1, str(kinds))
 se = [e for e in act_def.ownedElement
       if type(e).__name__ == "SuccessionAsUsage"][0]
-check("succession source/target wired",
-      se.source[0].declaredName == "step1"
-      and se.target[0].declaredName == "step2")
+ends_ms = [r for r in se.ownedRelationship
+           if type(r).__name__ == "EndFeatureMembership"]
+end_targets = [s2.subsettedFeature.declaredName
+               for r in ends_ms for x in r.ownedRelatedElement
+               for s2 in x.ownedRelationship
+               if type(s2).__name__ == "Subsetting"]
+check("succession ends wired via end features (7.7.3.3.18)",
+      len(ends_ms) == 2
+      and end_targets == ["step1", "step2"], str(end_targets))
 
 print()
 print("== wave C: requirements chain (7.8.8.3.x) ==")
@@ -1197,6 +1203,8 @@ print()
 print("== wave N: opaque bodies + activity-edge guards "
       "(7.7.2.3.2.3, 7.7.14.3.18, 7.7.3.3.20/.50) ==")
 npkg = U.Package(name="BodyPkg")
+wat = U.DataType(name="Water")
+npkg.add("packagedElement", wat)
 nact = U.Activity(name="Ops")
 na = U.OpaqueAction(name="step")
 na._vals["language"] = "Python"
@@ -1215,13 +1223,14 @@ nact.edge.append(cfl)
 ng2 = U.OpaqueExpression()
 ng2._vals["language"] = "OCL2.0"
 ng2._vals["body"] = "ready"
+p_out2 = U.OutputPin(name="t2")
+p_out2.type = wat
+na.add("output", p_out2)
 ofl = U.ObjectFlow(name="of2")
 ofl._vals["guard"] = [ng2]
-ofl.source = na
+ofl.source = p_out2
 ofl.target = na2
 nact.edge.append(ofl)
-p_out2 = U.OutputPin(name="t2")
-na.add("output", p_out2)
 ofl2 = U.ObjectFlow(name="of3")
 ofl2.source = p_out2
 ofl2.target = na2
@@ -1243,17 +1252,50 @@ check("OpaqueAction language/body -> TextualRepresentation (7.7.2.3.2.3)",
       len(step_reprs) == 1
       and step_reprs[0].language and step_reprs[0].language[0] == "Python"
       and step_reprs[0].body and step_reprs[0].body[0] == "x = x + 1")
+# the guarded control flow's activity carries ONLY the transition
+# (the .18 succession rides inside it - no bare succession for cf2)
+bare_se = [e for e in ndef.ownedElement
+           if type(e).__name__ == "SuccessionAsUsage"
+           and e.declaredName == "cf2"]
 cf_tu = [e for e in ndef.ownedElement
          if type(e).__name__ == "TransitionUsage"
          and e.declaredName == "cf2"][0]
 g_ms = [r for r in cf_tu.ownedRelationship
         if type(r).__name__ == "TransitionFeatureMembership"]
-calc_u = [x for r in g_ms for x in r.ownedRelatedElement]
-check("guarded ControlFlow -> TransitionUsage w/ guard calc "
-      "(7.7.3.3.20, 7.7.14.3.18)",
+chain_u = [x for r in g_ms for x in r.ownedRelatedElement]
+check("guarded ControlFlow -> TransitionUsage w/ AsValue chain "
+      "(7.7.3.3.20, 7.7.14.3.17)",
       len(g_ms) == 1 and str(g_ms[0].kind) == "TransitionFeatureKind.guard"
-      and calc_u and type(calc_u[0]).__name__ == "CalculationUsage")
-if calc_u and type(calc_u[0]).__name__ == "CalculationUsage":
+      and len(chain_u) == 1
+      and type(chain_u[0]).__name__ == "FeatureChainExpression"
+      and not bare_se)
+in_ms = [r for r in cf_tu.ownedRelationship
+         if type(r).__name__ == "ParameterMembership"]
+in_ref = [x for r in in_ms for x in r.ownedRelatedElement]
+check("the cf transition's in-ParameterMembership (7.6.2.3/.5)",
+      len(in_ms) == 1
+      and in_ref and getattr(in_ref[0], "direction", None) == "in")
+src_ms = [r for r in cf_tu.ownedRelationship
+          if type(r).__name__ == "Membership"]
+check("the .15 source Membership", len(src_ms) == 1
+      and src_ms[0].memberElement is not None)
+if chain_u:
+    ch_rels = [type(r).__name__ for r in chain_u[0].ownedRelationship]
+    check("the AsValue chain carries in-param + out-return (7.7.14.3.17)",
+          ch_rels.count("ParameterMembership") == 1
+          and ch_rels.count("ReturnParameterMembership") == 1, str(ch_rels))
+inner_se = [r for r in cf_tu.ownedRelationship
+            if type(r).__name__ == "SuccessionAsUsage"]
+calc_u = []
+if inner_se:
+    calc_u = [x for r in inner_se[0].ownedRelationship
+              if type(r).__name__ == "FeatureMembership"
+              for x in r.ownedRelatedElement
+              if type(x).__name__ == "CalculationUsage"]
+check("the .18 succession inside the transition carries the guard's "
+      "calculation (7.7.14.3.18)",
+      len(inner_se) == 1 and len(calc_u) == 1)
+if calc_u:
     ret_ms = [r for r in calc_u[0].ownedRelationship
               if type(r).__name__ == "ReturnParameterMembership"]
     calc_reprs = reprs_of(calc_u[0])
@@ -1266,14 +1308,43 @@ if calc_u and type(calc_u[0]).__name__ == "CalculationUsage":
           and len(calc_reprs) == 1
           and calc_reprs[0].language[0] == "OCL2.0"
           and calc_reprs[0].body[0] == "c > 10")
-of_tus = [e for e in ndef.ownedElement
-          if type(e).__name__ == "TransitionUsage"]
+    check("the inner succession's target end subsets the target "
+          "(7.7.3.3.18)",
+          any(type(s2).__name__ == "Subsetting"
+              and getattr(s2, "subsettedFeature", None) is not None
+              and s2.subsettedFeature.declaredName == "after"
+              for em in inner_se[0].ownedRelationship
+              if type(em).__name__ == "EndFeatureMembership"
+              for x in em.ownedRelatedElement
+              for s2 in x.ownedRelationship
+              if type(s2).__name__ == "Subsetting"))
 of_flows = [e for e in ndef.ownedElement
             if type(e).__name__ == "SuccessionFlowUsage"]
-check("guarded ObjectFlow -> the flow AND the guard transition; the "
-      "unguarded of3 stays a plain flow",
-      len(of_flows) == 2 and len(of_tus) == 2
-      and {e.declaredName for e in of_tus} == {"cf2", "of2"})
+of_tus = [e for e in ndef.ownedElement
+          if type(e).__name__ == "TransitionUsage"
+          and e.declaredName == "of2"]
+of_tu = of_tus[0] if of_tus else None
+of_in_se = ([r for r in of_tu.ownedRelationship
+             if type(r).__name__ == "SuccessionAsUsage"]
+            if of_tu else [])
+subsets_flow = any(
+    getattr(s2, "subsettedFeature", None) is of_flows[0]
+    for ise in of_in_se for em in ise.ownedRelationship
+    if type(em).__name__ == "EndFeatureMembership"
+    for x in em.ownedRelatedElement
+    for s2 in x.ownedRelationship
+    if type(s2).__name__ == "Subsetting")
+of_in_ms = ([r for r in of_tu.ownedRelationship
+             if type(r).__name__ == "ParameterMembership"] if of_tu else [])
+of_in_ref = [x for r in of_in_ms for x in r.ownedRelatedElement]
+check("guarded ObjectFlow keeps the flow AND the guard transition "
+      "whose succession end subsets the flow (.3.51-.53); the "
+      "unguarded of3 stays a plain flow; the in-param is typed by the "
+      "source's type (7.6.2.5)",
+      len(of_flows) == 2 and len(of_tus) == 1 and subsets_flow
+      and (of_in_se and of_in_se[0].declaredName == "of2")
+      and any(getattr(getattr(ft, "type", None), "declaredName", None)
+              == "Water" for ft in of_in_ref[0].ownedTyping))
 
 print()
 print("== honesty: unmapped features refuse to guess ==")

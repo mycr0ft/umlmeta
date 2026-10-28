@@ -113,13 +113,18 @@ Honest elisions (documented, no data invented silently):
     attached multiplicities) is not in the generated AS runtime; the
     range rides a FeatureMembership instead. Multiplicity is wired for
     properties, association ends, and behavior/operation parameters.
+  - ElementFeatureMembership (the .18-tail guard rider) is likewise
+    absent from the generated runtime; the guard's CalculationUsage
+    rides a deviation FeatureMembership (itemized Part 32).
   - association end qualifiers/subsettings/defaults: later wave.
   - conjugated-port typing (ToConjugatedPortTyping is a stub
     initializer with no triggering mapping rule - the port carries
     isConjugated but types plainly), transition-from-initial message
     ends/payload (Table-11 occurrences behind them; the transition
     ENDS themselves are wired per the .2.18 rule), object-flow item
-    ends (ObjectFlowItemFlowEnd/ToSuccessionItemFlow family),
+    ends (ObjectFlowItemFlowEnd/ToSuccessionItemFlow family), the
+    transition's CommonReturnParameterReferenceUsageMembership
+    (7.6.2.11), non-OpaqueExpression guard member forms,
     function synthesis, assignments, use-case objectives: elided (see
     the realization table) or raise UnmappedFeature.
 """
@@ -938,30 +943,125 @@ def _opaque_expr_calc(oe, index):
     return cu
 
 
-def _edge_guard_transition(e, src_obj, index):
+def _edge_end(se, node, subset_target, is_src, cls, ref_layer):
+    """CommonActivityEdgeSuccessionAsUsage_Mapping (7.7.3.3.18) end
+    machinery. The source end: ActivityEdgeSourceEndFeature_Mapping
+    (7.7.3.3.10, a Feature/FlowEnd with isEnd) under
+    EndFeatureMembership (7.7.3.3.12), subsetting the mapped end
+    (7.7.3.3.11); the target end likewise (7.7.3.3.25/.26). For an
+    ObjectFlow the ends are FlowEnds (7.7.3.3.59) and the end's
+    feature membership carries a ReferenceUsage redefined onto the
+    mapped node (7.7.3.3.61/.60, .3.62; for the generic node case the
+    redefinition target IS the mapped node - the library
+    redefinitions of the special action pins need SysMLv1Library and
+    stay elided). Control successions carry no .61 layer - that rule
+    is object-flow (item-flow-end) specific."""
+    fe = cls()
+    fe.isEnd = True
+    ss = S2.Subsetting()          # 7.7.3.3.11/.63: end :> mapped end
+    ss.subsettedFeature = subset_target
+    fe.ownedRelationship.append(ss)
+    if ref_layer:
+        # 7.7.3.3.61/.60: the end's reference-usage layer
+        ru2 = S2.ReferenceUsage(declaredName=_name(node))
+        rd = S2.Redefinition()
+        rd.redefinedFeature = subset_target
+        ru2.ownedRelationship.append(rd)
+        fm2 = S2.FeatureMembership()
+        fm2.ownedRelatedElement.append(ru2)
+        fe.ownedRelationship.append(fm2)
+    em = S2.EndFeatureMembership()
+    em.ownedRelatedElement.append(fe)
+    se.ownedRelationship.append(em)
+    if is_src:
+        se.source.append(fe)
+    else:
+        se.target.append(fe)
+
+
+def _edge_param_in_membership(src_node, index):
+    """CommonParameterReferenceUsageInMembership_Mapping (7.6.2.3):
+    a ParameterMembership owning a ReferenceUsage with direction in
+    (CommonParameterReferenceUsageIn_Mapping, 7.6.2.4), typed by the
+    source node's type when it has one (7.6.2.5 typing) - the untyped
+    form carries no typing."""
+    ref = S2.ReferenceUsage()
+    ref.direction = "in"
+    st = src_node._vals.get("type")
+    if st is not None:
+        st2 = index.get(id(st))
+        if st2 is not None:
+            ft = S2.FeatureTyping()
+            ft.type = st2
+            ref.ownedTyping.append(ft)
+    # ownedMemberParameter is a derived/composite end in the runtime -
+    # the owning pass is the base Membership's ownedRelatedElement
+    pm = S2.ParameterMembership()
+    pm.ownedRelatedElement.append(ref)
+    return pm
+
+
+def _guarded_edge_transition(e, src_obj, tgt_obj, src_node,
+                             target_subset, index):
     """ControlFlowTransitionUsage_Mapping (7.7.3.3.20) /
-    ObjectFlowGuard_Mapping (7.7.3.3.50): a guarded activity edge ALSO
-    carries a TransitionUsage; its guard rides
-    TransitionFeatureMembership (kind=guard, 7.7.3.3.28/.64). For an
-    OpaqueExpression guard the member is the mapped value (the
-    OpaqueExpressionAsValue form, 7.7.14.3.17); this realization
-    carries the guard's CalculationUsage (7.7.14.3.18) - the calc is
-    the informable, check-visible content carrier of the guard text
-    (the .3.20 example shows the calc inline). The deeper
-    FeatureChainExpression + succession-end choreography of .3.17/.23
-    (.28's full set) is queued."""
+    ObjectFlowGuard_Mapping (7.7.3.3.50): a guarded activity edge maps
+    (additionally, for an ObjectFlow which keeps its .47 flow) to a
+    TransitionUsage carrying the .20 rule set: the .15 source
+    Membership; 7.6.2.3's in-ParameterMembership; the .28/.64 guard
+    TransitionFeatureMembership (kind=guard) whose member is the
+    OpaqueExpressionAsValue FeatureChainExpression (7.7.14.3.17) with
+    its own in ParameterMembership and out ReturnParameterMembership;
+    and the CommonActivityEdgeSuccessionAsUsage (.18)
+    SuccessionAsUsage carried INSIDE the transition - its target end
+    subsetting the mapped flow for an ObjectFlow (7.7.3.3.51-.53) -
+    with the guard's CalculationUsage (7.7.14.3.18) riding it via
+    FeatureMembership (the .18-tail ElementFeatureMembership: the same
+    deviation family as MultiplicityMembership - ElementFeature-
+    Membership is absent from the generated runtime). Queued: the
+    transition's CommonReturnParameterReferenceUsageMembership
+    (7.6.2.11) and the non-OpaqueExpression guard member forms."""
     guard_el = e._vals.get("guard")
     if guard_el is None:
         return None
     guard = guard_el[0] if isinstance(guard_el, list) else guard_el
     if guard is None:
         return None
+    if not isinstance(guard, U.OpaqueExpression):
+        raise UnmappedFeature(
+            f"edge {_name(e)!r} guard {type(guard).__name__} - only "
+            "the OpaqueExpression guard member forms map")
     tu = S2.TransitionUsage(declaredName=_name(e))
     tu.source = src_obj
+    # 7.7.3.3.15: the source-node Membership
+    src_m = S2.Membership()
+    src_m.memberElement = src_obj
+    tu.ownedRelationship.append(src_m)
+    # 7.6.2.3: the in-ParameterMembership
+    tu.ownedRelationship.append(_edge_param_in_membership(src_node, index))
+    # 7.7.3.3.28/.64: kind=guard; 7.7.14.3.17: the AsValue chain
+    fce = S2.FeatureChainExpression()
+    prm = S2.ParameterMembership()
+    prm.ownedRelatedElement.append(S2.ReferenceUsage(direction="in"))
+    fce.ownedRelationship.append(prm)
+    rpm = S2.ReturnParameterMembership()
+    rpm.ownedRelatedElement.append(S2.ReferenceUsage(direction="out"))
+    fce.ownedRelationship.append(rpm)
     tfm = S2.TransitionFeatureMembership()
     tfm.kind = S2.TransitionFeatureKind.guard
-    tfm.ownedRelatedElement.append(_opaque_expr_calc(guard, index))
+    tfm.ownedRelatedElement.append(fce)
     tu.ownedRelationship.append(tfm)
+    # 7.7.3.3.18: the SuccessionAsUsage inside the transition; the
+    # .18-tail guard rider (ElementFeatureMembership -> deviating
+    # FeatureMembership) carries the guard's CalculationUsage
+    se = S2.SuccessionAsUsage(declaredName=_name(e))
+    se.source.append(src_obj)
+    se.target.append(tgt_obj)
+    _edge_end(se, src_node, src_obj, True, S2.Feature, False)
+    _edge_end(se, src_node, target_subset, False, S2.Feature, False)
+    fm_g = S2.FeatureMembership()
+    fm_g.ownedRelatedElement.append(_opaque_expr_calc(guard, index))
+    se.ownedRelationship.append(fm_g)
+    tu.ownedRelationship.append(se)
     return tu
 
 
@@ -1051,40 +1151,15 @@ def _populate_activity(act, v2def, index):
                 f"edge {_name(e)!r} touching unmapped node")
         if isinstance(e, U.ObjectFlow):
             se = S2.SuccessionFlowUsage(declaredName=_name(e))
-            # ObjectFlow_Mapping (7.7.3.3.47): the succession flow's ends
-            # are the mapped ends — for an object flow, the end feature
-            # machinery: EndFeatureMembership (7.7.3.3.58) -> FlowEnd
-            # (7.7.3.3.59, isEnd) subsetted by the mapped node usage
-            # (.3.63), chained in source/target; the payload rides the
-            # source ObjectNode: PayloadFeature (.3.54, unnamed) typed by
-            # the node's type (.3.56) under a FeatureMembership (.3.55).
+            # ObjectFlow_Mapping (7.7.3.3.47): the ends are the mapped
+            # ends - the end machinery (7.7.3.3.58/.59/.63, chained
+            # source/target); the payload rides the source ObjectNode:
+            # PayloadFeature (7.7.3.3.54, unnamed) typed by the node's
+            # type (.3.56) under a FeatureMembership (.3.55) - the
+            # 'succession flow ... of <Type>' payload.
             for node, is_src in ((src, True), (tgt, False)):
-                node_use = index.get(id(node))
-                fe = S2.FlowEnd()
-                fe.isEnd = True
-                ss = S2.Subsetting()          # .3.63: end :> mapped node
-                ss.subsettedFeature = node_use
-                fe.ownedRelationship.append(ss)
-                # .3.61/.60: the end's feature membership carries a
-                # ReferenceUsage redefined onto the mapped node (.3.62;
-                # for the generic node case the redefinition target IS
-                # the mapped node - the library redefinitions of the
-                # special action pins need SysMLv1Library and stay
-                # elided)
-                ru2 = S2.ReferenceUsage(declaredName=_name(node))
-                rd = S2.Redefinition()
-                rd.redefinedFeature = node_use
-                ru2.ownedRelationship.append(rd)
-                fm2 = S2.FeatureMembership()
-                fm2.ownedRelatedElement.append(ru2)
-                fe.ownedRelationship.append(fm2)
-                em = S2.EndFeatureMembership()
-                em.ownedRelatedElement.append(fe)
-                se.ownedRelationship.append(em)
-                if is_src:
-                    se.source.append(fe)
-                else:
-                    se.target.append(fe)
+                _edge_end(se, node, index.get(id(node)), is_src,
+                          S2.FlowEnd, True)
             nt = getattr(src, "_vals", {}).get("type")
             if nt is not None:
                 ndef = index.get(id(nt))
@@ -1099,21 +1174,34 @@ def _populate_activity(act, v2def, index):
                 se.ownedRelationship.append(pfm)
             _own_membership(v2def, se)
             index[id(e)] = se
-            # a guarded object flow ALSO carries the guard transition
-            # (ObjectFlowGuard_Mapping, 7.7.3.3.50)
-            gtu = _edge_guard_transition(e, src_obj, index)
+            # a guarded object flow ALSO carries the full .50 guard
+            # transition; its internal succession's target end subsets
+            # the mapped flow (7.7.3.3.51-.53)
+            gtu = _guarded_edge_transition(e, src_obj, tgt_obj, src,
+                                           se, index)
             if gtu is not None:
                 _own_membership(v2def, gtu)
             continue
+        # 7.7.3.3.18: the control flow's end machinery (the same
+        # shape the object flows carry, without the .61 layer)
         se = S2.SuccessionAsUsage(declaredName=_name(e))
-        se.source.append(src_obj)
-        se.target.append(tgt_obj)
-        _own_membership(v2def, se)
-        index[id(e)] = se
-        # a guarded edge ALSO carries the guard transition (.3.20/.50)
-        gtu = _edge_guard_transition(e, src_obj, index)
-        if gtu is not None:
-            _own_membership(v2def, gtu)
+        if e._vals.get("guard") is None:
+            se.source.append(src_obj)
+            se.target.append(tgt_obj)
+            _edge_end(se, src, src_obj, True, S2.Feature, False)
+            _edge_end(se, tgt, tgt_obj, False, S2.Feature, False)
+            _own_membership(v2def, se)
+            index[id(e)] = se
+            continue
+        # ControlFlowTransitionUsage_Mapping (7.7.3.3.20): a guarded
+        # control flow maps to a TransitionUsage (the filter routes
+        # the guarded edge here only) whose .18 succession rides
+        # INSIDE the transition - the activity carries the transition,
+        # not a bare succession
+        tu2 = _guarded_edge_transition(e, src_obj, tgt_obj, src,
+                                       tgt_obj, index)
+        _own_membership(v2def, tu2)
+        index[id(e)] = tu2
 
 
 def _populate_behavior_params(behavior, v2def):
@@ -1745,8 +1833,10 @@ def _transform_allocate(al, out, index):
 # ToActionUsage_Init        wiring   OpaqueAction → ActionUsage
 # ToAssignmentActionUsage_Init elided (assignments elided as in
 #                                    v1_to_v2.py)
-# ToCalculationUsage_Init   wiring   guard/else inline calcs (textual
-#                                    calibrated form; AS elides)
+# ToCalculationUsage_Init   wiring   OpaqueExpression guards/defaults:
+#                                    the guard's CalculationUsage rides
+#                                    the guarded edge's transition
+#                                    (7.7.14.3.18; AS Part 33)
 # ToPerformActionUsage_Init wiring   Operation → PerformActionUsage
 # ToStateUsage_Init         wiring   wave B (Pseudostate 7.7.11.2.10,
 #                                    State 7.7.11.2.12, FinalState

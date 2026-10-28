@@ -2449,3 +2449,52 @@ guarded transition, and .3.51-.53's succession-target end features.
 
 - check_v1_to_v2_as.py: 108 passed (104 + 4 wave-N).
 - Full sweep green (19 suites + text 49 + vehicle 12 + cameo 15).
+
+# Part 33: wave N2 - the FULL guarded-edge choreography + formal ends
+
+The wave-32 guard realization was a bounded simplification (the calc
+as the TFM member). The formal rule sets are now realized in full:
+
+## Every activity edge carries the .18 end machinery
+
+CommonActivityEdgeSuccessionAsUsage_Mapping (7.7.3.3.18) applies to
+ControlFlows AND ObjectFlows: the succession's ends are end FEATURES -
+ActivityEdgeSourceEndFeature (.10, isEnd) under EndFeatureMembership
+(.12), subsetting the mapped end (.11); target likewise (.25/.26).
+The object-flow wave-M shapes are now factored into the shared
+_edge_end helper (FlowEnds + the .61/.60 ReferenceUsage layer, which
+is object-flow/item-flow-end specific - control successions carry no
+.layer); control flows gained the end-feature shape (the ends point
+at the end features; oracle moved from the direct-end read).
+
+## Guarded edges: the full .3.20 rule set
+
+A guarded CONTROL flow maps ONLY to the TransitionUsage (.3.20's
+filter routes it there) - the activity carries the transition, not a
+bare succession - carrying: the .15 source Membership;
+CommonParameterReferenceUsageInMembership (7.6.2.3: a
+ParameterMembership with an in ReferenceUsage, typed by the source
+node's type per 7.6.2.5); the .28/.64 guard
+TransitionFeatureMembership (kind=guard) whose member is the
+OpaqueExpressionAsValue FeatureChainExpression (7.7.14.3.17) with its
+own in ParameterMembership and out ReturnParameterMembership; and the
+.18 SuccessionAsUsage carried INSIDE the transition. The guard's
+CalculationUsage (7.7.14.3.18) rides the succession via
+FeatureMembership - the .18-tail ElementFeatureMembership; it is not
+in the generated runtime (same deviation family as
+MultiplicityMembership - itemized in the module docstring).
+
+A guarded OBJECT flow keeps its .47 SuccessionFlowUsage PLUS the full
+transition; the transition's internal succession's target end
+subsets the mapped flow (ObjectFlowGuardSuccessionTargetEndFeature/
+Membership/Subsetting, 7.7.3.3.51-.53; TOFeature_Init's Feature
+isEnd - no FlowEnd in the guarded TU's interior).
+
+Queued: the transition's CommonReturnParameterReferenceUsageMembership
+(7.6.2.11) and the non-OpaqueExpression guard member forms.
+
+## Result
+
+- check_v1_to_v2_as.py: 113 passed (wave-B control-shape oracle moved
+  to the end-feature read; wave-N oracles upgraded to the full form).
+- Full sweep green (19 suites + text 49 + vehicle 12 + cameo 15).
