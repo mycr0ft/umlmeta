@@ -244,6 +244,12 @@ def transform_v1_element(el, index=None):
         # conjugated member ('~' + name, 7.7.10.2.15) and its
         # PortConjugation ride the population pass
         return S2.PortDefinition(declaredName=_name(el))
+    if isinstance(el, U.StateMachine):
+        # StateMachine_Mapping (7.7.11.2.16): to StateDefinition
+        return S2.StateDefinition(declaredName=_name(el))
+    if isinstance(el, (U.Activity, U.OpaqueBehavior)):
+        # Activity_Mapping (7.7.3.3.1) / OpaqueBehavior: ActionDefinition
+        return S2.ActionDefinition(declaredName=_name(el))
     if isinstance(el, U.Association):
         # Association_Mapping family (7.7.12.2.x; the machine-readable
         # AssociationClass_Mapping 'to' is Systems-Connections-
@@ -254,8 +260,10 @@ def transform_v1_element(el, index=None):
     if isinstance(el, U.Class):
         # Class_Mapping (7.7.4.2.37 family): plain Class to
         # OccurrenceDefinition. Metaclasses with their own normative
-        # use cases/interactions handled above; U.Interface has its own
-        # normative mapping (7.7.10.2.14, wave J)
+        # mappings (blocks, constraints, signals, use cases,
+        # interactions, interfaces, associations, state machines,
+        # activities) are dispatched before this catch-all - not
+        # guesses.
         if isinstance(el, S.Requirement):
             # Requirement_Mapping (7.8.8.3.17)
             return _transform_requirement(el, index)
@@ -265,12 +273,6 @@ def transform_v1_element(el, index=None):
             return S2.VerificationCaseDefinition(
                 declaredName=_name(el))
         return S2.OccurrenceDefinition(declaredName=_name(el))
-    if isinstance(el, U.StateMachine):
-        # StateMachine_Mapping (7.7.11.2.16): to StateDefinition
-        return S2.StateDefinition(declaredName=_name(el))
-    if isinstance(el, (U.Activity, U.OpaqueBehavior)):
-        # Activity_Mapping (7.7.3.3.1) / OpaqueBehavior: ActionDefinition
-        return S2.ActionDefinition(declaredName=_name(el))
     raise UnmappedFeature(type(el).__name__)
 
 
@@ -902,6 +904,52 @@ def _populate_activity(act, v2def, index):
             au = S2.ActionUsage(declaredName=nm)
             _own_membership(v2def, au)
             index[id(n)] = au
+            # Pin_Mapping (7.7.2.3.2.5) + ValuePin (.6): the action's
+            # pins -> ReferenceUsages carried on the action (in/out by
+            # the pin's orientation - the .2.5 example form
+            # 'action a { in inPin : Integer; out outPin; }'), typed by
+            # the pin's type, with the pin's multiplicity
+            # (MultiplicityElement_Mapping); a ValuePin's value becomes
+            # the FeatureValue (ValuePinFeatureValue_Mapping .2.7)
+            for kind, pins in (("in", n._vals.get("_input") or ()),
+                               ("out", n._vals.get("_output") or ())):
+                for pin in list(pins):
+                    pu_ref = S2.ReferenceUsage(declaredName=_name(pin))
+                    pu_ref.direction = kind
+                    pt = pin._vals.get("type")
+                    if pt is not None:
+                        pdef = index.get(id(pt))
+                        if pdef is None:
+                            raise UnmappedFeature(
+                                f"Pin {_name(pin)!r} typed by "
+                                f"external/unordered {type(pt).__name__}")
+                        _type_feature(pu_ref, pdef)
+                    _attach_multiplicity(pin, pu_ref)
+                    pval = pin._vals.get("value")
+                    if pval is not None:
+                        # ValuePinFeatureValue_Mapping (7.7.2.3.2.7):
+                        # the value rides a FeatureValue on the pin's
+                        # reference usage; an InstanceValue carries as a
+                        # feature reference, anything else as a
+                        # literal-carried expression (the same shape the
+                        # defaultValue plumbing, 7.7.4.2.16, builds)
+                        fv = S2.FeatureValue()
+                        expr = S2.FeatureReferenceExpression()
+                        inst = pval._vals.get("instance") \
+                            if isinstance(pval, U.InstanceValue) else None
+                        if inst is not None:
+                            expr.referent = index.get(id(inst))
+                        spec = pval._vals.get("specification") \
+                            if hasattr(pval, "_vals") else None
+                        body = getattr(spec, "body", None)
+                        if isinstance(body, str) and body.strip() \
+                                and expr.referent is None:
+                            expr.ownedRelatedElement.append(S2.LiteralString(
+                                value=body.strip()))
+                        fv.value = expr
+                        pu_ref.ownedRelationship.append(fv)
+                    _feature_membership(au, pu_ref)
+                    index[id(pin)] = pu_ref
         elif isinstance(n, U.DecisionNode):
             du = S2.DecisionNode(declaredName=nm)
             _own_membership(v2def, du)
@@ -929,10 +977,56 @@ def _populate_activity(act, v2def, index):
                 f"edge {_name(e)!r} touching unmapped node")
         if isinstance(e, U.ObjectFlow):
             se = S2.SuccessionFlowUsage(declaredName=_name(e))
-        else:
-            se = S2.SuccessionAsUsage(declaredName=_name(e))
-        # KerML succession ends are multi-valued feature chains; the
-        # wave-A mapping yields exactly one source and one target
+            # ObjectFlow_Mapping (7.7.3.3.47): the succession flow's ends
+            # are the mapped ends — for an object flow, the end feature
+            # machinery: EndFeatureMembership (7.7.3.3.58) -> FlowEnd
+            # (7.7.3.3.59, isEnd) subsetted by the mapped node usage
+            # (.3.63), chained in source/target; the payload rides the
+            # source ObjectNode: PayloadFeature (.3.54, unnamed) typed by
+            # the node's type (.3.56) under a FeatureMembership (.3.55).
+            for node, is_src in ((src, True), (tgt, False)):
+                node_use = index.get(id(node))
+                fe = S2.FlowEnd()
+                fe.isEnd = True
+                ss = S2.Subsetting()          # .3.63: end :> mapped node
+                ss.subsettedFeature = node_use
+                fe.ownedRelationship.append(ss)
+                # .3.61/.60: the end's feature membership carries a
+                # ReferenceUsage redefined onto the mapped node (.3.62;
+                # for the generic node case the redefinition target IS
+                # the mapped node - the library redefinitions of the
+                # special action pins need SysMLv1Library and stay
+                # elided)
+                ru2 = S2.ReferenceUsage(declaredName=_name(node))
+                rd = S2.Redefinition()
+                rd.redefinedFeature = node_use
+                ru2.ownedRelationship.append(rd)
+                fm2 = S2.FeatureMembership()
+                fm2.ownedRelatedElement.append(ru2)
+                fe.ownedRelationship.append(fm2)
+                em = S2.EndFeatureMembership()
+                em.ownedRelatedElement.append(fe)
+                se.ownedRelationship.append(em)
+                if is_src:
+                    se.source.append(fe)
+                else:
+                    se.target.append(fe)
+            nt = getattr(src, "_vals", {}).get("type")
+            if nt is not None:
+                ndef = index.get(id(nt))
+                if ndef is None:
+                    raise UnmappedFeature(
+                        f"ObjectFlow {_name(e)!r} payload type external/"
+                        f"unordered {type(nt).__name__} {_as_type_name(nt)!r}")
+                pf = S2.PayloadFeature()
+                _type_feature(pf, ndef)
+                pfm = S2.FeatureMembership()
+                pfm.ownedRelatedElement.append(pf)
+                se.ownedRelationship.append(pfm)
+            _own_membership(v2def, se)
+            index[id(e)] = se
+            continue
+        se = S2.SuccessionAsUsage(declaredName=_name(e))
         se.source.append(src_obj)
         se.target.append(tgt_obj)
         _own_membership(v2def, se)

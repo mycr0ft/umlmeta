@@ -348,6 +348,9 @@ t1.target = running
 smpkg.add("packagedElement", sm)
 beh = A.transform_package(smpkg)
 sm_def = beh.ownedElement[0]
+check("StateMachine -> StateDefinition (7.7.11.2.16)",
+      type(sm_def).__name__ == "StateDefinition",
+      type(sm_def).__name__)
 sm_members = [type(e).__name__ for e in sm_def.ownedElement]
 check("state def holds 2 StateUsages + 2 TransitionUsages",
       sm_members.count("StateUsage") == 2
@@ -388,6 +391,9 @@ fl.source = a1; fl.target = a2
 actpkg.add("packagedElement", act)
 out2 = A.transform_package(actpkg)
 act_def = out2.ownedElement[0]
+check("Activity -> ActionDefinition (7.7.3.3.1)",
+      type(act_def).__name__ == "ActionDefinition",
+      type(act_def).__name__)
 kinds = [type(e).__name__ for e in act_def.ownedElement]
 check("activity: 2 ActionUsages + 1 SuccessionAsUsage",
       kinds.count("ActionUsage") == 2
@@ -1113,6 +1119,79 @@ pp_u = [e for e in kdev.ownedElement if e.declaredName == "pp"][0]
 check("ProxyPort -> base Port mapping -> bare PortUsage (Table 30: no "
       "target)",
       type(pp_u).__name__ == "PortUsage" and meta_of(pp_u) is None)
+
+print()
+print("== wave M: activity pins + object-flow end/payload machinery "
+      "(7.7.2.3.2.5, 7.7.3.3.47-.63) ==")
+mpkg2 = U.Package(name="ActEndPkg")
+wa = U.DataType(name="Water")
+mpkg2.packagedElement.append(wa)
+pact = U.Activity(name="Pump")
+make = U.OpaqueAction(name="make")
+p_out = U.OutputPin(name="tap"); p_out.type = wa
+make.add("output", p_out)
+consume = U.OpaqueAction(name="consume")
+p_in = U.InputPin(name="mouth"); p_in.type = wa
+consume.add("input", p_in)
+vp = U.ValuePin(name="quota"); vp.type = wa
+vspec = U.OpaqueExpression(language="OCL2.0")
+vspec._vals["body"] = "42"
+vp._vals["value"] = vspec
+consume.add("input", vp)          # not value... a ValuePin carries 'value'
+objf = U.ObjectFlow(name="stream")
+objf.source = p_out
+objf.target = p_in
+pact.node.append(make)
+pact.node.append(consume)
+pact.edge.append(objf)
+mpkg2.packagedElement.append(pact)
+mout = A.transform_package(mpkg2)
+pact_def = [e for e in mout.ownedElement
+            if type(e).__name__ == "ActionDefinition"][0]
+make_u = [e for e in pact_def.ownedElement if e.declaredName == "make"][0]
+consume_u = [e for e in pact_def.ownedElement
+             if e.declaredName == "consume"][0]
+mk_refs = {x.declaredName: x for om in make_u.ownedRelationship
+           if isinstance(om, S2.FeatureMembership)
+           for x in om.ownedRelatedElement}
+check("OutputPin -> 'out' ReferenceUsage typed by the pin's type "
+      "(7.7.2.3.2.5 example form)",
+      "tap" in mk_refs and mk_refs["tap"].direction == "out"
+      and any(t.type.declaredName == "Water"
+              for t in mk_refs["tap"].ownedTyping),
+      str(sorted(k for k in mk_refs)))
+stream = [e for e in pact_def.ownedElement
+          if type(e).__name__ == "SuccessionFlowUsage"][0]
+end_fs = [x for r in stream.ownedRelationship
+          if isinstance(r, S2.EndFeatureMembership)
+          for x in r.ownedRelatedElement]
+check("ObjectFlow ends -> isEnd FlowEnds chained, subsetted by the "
+      "mapped pin refs (7.7.3.3.58/.59/.63)",
+      len(end_fs) == 2
+      and all(x._vals.get("isEnd") for x in end_fs)
+      and [e for e in stream.source] == [end_fs[0]]
+      and [e for e in stream.target] == [end_fs[1]]
+      and all(isinstance(r, S2.Subsetting)
+              and (r.subsettedFeature is not None)
+              and r.subsettedFeature.declaredName in ("tap", "mouth")
+              for x in end_fs for r in x.ownedRelationship
+              if isinstance(r, S2.Subsetting)))
+end_ref = [y for x in end_fs for sm2 in x.ownedRelationship
+           if isinstance(sm2, S2.FeatureMembership)
+           for y in sm2.ownedRelatedElement]
+check("each FlowEnd carries its reference-usage layer (.3.61/.60/.62)",
+      len(end_ref) == 2
+      and all(isinstance(y, S2.ReferenceUsage) for y in end_ref)
+      and end_ref[0].declaredName == "tap"
+      and end_ref[1].declaredName == "mouth")
+payloads = [x for r in stream.ownedRelationship
+            if isinstance(r, S2.FeatureMembership)
+            for x in r.ownedRelatedElement
+            if type(x).__name__ == "PayloadFeature"]
+wa_as = [e for e in mout.ownedElement if e.declaredName == "Water"][0]
+check("ObjectNode type -> PayloadFeature typing (7.7.3.3.54/.56)",
+      len(payloads) == 1
+      and any(t.type is wa_as for t in payloads[0].ownedTyping))
 
 print()
 print("== honesty: unmapped features refuse to guess ==")

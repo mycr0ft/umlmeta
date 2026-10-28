@@ -292,10 +292,34 @@ class _Element:
                         out.append(it)
         return out
     def add(self, name, *values):
-        """Append value(s) to a multi-valued property."""
+        """Append value(s) to a multi-valued property.
+
+        Derived unions have dead storage in this runtime (their
+        values live on the owning side's members, not as stored
+        subset ends), and a union read scans only self._vals - so
+        an add() to a union/derived multi lands in a MIRROR key
+        '_' + name with the composite/association hooks fired;
+        readers and transformers consult the mirror when the
+        direct read stays empty. A settable multi stores
+        directly as before."""
+        d = self._props.get(name)
+        if d is not None and (d.union or d.derived):
+            mirror = self._vals.setdefault('_' + name, [])
+            for v in values:
+                mirror.append(v)
+                _hook_add(self, d, v)
+            return
         lst = getattr(self, name)
         for v in values: lst.append(v)
     def remove(self, name, *values):
+        d = self._props.get(name)
+        if d is not None and (d.union or d.derived):
+            mirror = self._vals.get('_' + name)
+            if mirror is None: return
+            for v in values:
+                mirror.remove(v)
+                _hook_remove(self, d, v)
+            return
         lst = getattr(self, name)
         for v in values: lst.remove(v)
     @property

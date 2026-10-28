@@ -2356,3 +2356,59 @@ Beta-4-era deviation the formal correction surfaced).
 - check_v1_to_v2_as.py: 98 passed (94 + 4).
 - Full sweep green (all 19 suites; vehicle 12 incl. the initial-state
   round trip, cameo 15).
+
+# Part 31: wave M - activity pins + object-flow end/payload machinery
+
+## R1 runtime fix: dead-union add() silently lost children
+
+Action.input/output (and every other composite DERIVED UNION in the v1
+runtime) had DEAD storage: _Element.add() routed values through
+getattr(), whose union read returns a throwaway list - the value was
+lost, the composite hook never fired, and nothing recorded the loss
+(worse than unmapped). Both the reader (corpora carrying pins) and
+hand-built models silently dropped every pin.
+
+Fix at the runtime contract, in the generator template (the same
+documented-regeneration discipline as the sysml2 _MemberAlias change):
+_Element.add/remove detect a union/derived multi, store into a MIRROR
+key '_' + name, and fire the composite/association hooks
+(_hook_add/_hook_remove) so ownership wiring works. Settable multis
+store exactly as before; the generated modules regenerated
+regen-identical except this contract fix (stats.json generated_lines
+7800+64). Consumers read the mirror when the direct read is empty.
+
+## Normative wiring now realized (formal body)
+
+- Pins (7.7.2.3.2.5 Pin_Mapping; ValuePin .2.6): action pins ->
+  ReferenceUsages carried on the action (in/out by the pin's
+  orientation - the .2.5 example 'action a { in inPin : Integer;
+  out outPin; }'), typed by the pin's type, with the pin's
+  multiplicity (MultiplicityElement_Mapping) and the ValuePin value as
+  the FeatureValue (.2.7; instance -> feature reference, literal body
+  -> carried literal - the same shape the defaultValue plumbing
+  7.7.4.2.16 builds).
+- ObjectFlow edges (7.7.3.3.47): the SuccessionFlowUsage's ends are
+  the mapped ends - EndFeatureMembership (.3.58) -> FlowEnd (.3.59,
+  isEnd) with a Subsetting to the mapped node usage (.3.63) and the
+  reference-usage layer (.3.61 FeatureMembership -> .3.60
+  ReferenceUsage with .3.62 Redefinition onto the mapped node; the
+  library targets of the special-action-pin redefinitions need
+  SysMLv1Library and stay elided); the source ObjectNode's type
+  becomes the flow's PayloadFeature (7.7.3.3.54) with its FeatureTyping
+  (.3.56) - the 'succession flow ... of <Type>' payload. Plain
+  ControlFlow keeps the wave-B SuccessionAsUsage with direct
+  source/target ends (the same .47 rule without the object machinery).
+- AND a latent wave-B dispatch bug fixed: the StateMachine and
+  Activity/OpaqueBehavior dispatch branches sat AFTER the U.Class
+  catch-all, and since both are Class subtypes every state machine /
+  activity mapped to a plain OccurrenceDefinition since wave B. The
+  branches moved ahead of the catch-all; wave-B checks now assert the
+  definition kinds (StateDefinition/ActionDefinition), which they
+  never did.
+
+## Result
+
+- check_v1_to_v2_as.py: 104 passed (98 + 5 wave-M + 2 kind-assertions;
+  one existing oracle adjusted for the second TransitionUsage).
+- Full sweep green (regenerated vehicle artifacts included: vehicle 12,
+  cameo 15, text 49).
