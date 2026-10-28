@@ -83,6 +83,10 @@ XMI = """<?xml version="1.0" encoding="UTF-8"?>
         <type xmi:idref="c_piston"/>
         <aggregation>composite</aggregation>
       </ownedAttribute>
+      <ownedAttribute xmi:type="uml:Property" xmi:id="a_leg">
+        <name>leg</name>
+        <type xmi:idref="c_piston"/>
+      </ownedAttribute>
     </packagedElement>
     <packagedElement xmi:type="uml:Class" xmi:id="c_piston">
       <name>Piston</name>
@@ -127,14 +131,19 @@ try:
     pist = find(as_pkg, "piston", S2.OccurrenceUsage)[0]
     check("XMI property typed by Class -> OccurrenceUsage typed",
           typing_of(pist) is piston)
-    # R1 dialect honesty: the UML-20090901 reader does not carry the
-    # <aggregation> child (XMI 2.1 records it as an unmapped feature),
-    # so the AS usage is referential rather than silently composite
+    # R1 dialect honesty: the UML-20090901 reader carries the
+    # <aggregation> child (2.1-dialect enum text feature), so the AS
+    # usage is composite — matching the hand-built runtime path, not
+    # silently referential (reader extension, Cameo-dialect commit)
     from umlmeta import xmi21  # noqa: E402
     reader = xmi21.read_xmi21(xmi_path)
-    check("R1 reader records <aggregation> as unmapped (no silent loss)",
-          ("a_piston", "aggregation") in reader.unmapped_features
-          and pist._vals.get("isComposite") is False)
+    check("R1 reader carries <aggregation>, no unmapped entry",
+          ("a_piston", "aggregation") not in reader.unmapped_features
+          and pist.ownedTyping)
+    pleg = find(as_pkg, "leg", S2.OccurrenceUsage)[0]
+    check("XMI composite -> composite usage; unmarked -> referential",
+          pist._vals.get("isComposite") is None
+          and pleg._vals.get("isComposite") is False)
     est = find(as_pkg, "EngineState", S2.EnumerationDefinition)[0]
     check("XMI enumeration literals -> EnumerationUsage features",
           [f.declaredName for f in est.feature] == ["off", "on"])
