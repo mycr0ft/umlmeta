@@ -440,14 +440,12 @@ def _attach_feature_extras(prop, usage, index):
         if inst is not None:
             iname = _name(inst) or "instance"
             # v2 carries the instance by a literal reference to its name
-            lit = S2.LiteralString(value=iname)
-            expr.ownedRelatedElement.append(lit)
+            _own_membership(expr, S2.LiteralString(value=iname))
         else:
             spec = dflt._vals.get("specification") if hasattr(dflt, "_vals") \
                 else None
-            lit = S2.LiteralString(
-                value=str(getattr(spec, "body", "") or ""))
-            expr.ownedRelatedElement.append(lit)
+            _own_membership(expr, S2.LiteralString(
+                value=str(getattr(spec, "body", "") or "")))
         try:
             expr.referent = usage
         except AttributeError:
@@ -893,6 +891,25 @@ def _populate_statemachine(sm, v2def, index):
                 tu = S2.TransitionUsage(declaredName=_name(tr))
                 tu.source = src_obj
                 tu.target = tgt_obj
+                # 7.7.11.2.19-.25: the transition's Succession with the
+                # named ('source'/'target') end features, isEnd,
+                # subsetting the mapped states
+                sux = S2.Succession()
+                for end_nm, end_v in (("source", src_obj),
+                                      ("target", tgt_obj)):
+                    fe = S2.Feature(declaredName=end_nm)
+                    fe.isEnd = True
+                    ss = S2.Subsetting()
+                    ss.subsettedFeature = end_v
+                    fe.ownedRelationship.append(ss)
+                    em = S2.EndFeatureMembership()
+                    em.ownedRelatedElement.append(fe)
+                    sux.ownedRelationship.append(em)
+                tu.ownedRelationship.append(sux)
+                # 7.7.11.2.26: the trigger feature memberships
+                for tg in list(tr._vals.get("trigger") or ()):
+                    tu.ownedRelationship.append(
+                        _trigger_carrier(tg, tg._vals.get("event"), index))
                 _own_membership(v2def, tu)
                 index[id(tr)] = tu
 
@@ -1063,6 +1080,51 @@ def _guarded_edge_transition(e, src_obj, tgt_obj, src_node,
     se.ownedRelationship.append(fm_g)
     tu.ownedRelationship.append(se)
     return tu
+
+
+def _trigger_carrier(tg, ev, index):
+    """TransitionTriggerFeatureMembership_Mapping (7.7.11.2.26). A
+    TimeEvent trigger maps to a CalculationUsage
+    (TimeTriggerCalculationUsage_Mapping, 7.7.5.3.35: the return
+    parameter membership + the feature membership carrying the 'at'
+    expression); a ChangeEvent trigger maps to a ConstraintUsage
+    (ChangeTriggerConstraintUsage_Mapping, 7.7.5.3.6: the feature
+    membership + the return parameter membership). The invocation /
+    binding end of the trigger machinery (7.7.5.3.7-.34, .5.36-.55 -
+    the invocation expressions, event chaining features and binding
+    connectors riding the library expression features) is queued; the
+    expression text carries as a feature-reference literal - the same
+    shape as the doc/defaults machinery. The membership returns the
+    FeatureMembership to carry on the transition (the .26 rule) with
+    the carrier inside it."""
+    if ev is None:
+        raise UnmappedFeature(f"Trigger {_name(tg)!r} with no event")
+    if not isinstance(ev, (U.TimeEvent, U.ChangeEvent)):
+        raise UnmappedFeature(
+            f"Trigger {_name(tg)!r} event {type(ev).__name__} - only "
+            "the time/change event forms map")
+    if isinstance(ev, U.TimeEvent):
+        carrier = S2.CalculationUsage(declaredName=_name(tg))
+        when = ev._vals.get("when")
+        expr = getattr(when, "expr", None) if when is not None else None
+    else:
+        carrier = S2.ConstraintUsage(declaredName=_name(tg))
+        expr = ev._vals.get("changeExpression")
+    rpm = S2.ReturnParameterMembership()
+    rpm.ownedRelatedElement.append(
+        S2.ReferenceUsage(declaredName="result", direction="out"))
+    carrier.ownedRelationship.append(rpm)
+    body = expr._vals.get("body") if isinstance(expr, U.OpaqueExpression) \
+        else None
+    fm = S2.FeatureMembership()
+    fre = S2.FeatureReferenceExpression()
+    if body:
+        _own_membership(fre, S2.LiteralString(value=body))
+    fm.ownedRelatedElement.append(fre)
+    carrier.ownedRelationship.append(fm)
+    ms = S2.FeatureMembership()
+    ms.ownedRelatedElement.append(carrier)
+    return ms
 
 
 def _populate_activity(act, v2def, index):

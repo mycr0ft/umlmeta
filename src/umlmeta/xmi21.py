@@ -71,9 +71,13 @@ REF_SINGLE = {"type", "association", "general", "classifier",
               "importingNamespace",
               # SysML v1 profile bases: ConnectorEnd role, Transition
               # source/target, Include addition
-              "role", "source", "target", "addition"}
+              "role", "source", "target", "addition",
+              # trigger events / the event expressions
+              "event", "changeExpression", "when"}
 # multi reference features (may arrive before their targets)
 REF_MULTI = {"memberEnd", "annotatedElement", "client", "supplier",
+             # state-machine transition triggers (7.7.11.2.26)
+             "trigger",
              # InformationFlow ends/carriers (7.7.9.x family)
              "informationSource", "informationTarget", "conveyed",
              "realization", "realizingConnector", "realizingActivityEdge",
@@ -102,6 +106,7 @@ CONSTRUCTIBLE = {"Model", "Package", "Class", "DataType", "Enumeration",
                  # DoDAF/Measurements corpora
                  "Parameter", "Abstraction", "Behavior", "Actor",
                  "StateMachine", "Region", "State", "Transition",
+                 "Trigger", "ChangeEvent", "TimeEvent", "TimeExpression",
                  "Activity", "UseCase", "Include"}
 
 # metaclasses for which a missing name is derived from the xmi:id tail

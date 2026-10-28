@@ -2498,3 +2498,39 @@ Queued: the transition's CommonReturnParameterReferenceUsageMembership
 - check_v1_to_v2_as.py: 113 passed (wave-B control-shape oracle moved
   to the end-feature read; wave-N oracles upgraded to the full form).
 - Full sweep green (19 suites + text 49 + vehicle 12 + cameo 15).
+
+# Part 34: wave P - transition-succession ends + triggers (state
+# machines)
+
+The state-machine TransitionUsage carried only bare direct ends; the
+formal .2.18 rule set is now complete:
+
+- 7.7.11.2.19-.25: the transition's Succession carrying the named
+  ('source'/'target') end Features (isEnd) under
+  EndFeatureMemberships, subsetting the mapped states.
+- 7.7.11.2.26: the transition's triggers - TimeEvent → a
+  CalculationUsage (TimeTriggerCalculationUsage_Mapping 7.7.5.3.35,
+  return 'result' out + the 'at' expression via FeatureMembership);
+  ChangeEvent → a ConstraintUsage (ChangeTriggerConstraintUsage_Mapping
+  7.7.5.3.6, same shape with the 'when' expression). The carriers ride
+  the transition via FeatureMembership (the .26 rule's
+  ownedMemberFeature) with the membership's member-element through the
+  deviation family (ElementFeatureMembership absent).
+- Reader: trigger (multi ref), event/changeExpression/when (single
+  refs); Trigger/ChangeEvent/TimeEvent/TimeExpression constructible.
+- The invocation/binding end of the trigger machinery (7.7.5.3.7-.34,
+  .5.36-.55 - invocation expressions, event chaining features, binding
+  connectors riding the library expression features) stays queued.
+
+Also fixed along the way: the wave-D default-value machinery carried
+FeatureReferenceExpression members by a dead attribute append
+(FeatureReferenceExpression has neither ownedRelatedElement nor an
+ownedElement storage) - members ride OwningMembership, the canonical
+pattern (same fix in the new trigger machinery; class-of-bug, both
+sites).
+
+## Result
+
+- check_v1_to_v2_as.py: 117 passed (wave-P block; defaults oracle now
+  exercised through the fixed membership path).
+- Full sweep green (19 suites + text 49 + vehicle 12 + cameo 15).

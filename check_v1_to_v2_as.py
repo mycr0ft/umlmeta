@@ -411,6 +411,85 @@ check("succession ends wired via end features (7.7.3.3.18)",
       and end_targets == ["step1", "step2"], str(end_targets))
 
 print()
+print("== wave P: transition-succession ends + triggers "
+      "(7.7.11.2.19-.26) ==")
+# extend the wave-B state machine's idle-to-run transition with a
+# change trigger and give the run one a time trigger
+tpkg = U.Package(name="TrigPkg")
+tsm = U.StateMachine(name="TWatch")
+idle = U.State(name="Idle"); run = U.State(name="Run")
+reg = U.Region(name="r1"); tsm.region.append(reg)
+reg.subvertex.append(idle)
+reg.subvertex.append(run)
+t1 = U.Transition(name="start"); t1._vals["source"] = idle
+t1._vals["target"] = run
+ce = U.ChangeEvent()
+oe = U.OpaqueExpression()
+oe._vals["language"] = "OCL2.0"
+oe._vals["body"] = "i == done"
+ce._vals["changeExpression"] = oe
+tg1 = U.Trigger(name="onDone"); tg1._vals["event"] = ce
+t1._vals["trigger"] = [tg1]
+reg.transition.append(t1)
+t2 = U.Transition(name="tick"); t2._vals["source"] = run
+t2._vals["target"] = idle
+te = U.TimeEvent(); te._vals["isRelative"] = True
+texp = U.TimeExpression()
+texp._vals["expr"] = U.OpaqueExpression(language="OCL2.0")
+texp._vals.get("expr")._vals["body"] = "3.5s"
+te._vals["when"] = texp
+tg2 = U.Trigger(); tg2._vals["event"] = te
+t2._vals["trigger"] = [tg2]
+reg.transition.append(t2)
+tpkg.add("packagedElement", tsm)
+tout = A.transform_package(tpkg)
+tsm_def = tout.ownedElement[0]
+states = [e for e in tsm_def.ownedElement
+          if type(e).__name__ == "StateUsage"]
+by_name = {e.declaredName: e for e in tsm_def.ownedElement
+           if type(e).__name__ == "TransitionUsage"}
+t1u = by_name.get("start")
+suxs = [r for r in t1u.ownedRelationship
+        if type(r).__name__ == "Succession"]
+end_names = [getattr(x, "declaredName", None)
+             for em in suxs[0].ownedRelationship
+             for x in em.ownedRelatedElement]
+check("transition Succession with named source/target ends "
+      "(7.7.11.2.19-.25)",
+      len(suxs) == 1 and len(end_names) == 2
+      and end_names == ["source", "target"], str(end_names))
+checks_out = t1u.ownedRelationship
+tfms = [r for r in checks_out if type(r).__name__ == "FeatureMembership"]
+carriers = [x for r in tfms for x in r.ownedRelatedElement]
+check("change trigger -> ConstraintUsage on the transition (7.7.11.2.26)",
+      len(carriers) == 1
+      and type(carriers[0]).__name__ == "ConstraintUsage"
+      and carriers[0].declaredName == "onDone")
+if carriers and type(carriers[0]).__name__ == "ConstraintUsage":
+    rels = [type(r).__name__ for r in carriers[0].ownedRelationship]
+    inners = [y for r in carriers[0].ownedRelationship
+              if type(r).__name__ == "FeatureMembership"
+              for y in r.ownedRelatedElement]
+    lit = ([z.value for y in inners
+            for om in y.ownedRelationship
+            if type(om).__name__ == "OwningMembership"
+            for z in om.ownedRelatedElement
+            if type(z).__name__ == "LiteralString"])
+    check("the change expression body carries (7.7.5.3.x core)",
+          "ReturnParameterMembership" in rels
+          and len(inners) == 1
+          and lit == ["i == done"], str(lit))
+t2u = by_name.get("tick")
+t2tfms = [r for r in t2u.ownedRelationship
+          if type(r).__name__ == "FeatureMembership"]
+t2carry = [x for r in t2tfms for x in r.ownedRelatedElement]
+check("time trigger -> CalculationUsage (7.7.5.3.35)",
+      len(t2carry) == 1
+      and type(t2carry[0]).__name__ == "CalculationUsage"
+      and any(type(r).__name__ == "ReturnParameterMembership"
+              for r in t2carry[0].ownedRelationship))
+
+print()
 print("== wave C: requirements chain (7.8.8.3.x) ==")
 rpkg = U.Package(name="ReqPkg")
 power = S.Requirement(name="Power"); power._vals["id"] = "R1"
