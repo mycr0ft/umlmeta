@@ -2848,3 +2848,27 @@ The CommonAction invocations complete:
 
 - check_v1_to_v2_as.py: 153 passed (wave-Y block).
 - Full sweep green.
+
+# Part 47: wave Z - activity variables + the variable-action family
+
+- 7.7.3.3.65/.67/.68/.66: an Activity Variable -> a PRIVATE
+  AttributeUsage (DataType-typed, .65) or ItemUsage (.67), typed by
+  the mapped type, riding a FeatureMembership with
+  VisibilityKind.private (the .68 machine rule; membership-deviation
+  family) + its multiplicity. The variables index before the nodes
+  (the actions resolve them).
+- 7.7.2.3.9: the variable-ACTION family - WriteVariableAction
+  (Add/RemoveVariableValue .1/.24: the ActionUsage (library-typed -
+  SysMLv1Library::AddValueAction - name-only) carrying the variable's
+  ReferenceUsage redefining the variable's mapped usage (.10-.12/.26/
+  .28-.31) and the value pin (the write's value single rides the pin
+  machinery); ClearVariable (.13-.16: the variable ref whose
+  FeatureValue = the null form - the sets-to-null rule); ReadVariable
+  (.17-.23: an OUT parameter typed by the variable's type whose
+  FeatureValue = the FRE membering the mapped variable).
+- Reader: Variable + the four variable-action constructibles.
+
+## Result
+
+- check_v1_to_v2_as.py: 157 passed (wave-Z block).
+- Full sweep green (21 suites).

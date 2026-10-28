@@ -2113,6 +2113,90 @@ check("the link-family/start-behavior forms -> empty ActionUsages "
       len(y_empty) == 3, str(len(y_empty)))
 
 print()
+print("== wave Z: variables + the variable-action family "
+      "(7.7.3.3.65-.68, 7.7.2.3.9.1-.31) ==")
+zpkg = U.Package(name="VarPkg")
+zint = U.DataType(name="Int")
+zb = U.Activity(name="Counter")
+zv = U.Variable(name="count")
+zv.type = zint
+zb.variable.append(zv)
+zav = U.AddVariableValueAction(name="addOne")
+zav._vals["variable"] = [zv]
+zval = U.InputPin(name="one")
+zval.type = zint
+zval._vals["value"] = None
+zav._vals["value"] = [zval]
+zcv = U.ClearVariableAction(name="clr")
+zcv._vals["variable"] = [zv]
+zrd = U.ReadVariableAction(name="readIt")
+zrd._vals["variable"] = [zv]
+for wn in (zav, zcv, zrd):
+    zb.node.append(wn)
+zpkg.packagedElement.extend([zint, zb])
+zout = A.transform_package(zpkg)
+z_def = [e for e in zout.ownedElement
+         if e.declaredName == "Counter"][0]
+z_uses = {}
+for r in z_def.ownedRelationship:
+    if type(r).__name__ not in ("FeatureMembership", "OwningMembership"):
+        continue
+    for x in r.ownedRelatedElement:
+        z_uses[x.declaredName] = x
+zattr = z_uses.get("count")
+check("an Activity Variable -> a PRIVATE AttributeUsage typed by the "
+      "type (.3.3.65/.68/.66)",
+      zattr is not None
+      and type(zattr).__name__ == "AttributeUsage"
+      and any(getattr(getattr(ft, "type", None), "declaredName", None)
+              == "Int" for ft in zattr.ownedTyping)
+      and any(r.visibility == S2.VisibilityKind.private
+              for r in z_def.ownedRelationship
+              if type(r).__name__ == "FeatureMembership"))
+add_u = z_uses.get("addOne")
+add_vref = [x for r in add_u.ownedRelationship
+            if type(r).__name__ == "FeatureMembership"
+            for x in r.ownedRelatedElement
+            if type(x).__name__ == "ReferenceUsage"
+            and any(type(rr).__name__ == "Redefinition"
+                    for rr in x.ownedRelationship)]
+add_rd = [rr.redefinedFeature for x in add_vref
+          for rr in x.ownedRelationship
+          if type(rr).__name__ == "Redefinition"]
+check("AddVariableValueAction: the variable's ref redefining the "
+      "mapped variable usage (.9.10/.11/.12) + the value pin carried",
+      len(add_vref) == 1 and add_rd and add_rd[0] is zattr
+      and any(getattr(x3, "declaredName", None) == "one"
+              for r in add_u.ownedRelationship
+              for x3 in r.ownedRelatedElement))
+clr_u = z_uses.get("clr")
+clr_null = ([type(fv4.value).__name__
+             for r in clr_u.ownedRelationship
+             if type(r).__name__ == "FeatureMembership"
+             for x4 in r.ownedRelatedElement
+             for fv4 in x4.ownedRelationship
+             if type(fv4).__name__ == "FeatureValue"])
+check("ClearVariableAction -> the variable set to the null form "
+      "(.9.13/.16)",
+      len(clr_null) == 1 and clr_null == ["FeatureReferenceExpression"],
+      str(clr_null))
+rdu = z_uses.get("readIt")
+r_out = [x for r in rdu.ownedRelationship
+         if type(r).__name__ == "FeatureMembership"
+         for x in r.ownedRelatedElement
+         if getattr(x, "direction", None) == "out"]
+r_mem = ([mm4.memberElement[0] if isinstance(mm4.memberElement, list)
+          else mm4.memberElement
+          for r4 in r_out for fv5 in r4.ownedRelationship
+          if type(fv5).__name__ == "FeatureValue"
+          for mm4 in fv5.value.ownedRelationship
+          if type(mm4).__name__ == "Membership"])
+check("ReadVariableAction -> an OUT param membering the variable "
+      "(.9.17-.23)",
+      len(r_out) == 1 and len(r_mem) == 1 and r_mem[0] is zattr,
+      str(r_mem))
+
+print()
 print("== honesty: unmapped features refuse to guess ==")
 orphan = U.Package(name="Orphan")
 orphan.add("packagedElement", U.Continuation(name="CX"))

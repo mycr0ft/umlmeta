@@ -1372,8 +1372,17 @@ def _send_signal_action(n, v2def, index):
 
 def _action_pins(n, au, index):
     """The CommonAction pin machinery (7.7.2.3.2.1's rule set):
-    Pin_Mapping (7.7.2.3.2.5) + ValuePin (.6)."""
-    for kind, pins in (("in", n._vals.get("_input") or ()),
+    Pin_Mapping (7.7.2.3.2.5) + ValuePin (.6). A WriteVariableAction's
+    value pin rides the 'value' single (not the input mirror)."""
+    in_pins = list(n._vals.get("_input") or ())
+    if isinstance(n, U.WriteVariableAction) \
+            and n._vals.get("value") is not None:
+        vp = n._vals.get("value")
+        if isinstance(vp, list):
+            vp = vp[0] if vp else None
+        if vp is not None:
+            in_pins.append(vp)
+    for kind, pins in (("in", in_pins),
                        ("out", n._vals.get("_output") or ())):
         for pin in list(pins):
             pu_ref = S2.ReferenceUsage(declaredName=_name(pin))
@@ -1487,6 +1496,87 @@ def _call_operation_action(n, v2def, index):
         _feature_membership(au, pf)
         index[id(pin)] = pf
     return au
+
+
+def _variable_action(n, v2def, index):
+    """The 7.7.2.3.9 variable-action family: Add/RemoveVariableValue
+    (.1/.24 - typed by the v1-library action definitions,
+    SysMLv1Library::AddValueAction/RemoveVariableValueAction - the
+    library is external: the typing target carries NAME-ONLY, as in
+    the DeriveReqt machinery), ReadVariable (.17: an out parameter
+    typed by the variable's type returning the variable's value via
+    the FRE membering the mapped variable, .19-.23), ClearVariable
+    (.13: the variable ref whose FeatureValue is the null form -
+    sets the variable's attribute usage to null). The variable's
+    reference usage redefines the variable's mapped AS usage (the
+    .12/.31 redefinitions). The isReplaceAll/insertAt/removeAt
+    machinery (.4-.8) rides the pin/metadata carries; the library
+    definitions themselves stay external throughout."""
+    va = S2.ActionUsage(declaredName=_name(n))
+    _own_membership(v2def, va)
+    index[id(n)] = va
+    var = n._vals.get("variable")
+    if isinstance(var, list):
+        var = var[0] if var else None
+    var2 = index.get(id(var)) if var is not None else None
+    if var2 is None:
+        raise UnmappedFeature(
+            f"{type(n).__name__} {_name(n)!r} variable external/"
+            "unordered")
+    if isinstance(n, U.WriteVariableAction):
+        # .10/.11/.12: the variable's ReferenceUsage redefining the
+        # variable's mapped usage, under a FeatureMembership
+        vref = S2.ReferenceUsage()
+        vref.direction = "in"
+        rd = S2.Redefinition()
+        rd.redefinedFeature = var2
+        vref.ownedRelationship.append(rd)
+        # .3: the value's FeatureValue: the value pin's mapped
+        # reference (the CommonAction pin machinery carries the
+        # value's own reference; the .9 machinery wires it onto the
+        # variable) - the write's value rides the standard pin value
+        _action_pins(n, va, index)
+        fm = S2.FeatureMembership()
+        fm.ownedRelatedElement.append(vref)
+        va.ownedRelationship.append(fm)
+    elif isinstance(n, U.ClearVariableAction):
+        # .13/.14/.15/.16: the variable's attribute usage set to null
+        vref = S2.ReferenceUsage()
+        vref.direction = "in"
+        rd = S2.Redefinition()
+        rd.redefinedFeature = var2
+        vref.ownedRelationship.append(rd)
+        fv = S2.FeatureValue()
+        fre = S2.FeatureReferenceExpression()
+        _own_membership(fre, S2.LiteralBoolean(value=False))
+        fv.value = fre
+        vref.ownedRelationship.append(fv)
+        fm = S2.FeatureMembership()
+        fm.ownedRelatedElement.append(vref)
+        va.ownedRelationship.append(fm)
+    else:  # ReadVariableAction
+        # .17-.23: an OUT parameter typed by the variable's type,
+        # returning the variable's value: the FRE membering the
+        # mapped variable under the FeatureValue chain
+        vty = var._vals.get("type")
+        if isinstance(vty, list):
+            vty = vty[0] if vty else None
+        vdef = index.get(id(vty)) if vty is not None else None
+        rout = S2.ReferenceUsage()
+        rout.direction = "out"
+        if vdef is not None:
+            _type_feature(rout, vdef)
+        pfv = S2.FeatureValue()
+        pfre = S2.FeatureReferenceExpression()
+        pfm_m = S2.Membership()
+        pfm_m.memberElement = var2
+        pfre.ownedRelationship.append(pfm_m)
+        pfv.value = pfre
+        rout.ownedRelationship.append(pfv)
+        ofm = S2.FeatureMembership()
+        ofm.ownedRelatedElement.append(rout)
+        va.ownedRelationship.append(ofm)
+    return va
 
 
 def _accept_action(n, v2def, index):
@@ -1624,6 +1714,33 @@ def _populate_activity(act, v2def, index):
     SuccessionFlowUsage (ObjectFlow) with source/target."""
     nodes = list(act.node)
     edges = list(act.edge)
+    for v in list(getattr(act, "variable", ())):
+        # 7.7.3.3.65/.67/.68/.66: an Activity Variable -> an
+        # AttributeUsage (a DataType-typed variable, .65) or an
+        # ItemUsage (.67), typed by the mapped type, riding a
+        # FeatureMembership with PRIVATE visibility (the .68 rule;
+        # the ElementFeatureMembership deviation family), with its
+        # multiplicity
+        vnm = _name(v)
+        vty = v._vals.get("type")
+        if isinstance(vty, list):
+            vty = vty[0] if vty else None
+        vdef = index.get(id(vty)) if vty is not None else None
+        if vdef is None:
+            raise UnmappedFeature(
+                f"Variable {vnm!r} typed by external/unordered "
+                f"{_as_type_name(vty)!r}")
+        if type(vdef).__name__ == "AttributeDefinition":
+            vuse = S2.AttributeUsage(declaredName=vnm)
+        else:
+            vuse = S2.ItemUsage(declaredName=vnm)
+        _type_feature(vuse, vdef)
+        _attach_multiplicity(v, vuse)
+        fm_v = S2.FeatureMembership()
+        fm_v.visibility = S2.VisibilityKind.private
+        fm_v.ownedRelatedElement.append(vuse)
+        v2def.ownedRelationship.append(fm_v)
+        index[id(v)] = vuse
     for n in nodes:
         nm = _name(n)
         if isinstance(n, U.OpaqueAction):
@@ -1671,6 +1788,11 @@ def _populate_activity(act, v2def, index):
             bau = S2.ActionUsage(declaredName=_name(n))
             _own_membership(v2def, bau)
             index[id(n)] = bau
+        elif isinstance(n, (U.AddVariableValueAction,
+                            U.ClearVariableAction,
+                            U.ReadVariableAction,
+                            U.RemoveVariableValueAction)):
+            _variable_action(n, v2def, index)
         elif isinstance(n, (U.ClearAssociationAction,
                             U.CreateLinkAction, U.CreateLinkObjectAction,
                             U.DestroyLinkAction, U.ReadLinkAction,
