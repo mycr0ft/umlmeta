@@ -1685,3 +1685,108 @@ This software was developed based on the OMG "SysML v2.0 Beta 4, Part 2:
 SysML v1 to SysML v2 Transformation" (ptc/2025-04-07) and satisfies its
 §2 requirements R1 and R2, and R3 for the identified mapping subset
 above. No conformance certification is claimed or implied.
+
+# Part 21: wave E - use cases and interfaces (7.7.13.3.x, 7.8.7.3.16)
+
+The last metaclasses raising "own mapping, later wave" in
+v1_to_v2_as.py were UseCase and InterfaceBlock (and ports needed the
+normative PortDefinition typing target). Wave E closes them TDD-first
+(RED oracles in check_v1_to_v2_as.py, then the wiring).
+
+## Normative source, machine-readable
+
+The transformation spec publishes its mapping classes as a normative
+XMI (`https://www.omg.org/spec/SysML/20250201/SysMLv1Tov2.xmi`, 4.6 MB,
+kept local at ~/umlmeta/SysMLv1Tov2.xmi per repo corpus hygiene - never
+in the repo). The wave-E wiring is pinned against the actual mapping
+classes, not against prose guesses:
+
+- `UseCase_Mapping`: UseCase -> UseCaseDefinition. ownedRelationship =
+  memberships over ownedElements (OwningMembership/PropertyMembership)
+  + UseCaseSubjectMembership + UseCaseObjectiveMembership +
+  CommonReturnParameterReferenceUsageMembership + actor memberships
+  (from association ends typed by the use case); classifierBehavior
+  adds BehavioredClassifierFeatureMembership. Extend/ExtensionPoint are
+  explicitly excluded from the mapped set ("not considered by the ...
+  transformation", ownedComment).
+- `Include_Mapping`: Include -> IncludeUseCaseUsage;
+  ownedRelationship = {IncludeFeatureTyping_Mapping.getMapped(from),
+  ReturnParameterFeatureMembership (factory stub),
+  EmptySubjectMembership (factory stub)}.
+- `IncludeFeatureTyping_Mapping`: the FeatureTyping's type =
+  from.addition (the included UseCase).
+- `UseCaseSubjectMembership_Mapping`: ownedMemberParameter =
+  UseCaseSubjectReferenceUsage_Mapping (subject present) or
+  UseCaseEmptySubjectReferenceUsage_Mapping (subject absent).
+- `UseCaseSubjectReferenceUsage_Mapping`:
+  declaredName = 'subject_' + subject->get(0).name; owns a
+  FeatureTyping typed by the subject. Only one subject is supported by
+  the mapping class (ownedComment).
+
+## Dialect facts pinned
+
+- Extend/ExtensionPoint: not mapped, not guessed. The transformer now
+  skips Extend in pass 1 and the check asserts no AS artifact appears
+  for it (the normative mapping class explicitly excludes it).
+- Subject: v1 carries the subject via the Classifier.useCase
+  association end (UseCase.subject is a pure derived union in the
+  runtime, unreadable from storage - the transformer scans package
+  members for classifiers whose useCase end names the use case, the
+  same fallback pattern the validated textual emitter uses for
+  Include). Subject-less use cases carry no SubjectMembership (the
+  Empty* factory stubs are left un-carried).
+- ObjectiveMembership / ReturnParameterFeatureMembership /
+  actor memberships (UseCaseActorMembership): elided - v1 has no
+  objective; actor membership machinery is the elided
+  ToActorMembership_Init of the realization table.
+- InterfaceBlock -> PortDefinition (7.8.7.3.16) replaces the wave-A
+  PartDefinition carrier in place: ports (7.7.12.2.36) and
+  InterfaceBlock-typed properties (7.7.4.2.37 PropertyTypedByClass-
+  Interface) both typed by the SAME transformed PortDefinition identity.
+  InterfaceBlock-typed property -> OccurrenceUsage (ref form carries
+  isComposite=false), matching the wave-A Class-typed property rule.
+- Include ownership: the IncludeUseCaseUsage joins the including
+  definition through a FeatureMembership (the metamodel constraint
+  requires the owning type to be UseCaseDefinition/UseCaseUsage);
+  the FeatureTyping to the addition's definition is the only normative
+  relationship (useCaseIncluded is derived, computed by the runtime).
+
+## Changes
+
+- src/umlmeta/v1_to_v2_as.py: UseCase -> UseCaseDefinition dispatch
+  (ahead of the Class catch-all); _populate_usecase (includes, subject);
+  InterfaceBlock -> PortDefinition dispatch; InterfaceBlock-typed
+  Property -> OccurrenceUsage; Include/Extend skipped in pass 1 (Include
+  wires in the use-case population pass, Extend never); realization
+  table rows added/updated (ToUseCaseDefinition, ToUseCaseSubject-
+  Membership, ToUseCaseObjectiveMembership, ToIncludeFeatureTyping,
+  ToPortDefinition rewritten, ToPropertyTypedByClassInterface); module
+  docstring now carries the wave A-E summary and the current elision list.
+- check_v1_to_v2_as.py: wave-E section, 8 checks (UseCase->
+  UseCaseDefinition, subject membership + 'subject_' ReferenceUsage
+  typed by the subject's definition, Include->IncludeUseCaseUsage with
+  the FeatureTyping to the addition's definition, cross-package
+  addition resolution, InterfaceBlock->PortDefinition, PortUsage/-
+  OccurrenceUsage typed by the same PortDefinition identity, Extend
+  mapped-nothing honesty).
+- Also fixed in this wave: the wave-A XMI oracle still expected
+  <aggregation> in the reader's unmapped_features, which the
+  Cameo-dialect reader extension (enum-valued text children) had already
+  overtaken - the XMI model gained a referential sibling (leg) pinning
+  composite-vs-referential both ways (commit 7c20fbd).
+
+## Elisions opened for later waves (unchanged, all anchored)
+
+imports (7.7.9.3.12; also an R1 reader gap), interaction machinery
+(7.7.8.x), Association -> ConnectionDefinition (7.7.12.2.x), item flows,
+function synthesis, assignments, conjugation machinery,
+multiplicity bounds in AS. Note the transformation spec has since gone
+formal (formal/2026-03-03, Part 2 of SysML v2.0) - the repo remains
+pinned to ptc/2025-04-07 Beta 4 anchors until an explicit re-base.
+
+## Result
+
+- check_v1_to_v2_as.py: 59 passed (51 from before + 8 wave-E).
+- Suites: check 45, check_profiles 60, check_sysml2 26, check_ocl 19 -
+  all green. Corpus suites remain environment-blocked (/mnt/TBFox
+  mount absent; check_xmi_cameo needs sysmlpy on the path).

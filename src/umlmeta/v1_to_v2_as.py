@@ -13,7 +13,7 @@ Mapping authority: OMG "SysML v2.0 Beta 4, Part 2: SysML v1 to SysML v2
 Transformation" (ptc/2025-04-07), same anchors as v1_to_v2.py. Anything
 without a normative mapping raises UnmappedFeature.
 
-Wave A (this module): core structural mappings
+Wave A: core structural mappings
   Block→PartDefinition (7.8.4.3.3) via ToPartUsage_Init family,
   Property typed by block + isComposite→PartUsage (7.8.4.3.13),
   non-composite block-typed Property→PartUsage w/ isComposite=false
@@ -26,6 +26,33 @@ Wave A (this module): core structural mappings
   FeatureTyping (Core-Features), Comment→Documentation
   (7.4.2.1.9 ToDocumentation_Init).
 
+Wave B: state machines and activities (7.7.11.2.x, 7.7.3.3.x) —
+  States/Pseudostates/FinalStates→StateUsage, Transitions→
+  TransitionUsage with source/target ends, regions inlined, initial
+  elided (SYSML2_-203); OpaqueAction→ActionUsage, ControlFlow→
+  SuccessionAsUsage, object flows→SuccessionFlowUsage.
+
+Wave C: requirements chain (7.8.8.3.x) — Requirement→RequirementUsage
+  (id on aliasIds, text→Documentation), TestCase→
+  VerificationCaseDefinition, Satisfy→SatisfyRequirementUsage,
+  Verify→RequirementVerificationMembership, DeriveReqt→ConnectionUsage,
+  nested requirements; Dependency/Refine/Trace/Allocate.
+
+Wave D: To*_Init realization (7.7.4.2.36 subsets/redefines/defaults,
+  ports 7.7.12.2.36/.37 + 7.8.7.3.16, Operations→PerformActionUsage,
+  Connectors→ConnectionUsage/BindingConnectorAsUsage, Signal→
+  ItemDefinition/ItemUsage).
+
+Wave E: use cases and interfaces — UseCase→UseCaseDefinition
+  (7.7.13.3.3) with subject memberships, Include→IncludeUseCaseUsage
+  (7.7.13.3.x, IncludeFeatureTyping to the addition's definition),
+  Extend/ExtensionPoint not mapped (no normative target); InterfaceBlock→
+  PortDefinition (7.8.7.3.16, replacing the wave-A PartDefinition
+  carrier), InterfaceBlock-typed Property→OccurrenceUsage (7.7.4.2.37).
+  See the To*_Init realization table in this file for the per-helper
+  wiring/defaults/elided decisions over the normative SysMLv1Tov2.xmi
+  mapping classes.
+
 One v1 element maps to exactly ONE v2 AS object (kept in the index);
 usage typings reference that object rather than duplicating it.
 
@@ -34,8 +61,11 @@ Honest elisions (documented, no data invented silently):
     (MultiplicityRange bounds are derived unions in the metamodel and
     the runtime has no FeatureMultiplicityMembership storage); the
     textual pipeline carries them, the AS wave does not yet.
-  - behaviors (Operations/Activities), connectors, ports, state
-    machines, requirements: raise UnmappedFeature (later waves).
+  - imports (ToNamespaceImport/ToMembershipImport, 7.7.9.3.12): elided —
+    the R1 reader carries no PackageImport/ElementImport ends yet.
+  - interaction machinery, conjugated ports, Association→
+    ConnectionDefinition, item flows, function synthesis, assignments:
+    elided (see the realization table) or raise UnmappedFeature.
 """
 from __future__ import annotations
 
@@ -113,6 +143,13 @@ def transform_v1_element(el, index=None):
         # ConstraintBlock_Mapping (7.8.5.3.1): to ConstraintDefinition
         # (before the Block check: ConstraintBlock specializes Block)
         return S2.ConstraintDefinition(declaredName=_name(el))
+    if isinstance(el, S.InterfaceBlock):
+        # InterfaceBlock_Mapping (7.8.7.3.16): to PortDefinition — the
+        # normative typing target for Ports (7.7.12.2.36) and for
+        # InterfaceBlock-typed properties (7.7.4.2.37). (Wave A carried
+        # the AS as a PartDefinition; the port machinery check still
+        # referenced the definition by identity.)
+        return S2.PortDefinition(declaredName=_name(el))
     if isinstance(el, S.Block):
         # Block_Mapping (7.8.4.3.3): to PartDefinition
         return S2.PartDefinition(declaredName=_name(el))
@@ -138,13 +175,16 @@ def transform_v1_element(el, index=None):
         # → ItemDefinition (Signal/InformationItem are Classifiers,
         # not Classes — dispatch must precede the Class check)
         return S2.ItemDefinition(declaredName=_name(el))
+    if isinstance(el, U.UseCase):
+        # UseCase_Mapping (7.7.13.3.3): to UseCaseDefinition; subject and
+        # Include wiring ride the use-case population pass
+        return S2.UseCaseDefinition(declaredName=_name(el))
     if isinstance(el, U.Class):
         # Class_Mapping (7.7.4.2.37 family): plain Class to
         # OccurrenceDefinition. Metaclasses with their own normative
-        # mappings (use cases, interfaces, ports machinery) are later
-        # waves — not guesses.
-        if isinstance(el, (U.UseCase, U.Interaction, U.Interface,
-                           S.InterfaceBlock)):
+        # mappings (use cases handled above; interactions, interfaces,
+        # ports machinery) are later waves — not guesses.
+        if isinstance(el, (U.Interaction, U.Interface)):
             raise UnmappedFeature(
                 f"{type(el).__name__} (own mapping, later wave)")
         if isinstance(el, S.Requirement):
@@ -219,7 +259,15 @@ def transform_property(prop, owner_def, index):
         _feature_membership(owner_def, usage)
         index[id(prop)] = usage
         return usage
-    if isinstance(t, S.Block):
+    if isinstance(t, S.InterfaceBlock):
+        # PropertyTypedByClassInterface (7.7.4.2.37): InterfaceBlock is
+        # a Class — the reference is an OccurrenceUsage typed by the
+        # PortDefinition (before the Block check: InterfaceBlock
+        # specializes Block)
+        usage = S2.OccurrenceUsage(declaredName=nm)
+        if not composite:
+            usage.isComposite = False     # referential occurrence
+    elif isinstance(t, S.Block):
         usage = S2.PartUsage(declaredName=nm)
         if not composite:
             usage.isComposite = False     # 'ref part' (7.8.4.3.13)
@@ -348,6 +396,70 @@ def _populate_class(v1cls, v2def, index, pending):
         pending.append((v2def, g))
 
 
+def _populate_usecase(uc, v2def, index, pkg):
+    """UseCase internals (7.7.13.3.x, per the normative SysMLv1Tov2.xmi
+    mapping classes):
+
+    - Include → IncludeUseCaseUsage owned by the including definition
+      (FeatureMembership; the metamodel constraint requires the owning
+      type to be UseCaseDefinition/UseCaseUsage), typed by the addition's
+      UseCaseDefinition — IncludeFeatureTyping_Mapping.type = from.addition.
+      Includes are the UseCase's ownedMembers / the containing package's
+      Include relationships (the v1 runtime's UseCase.include is a pure
+      derived union with no storage, the same fallback the validated
+      textual emitter uses).
+    - subject → SubjectMembership whose ownedMemberParameter is a
+      ReferenceUsage 'subject_<name>' typed by the subject's definition
+      (UseCaseSubjectMembership_Mapping + UseCaseSubjectReferenceUsage_
+      Mapping: declaredName = 'subject_' + subject->get(0).name; the
+      mapping class supports one subject). Subject-less use cases get
+      no SubjectMembership (the EmptySubjectReferenceUsage stub of the
+      mapping is left un-carried, as it is a factory default).
+    - ObjectiveMembership / ReturnParameterFeatureMembership /
+      actor memberships (UseCaseActorMembership), classifier behavior:
+      elided — v1 carries no objective, the actor machinery is the
+      elided ToActorMembership_Init of the realization table.
+    """
+    pkg_members = list(pkg.ownedMember) + list(uc.ownedMember)
+
+    # Includes: Include relationships whose includingCase is this use case
+    includes = [m for m in pkg_members if isinstance(m, U.Include)]
+    includes = [inc for inc in includes
+                if inc._vals.get("includingCase") is uc] \
+        + list(uc._vals.get("include") or [])
+    includes = list(dict.fromkeys(includes))
+    for inc in includes:
+        addition = inc._vals.get("addition")
+        adef = index.get(id(addition)) if addition is not None else None
+        if adef is None:
+            raise UnmappedFeature(
+                f"Include with external/unordered addition "
+                f"{_name(addition)!r}")
+        iucu = S2.IncludeUseCaseUsage(declaredName=_name(inc))
+        _type_feature(iucu, adef)
+        _feature_membership(v2def, iucu)
+
+    # subject: the classifier(s) whose useCase association end names this
+    # use case (UML: Classifier.useCase; UseCase.subject is a pure
+    # derived union, the same fallback pattern as Include). The normative
+    # mapping class supports exactly one subject; the first wins.
+    subjects = [c for c in pkg_members
+                if isinstance(c, U.Class)  # only Class can carry the
+                and uc in (c._vals.get("useCase") or [])]  # useCase end
+    if subjects:
+        subj = subjects[0]
+        sdef = index.get(id(subj))
+        if sdef is None:
+            raise UnmappedFeature(
+                f"UseCase subject {type(subj).__name__!r} not mapped first")
+        ru = S2.ReferenceUsage(
+            declaredName="subject_" + (_name(subj) or "?"))
+        _type_feature(ru, sdef)
+        sm = S2.SubjectMembership()
+        sm.ownedRelatedElement.append(ru)
+        v2def.ownedRelationship.append(sm)
+
+
 def _populate_statemachine(sm, v2def, index):
     """StateMachine internals (7.7.11.2.x): Regions inlined — States/
     Pseudostates/FinalStates → StateUsage; Transitions → TransitionUsage
@@ -465,7 +577,11 @@ def transform_package(pkg):
     # not built here — pass 3 resolves their ends from the index
     for el in list(pkg.ownedMember):
         if isinstance(el, (S.Satisfy, S.Verify, S.DeriveReqt, S.Allocate,
-                           U.Abstraction, U.Dependency)):
+                           U.Abstraction, U.Dependency, U.Include,
+                           U.Extend)):
+            # Include/Extend are relationship-owned use-case machinery:
+            # Include wires in _populate_usecase (7.7.13.3.x), Extend is
+            # normatively unmapped (no guess)
             continue  # built in pass 3 (ends need the completed index)
         v2 = transform_v1_element(el, index)
         index[id(el)] = v2
@@ -487,6 +603,8 @@ def transform_package(pkg):
                 _populate_behavior_params(el, v2)
         elif isinstance(el, U.Class):
             _populate_class(el, v2, index, pending_generalizations)
+        elif isinstance(el, U.UseCase):
+            _populate_usecase(el, v2, index, pkg)
 
     # pass 2.5: feature extras (subsets/redefines/values, 7.7.4.2.36)
     # after ALL owners populated so cross-block targets resolve
@@ -727,6 +845,23 @@ def _transform_allocate(al, out, index):
 # ToDefinition_Init         wiring   *Definition constructions
 # ToUsage_Init              wiring   *Usage constructions
 # ToNamespace_Init          wiring   package/namespace memberships
+# ToUseCaseDefinition_Init  wiring   wave E: UseCase → UseCaseDefinition
+#                                    (7.7.13.3.3; per the normative
+#                                    SysMLv1Tov2.xmi mapping classes)
+# ToUseCaseSubjectMembership_Init wiring wave E: SubjectMembership +
+#                                    'subject_<name>' ReferenceUsage
+#                                    typed by the subject's definition
+#                                    (one subject per the mapping class);
+#                                    the EmptySubjectReferenceUsage stub
+#                                    is left un-carried (factory default)
+# ToUseCaseObjectiveMembership_Init elided (v1 has no objective)
+# ToUseCaseActorMembership_Init elided (ToActorMembership_Init above)
+# ToIncludeFeatureTyping_Init wiring  wave E: Include → IncludeUseCaseUsage
+#                                    owned by the including definition
+#                                    (FeatureMembership), typed by the
+#                                    addition's UseCaseDefinition (7.7.13.3.x);
+#                                    Extend/ExtensionPoint not mapped
+#                                    (UseCase_Mapping comment)
 # ToOccurenceDefinition_Init wiring  plain-Class → OccurrenceDefinition
 # ToOccurrenceUsage_Init    wiring   Property typed by Class →
 #                                    OccurrenceUsage (7.7.4.2.37)
@@ -744,11 +879,15 @@ def _transform_allocate(al, out, index):
 # ToSuccessionItemFlow_Init elided   same
 # ToFlowUsage_Init          wiring   wave B (SuccessionFlowUsage for
 #                                    ObjectFlow)
-# ToPortDefinition_Init     wiring   InterfaceBlock → PartDefinition is
-#                                    wave-A behavior; the normative
-#                                    PortDefinition typing target is
-#                                    carried by the AS PartDefinition
-#                                    (7.8.7.3.16)
+# ToPortDefinition_Init     wiring   InterfaceBlock → PortDefinition
+#                                    (7.8.7.3.16 — wave E replaced the
+#                                    wave-A PartDefinition carrier; the
+#                                    port/typed-property ends referenced
+#                                    it by identity and were upgraded
+#                                    in place)
+# ToPropertyTypedByClassInterface_Init wiring wave E: Property typed by
+#                                    InterfaceBlock → OccurrenceUsage
+#                                    (7.7.4.2.37; ref form isComposite=false)
 # ToPortConjugation_Init    elided   conjugation machinery (later
 #                                    wave; needs ToConjugation +
 #                                    ToConjugatedPortDefinition +

@@ -486,6 +486,81 @@ check("Operation -> PerformActionUsage (7.7.4.2.23)",
           for e in d_dev.ownedElement) if (d_dev := opout.ownedElement[0]) else False)
 
 print()
+print("== wave E: use cases and interfaces (7.7.13.3.x, 7.8.7.3.16) ==")
+upkg = U.Package(name="UCPkg")
+checkout = U.UseCase(name="Checkout")
+upkg.add("packagedElement", checkout)
+car = S.Block(name="Car")
+upkg.add("packagedElement", car)
+car.add("useCase", checkout)            # subject association (one subject)
+ucpkg = A.transform_package(upkg)
+ucd = [e for e in ucpkg.ownedElement
+       if type(e).__name__ == "UseCaseDefinition"][0]
+check("UseCase -> UseCaseDefinition (7.7.13.3.3)", ucd.declaredName == "Checkout")
+subj_ms = [r for r in ucd.ownedRelationship
+           if type(r).__name__ == "SubjectMembership"]
+check("subject -> SubjectMembership with 'subject_' ReferenceUsage",
+      len(subj_ms) == 1
+      and any(type(x).__name__ == "ReferenceUsage"
+              and x.declaredName == "subject_Car"
+              and x.ownedTyping and x.ownedTyping[0].type.declaredName == "Car"
+              for r in subj_ms for x in r.ownedRelatedElement),
+      str([[type(x).__name__ for x in r.ownedRelatedElement] for r in subj_ms]))
+
+subpkg = U.Package(name="IncPkg")
+u1 = U.UseCase(name="Outer"); u2 = U.UseCase(name="Inner")
+subpkg.packagedElement.extend([u1, u2])
+inc = U.Include(name="inc1"); inc.addition = u2; inc.includingCase = u1
+subpkg.packagedElement.append(inc)
+inc2 = U.Include(); inc2.addition = u1; inc2.includingCase = u2
+subpkg.packagedElement.append(inc2)
+iout = A.transform_package(subpkg)
+u1d = [e for e in iout.ownedElement if e.declaredName == "Outer"][0]
+icu = [e for e in u1d.ownedElement if type(e).__name__ == "IncludeUseCaseUsage"]
+check("Include -> IncludeUseCaseUsage owned by the including use case",
+      any(e.ownedTyping and any(t.type is
+          [d for d in iout.ownedElement if d.declaredName == "Inner"][0]
+          for t in e.ownedTyping) for e in icu))
+u2d = [e for e in iout.ownedElement if e.declaredName == "Inner"][0]
+icu2 = [e for e in u2d.ownedElement
+        if type(e).__name__ == "IncludeUseCaseUsage"]
+check("cross-package Include addition resolved through the index",
+      any(any(t.type is u1d for t in e.ownedTyping) for e in icu2))
+
+ifacepkg = U.Package(name="IfacePkg")
+ifb2 = S.InterfaceBlock(name="Bus"); ifacepkg.packagedElement.append(ifb2)
+host = S.Block(name="Host"); ifacepkg.packagedElement.append(host)
+bus_port = U.Port(name="bus"); bus_port.type = ifb2
+host.add("ownedAttribute", bus_port)
+ref = U.Property(name="busRole"); ref.type = ifb2
+host.add("ownedAttribute", ref)
+iout2 = A.transform_package(ifacepkg)
+bus_def = [e for e in iout2.ownedElement
+           if type(e).__name__ == "PortDefinition"][0]
+check("InterfaceBlock -> PortDefinition (7.8.7.3.16)", bus_def.declaredName == "Bus")
+host_def = [e for e in iout2.ownedElement if e.declaredName == "Host"][0]
+port_u = [e for e in host_def.ownedElement
+          if type(e).__name__ == "PortUsage"][0]
+check("PortUsage typed by the SAME PortDefinition object (identity)",
+      any(t.type is bus_def for t in port_u.ownedTyping))
+role_u = [e for e in host_def.ownedElement if e.declaredName == "busRole"][0]
+check("Property typed by InterfaceBlock -> OccurrenceUsage (7.7.4.2.37)",
+      type(role_u).__name__ == "OccurrenceUsage"
+      and any(t.type is bus_def for t in role_u.ownedTyping))
+
+extpkg = U.Package(name="ExtendPkg")
+e1 = U.UseCase(name="Base"); e2 = U.UseCase(name="Supplemental")
+extpkg.packagedElement.extend([e1, e2])
+ex = U.Extend(); ex.addition = e2; ex.includingCase = e1
+extpkg.packagedElement.append(ex)
+eout = A.transform_package(extpkg)
+check("Extend/ExtensionPoint not mapped: no AS artifact, no guess "
+      "(UseCase_Mapping comment)",
+      len(eout.ownedElement) == 2
+      and not any(type(x).__name__ == "IncludeUseCaseUsage"
+                  for d in eout.ownedElement for x in d.ownedElement))
+
+print()
 print("== honesty: unmapped features refuse to guess ==")
 orphan = U.Package(name="Orphan")
 orphan.add("packagedElement", U.Interaction(name="IX"))
