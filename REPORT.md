@@ -2798,3 +2798,35 @@ The send machinery completes the signal family symmetric to wave V:
 
 - check_v1_to_v2_as.py: 147 passed (wave-W block).
 - Full sweep green (21 suites).
+
+# Part 45: wave X - call-behavior / call-operation / broadcast
+
+The CommonAction invocations complete:
+
+- 7.7.2.3.3.2/.3: CallBehaviorAction -> ActionUsage TYPED by the
+  mapped behavior (CBAFeatureTyping; type = from.behavior), with the
+  CommonAction pin machinery.
+- 7.7.2.3.3.4: CallOperationAction -> ActionUsage carrying the .18
+  perform FeatureMembership (the perform Feature chained to the
+  MAPPED OPERATION via FeatureChaining, .20) and the RESULT feature:
+  the output pin -> a Feature (direction 'in' - the .5 rule's
+  literal machine text; typed by the pin's type) whose FeatureValue =
+  the FeatureChainExpression chaining the operation (.5/.6) - the
+  textual 'out paramReturn = target.<op>;'.
+- 7.7.2.3.3.1: BroadcastSignalAction ('not defined yet') -> an empty
+  ActionUsage.
+- The pin machinery FACTORED: _action_pins(n, au, index) - the
+  CommonAction FMS set (pins ride FeatureMemberships - the machine
+  text's toElementFMS - not ParameterMemberships) now serves
+  OpaqueAction, CallBehaviorAction, CallOperationAction (+the accept
+  family's pins when present). The Operation mappings are INDEXED
+  under id(op) (the PerformActionUsage) so call-chains resolve.
+- The .6-.16 chain-membership choreography (the
+  FeatureChainExpressionMembership + the reference-expression layers)
+  rides the membership carries; queued with the other
+  expression-form variants.
+
+## Result
+
+- check_v1_to_v2_as.py: 151 passed (wave-X block).
+- Full sweep green (21 suites).

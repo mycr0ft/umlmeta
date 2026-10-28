@@ -570,6 +570,7 @@ def _populate_class(v1cls, v2def, index, pending):
             pm.ownedRelatedElement.append(ref)
             pau.ownedRelationship.append(pm)
         _feature_membership(v2def, pau)
+        index[id(op)] = pau
     for conn in getattr(v1cls, "ownedConnector", ()):
         # Connector_Mapping (7.7.12.2.14) / BindingConnector (7.8.4.3.2):
         # → ConnectionUsage / BindingConnectorAsUsage between the
@@ -1360,6 +1361,125 @@ def _send_signal_action(n, v2def, index):
     return ssu
 
 
+def _action_pins(n, au, index):
+    """The CommonAction pin machinery (7.7.2.3.2.1's rule set):
+    Pin_Mapping (7.7.2.3.2.5) + ValuePin (.6)."""
+    for kind, pins in (("in", n._vals.get("_input") or ()),
+                       ("out", n._vals.get("_output") or ())):
+        for pin in list(pins):
+            pu_ref = S2.ReferenceUsage(declaredName=_name(pin))
+            pu_ref.direction = kind
+            pt = pin._vals.get("type")
+            if pt is not None:
+                if isinstance(pt, list):     # raw single-store unwraps
+                    pt = pt[0] if pt else None
+                pdef = index.get(id(pt))
+                if pdef is None:
+                    raise UnmappedFeature(
+                        f"Pin {_name(pin)!r} typed by "
+                        f"external/unordered {type(pt).__name__}")
+                _type_feature(pu_ref, pdef)
+            _attach_multiplicity(pin, pu_ref)
+            pval = pin._vals.get("value")
+            if pval is not None:
+                if isinstance(pval, list):
+                    pval = pval[0] if pval else None
+                # ValuePinFeatureValue_Mapping (7.7.2.3.2.7):
+                # the value rides a FeatureValue on the pin's
+                # reference usage; an InstanceValue carries as a
+                # feature reference, anything else as a
+                # literal-carried expression (the same shape the
+                # defaultValue plumbing, 7.7.4.2.16, builds)
+                fv = S2.FeatureValue()
+                expr = S2.FeatureReferenceExpression()
+                inst = pval._vals.get("instance") \
+                    if isinstance(pval, U.InstanceValue) else None
+                if inst is not None:
+                    expr.referent = index.get(id(inst))
+                spec = pval._vals.get("specification") \
+                    if hasattr(pval, "_vals") else None
+                body = getattr(spec, "_vals", {}).get("body") \
+                    if spec is not None and hasattr(spec, "_vals") \
+                    else None
+                body = getattr(spec, "body", None) if body is None \
+                    else body
+                if isinstance(body, str) and body.strip() \
+                        and expr.referent is None:
+                    _own_membership(expr, S2.LiteralString(
+                        value=body.strip()))
+                fv.value = expr
+                pu_ref.ownedRelationship.append(fv)
+            _feature_membership(au, pu_ref)
+            index[id(pin)] = pu_ref
+
+
+def _call_operation_action(n, v2def, index):
+    """CallOperationAction_Mapping (7.7.2.3.3.4): CallOperationAction
+    -> ActionUsage carrying the .18 PerformActionFeatureMembership ->
+    the perform Feature chained to the OPERATION (7.7.2.3.3.20-.22:
+    the FeatureChaining to the mapped operation; the .19
+    ReferenceSubsetting to the mapped target) and the output pin's
+    result feature whose FeatureValue = the 'target.<op>' chain
+    (7.7.2.3.3.5/.6: the FeatureChainExpression chaining the
+    operation) - the textual 'out paramReturn = target.<op>;'. The
+    .7-.16 membership choreography of the chain (the
+    FeatureChainExpressionMembership + the reference-expression
+    layers) ride the membership carries; queued with the other
+    expression-form variants."""
+    au = S2.ActionUsage(declaredName=_name(n))
+    _own_membership(v2def, au)
+    index[id(n)] = au
+    _action_pins(n, au, index)
+    op = n._vals.get("operation")
+    if isinstance(op, list):
+        op = op[0] if op else None
+    op_def = index.get(id(op)) if op is not None else None
+    if op_def is None:
+        raise UnmappedFeature(
+            f"CallOperationAction {_name(n)!r} operation external/"
+            f"unordered {_as_type_name(op)!r}")
+    tgt = n._vals.get("target")
+    if isinstance(tgt, list):
+        tgt = tgt[0] if tgt else None
+    tgt_ty = tgt._vals.get("type") if tgt is not None else None
+    if isinstance(tgt_ty, list):
+        tgt_ty = tgt_ty[0] if tgt_ty else None
+    tgt_def = index.get(id(tgt_ty)) if tgt_ty is not None else None
+    # the .18 perform membership: Feature 'perform' chained to the op
+    perf = S2.Feature()
+    fc = S2.FeatureChaining()
+    fc.chainingFeature = op_def
+    perf.ownedRelationship.append(fc)
+    pfm = S2.FeatureMembership()
+    pfm.ownedRelatedElement.append(perf)
+    au.ownedRelationship.append(pfm)
+    # the out-pin result feature: the chain value 'target.<op>' -
+    # the .5 Feature w/ direction in (the .5's rule is literal:
+    # direction 'in' for the OUTPUT pin's FEATURE - the machine text)
+    # + its FeatureValue = the FeatureChainExpression chained to the op
+    for pin in list(n._vals.get("_output") or ()):
+        pf = S2.Feature(declaredName=_name(pin))
+        pf.direction = "in"
+        # the out pin's typing by the pin's type
+        pt = pin._vals.get("type")
+        if pt is not None:
+            if isinstance(pt, list):
+                pt = pt[0] if pt else None
+            pdef = index.get(id(pt))
+            if pdef is not None:
+                _type_feature(pf, pdef)
+        pf_fv = S2.FeatureValue()
+        chain = S2.FeatureChainExpression()
+        pf_fc = S2.FeatureChaining()
+        pf_fc.chainingFeature = op_def
+        chain.ownedRelationship.append(pf_fc)
+        pf_fv.value = chain
+        pf.ownedRelationship.append(pf_fv)
+        _feature_membership(au, pf)
+        index[id(pin)] = pf
+    return au
+
+
 def _accept_action(n, v2def, index):
     """AcceptEventAction_Mapping (7.7.2.3.1.2): AcceptEventAction ->
     AcceptActionUsage; only the FIRST trigger transforms (the spec's
@@ -1502,52 +1622,7 @@ def _populate_activity(act, v2def, index):
             _own_membership(v2def, au)
             index[id(n)] = au
             _opaque_body_repr(au, n)   # OABody (7.7.2.3.2.3/.4)
-            # Pin_Mapping (7.7.2.3.2.5) + ValuePin (.6): the action's
-            # pins -> ReferenceUsages carried on the action (in/out by
-            # the pin's orientation - the .2.5 example form
-            # 'action a { in inPin : Integer; out outPin; }'), typed by
-            # the pin's type, with the pin's multiplicity
-            # (MultiplicityElement_Mapping); a ValuePin's value becomes
-            # the FeatureValue (ValuePinFeatureValue_Mapping .2.7)
-            for kind, pins in (("in", n._vals.get("_input") or ()),
-                               ("out", n._vals.get("_output") or ())):
-                for pin in list(pins):
-                    pu_ref = S2.ReferenceUsage(declaredName=_name(pin))
-                    pu_ref.direction = kind
-                    pt = pin._vals.get("type")
-                    if pt is not None:
-                        pdef = index.get(id(pt))
-                        if pdef is None:
-                            raise UnmappedFeature(
-                                f"Pin {_name(pin)!r} typed by "
-                                f"external/unordered {type(pt).__name__}")
-                        _type_feature(pu_ref, pdef)
-                    _attach_multiplicity(pin, pu_ref)
-                    pval = pin._vals.get("value")
-                    if pval is not None:
-                        # ValuePinFeatureValue_Mapping (7.7.2.3.2.7):
-                        # the value rides a FeatureValue on the pin's
-                        # reference usage; an InstanceValue carries as a
-                        # feature reference, anything else as a
-                        # literal-carried expression (the same shape the
-                        # defaultValue plumbing, 7.7.4.2.16, builds)
-                        fv = S2.FeatureValue()
-                        expr = S2.FeatureReferenceExpression()
-                        inst = pval._vals.get("instance") \
-                            if isinstance(pval, U.InstanceValue) else None
-                        if inst is not None:
-                            expr.referent = index.get(id(inst))
-                        spec = pval._vals.get("specification") \
-                            if hasattr(pval, "_vals") else None
-                        body = getattr(spec, "body", None)
-                        if isinstance(body, str) and body.strip() \
-                                and expr.referent is None:
-                            expr.ownedRelatedElement.append(S2.LiteralString(
-                                value=body.strip()))
-                        fv.value = expr
-                        pu_ref.ownedRelationship.append(fv)
-                    _feature_membership(au, pu_ref)
-                    index[id(pin)] = pu_ref
+            _action_pins(n, au, index)
         elif isinstance(n, U.DecisionNode):
             du = S2.DecisionNode(declaredName=nm)
             _own_membership(v2def, du)
@@ -1564,6 +1639,29 @@ def _populate_activity(act, v2def, index):
             _accept_action(n, v2def, index)
         elif isinstance(n, U.SendSignalAction):
             _send_signal_action(n, v2def, index)
+        elif isinstance(n, U.CallBehaviorAction):
+            # 7.7.2.3.3.2/.3: ActionUsage typed by the mapped behavior;
+            # the CommonAction pin machinery applies
+            cbu = S2.ActionUsage(declaredName=_name(n))
+            _own_membership(v2def, cbu)
+            index[id(n)] = cbu
+            beh = n._vals.get("behavior")
+            if isinstance(beh, list):
+                beh = beh[0] if beh else None
+            beh_def = index.get(id(beh)) if beh is not None else None
+            if beh_def is None:
+                raise UnmappedFeature(
+                    f"CallBehaviorAction {_name(n)!r} behavior external/"
+                    f"unordered {_as_type_name(beh)!r}")
+            _type_feature(cbu, beh_def)
+            _action_pins(n, cbu, index)
+        elif isinstance(n, U.CallOperationAction):
+            _call_operation_action(n, v2def, index)
+        elif isinstance(n, U.BroadcastSignalAction):
+            # 7.7.2.3.3.1: 'not defined yet' - an empty ActionUsage
+            bau = S2.ActionUsage(declaredName=_name(n))
+            _own_membership(v2def, bau)
+            index[id(n)] = bau
         elif isinstance(n, (U.ReplyAction, U.UnmarshallAction)):
             # 7.7.2.3.1.24/.25: empty ActionUsages (ReplyAction rides
             # AcceptCallAction's no-mapping; UnmarshallAction is 'not

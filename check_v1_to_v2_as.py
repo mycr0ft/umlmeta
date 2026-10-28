@@ -1976,6 +1976,89 @@ check("the .30/.35 FeatureValues reference the mapped ends (.22-style)",
       str([(type(m3[0]).__name__,) for m3 in s_mems]))
 
 print()
+print("== wave X: call-behavior / call-operation / broadcast "
+      "(7.7.2.3.3.1-.22) ==")
+xpkg = U.Package(name="CallPkg")
+xsig = U.Signal(name="Blast")
+xbeh = U.Activity(name="DoIt")
+xin = U.OpaqueAction(name="pre")
+xia = U.CallBehaviorAction(name="callB")
+xia._vals["behavior"] = [xbeh]
+xibp = U.InputPin(name="cbIn")
+xibp.type = xsig
+xia.add("input", xibp)
+xco = U.CallOperationAction(name="callO")
+xop = U.Operation(name="getV")
+xop._vals["direction"] = "return"
+xhost = U.Class(name="Host")
+xhost.ownedOperation.append(xop)
+xtgt = U.InputPin(name="tg")
+xtgt.type = xhost
+xco._vals["operation"] = [xop]
+xco._vals["target"] = [xtgt]
+xoprt = U.OutputPin(name="paramReturn")
+xco.add("output", xoprt)
+xcob = U.BroadcastSignalAction(name="blast")
+xtgtact = U.OpaqueAction(name="post")
+xbeh2 = U.Activity(name="Stage")
+for wn in (xin, xia, xco, xcob, xtgtact):
+    xbeh2.node.append(wn)
+xpkg.packagedElement.extend([xsig, xbeh, xhost, xbeh2])
+xout = A.transform_package(xpkg)
+x_stage = [e for e in xout.ownedElement
+           if e.declaredName == "Stage"][0]
+x_uses = {}
+for r in x_stage.ownedRelationship:
+    if type(r).__name__ not in ("FeatureMembership", "OwningMembership"):
+        continue
+    for x in r.ownedRelatedElement:
+        x_uses[x.declaredName] = x
+cba = x_uses.get("callB")
+check("CallBehaviorAction -> ActionUsage typed by the behavior "
+      "(7.7.2.3.3.2/.3)",
+      type(cba).__name__ == "ActionUsage"
+      and type(cba).__name__ != "AcceptActionUsage"
+      and any(getattr(getattr(ft, "type", None), "declaredName", None)
+              == "DoIt" for ft in cba.ownedTyping)
+      and any(getattr(x2, "direction", None) == "in"
+              for r in cba.ownedRelationship
+              if type(r).__name__ == "FeatureMembership"
+              for x2 in r.ownedRelatedElement))
+coa = x_uses.get("callO")
+chained = [getattr(fc.chainingFeature, "declaredName", None)
+           for r in coa.ownedRelationship
+           if type(r).__name__ == "FeatureMembership"
+           for x in r.ownedRelatedElement
+           if type(x).__name__ == "Feature"
+           for fc in x.ownedRelationship
+           if type(fc).__name__ == "FeatureChaining"]
+check("the .18 perform feature chains to the operation (.20)",
+      chained == ["getV"], str(chained))
+coa_outs = [x for r in coa.ownedRelationship
+            if type(r).__name__ == "FeatureMembership"
+            for x in r.ownedRelatedElement
+            if type(x).__name__ == "Feature"
+            and x.declaredName == "paramReturn"]
+out_vals = [fv3.value for p3 in coa_outs
+            for fv3 in p3.ownedRelationship
+            if type(fv3).__name__ == "FeatureValue"]
+out_chs = [getattr(fc.chainingFeature, "declaredName", None)
+           for v3 in out_vals for fc in v3.ownedRelationship
+           if type(fc).__name__ == "FeatureChaining"]
+check("the result feature carries the target.<op> chain (.5/.6)",
+      len(coa_outs) == 1
+      and len(out_vals) == 1
+      and type(out_vals[0]).__name__ == "FeatureChainExpression"
+      and out_chs == ["getV"], str(out_chs))
+boa = x_uses.get("blast")
+check("BroadcastSignalAction -> an empty ActionUsage (.3.3.1 'not "
+      "defined yet')",
+      type(boa).__name__ == "ActionUsage"
+      and not [r for r in boa.ownedRelationship
+               if type(r).__name__ in ("ParameterMembership",
+                                       "FeatureMembership")])
+
+print()
 print("== honesty: unmapped features refuse to guess ==")
 orphan = U.Package(name="Orphan")
 orphan.add("packagedElement", U.Continuation(name="CX"))
