@@ -2631,3 +2631,36 @@ invented data where a tag is absent.
 
 - check_v1_to_v2_as.py: 130 passed (wave-T block).
 - Full sweep green.
+
+# Part 39: wave-completeness audit - realization table trued up
+
+Audited every remaining 'elided' row of the realization table against
+the formal body:
+
+- ToPortConjugation_Init: WIRED since Part 29/30 (the row predates);
+  row refreshed to wiring.
+- ToConjugatedPortTyping_Init: stays elided - it is a STUB TARGET
+  initializer with no triggering mapping rule.
+- ToSuccessionItemFlow_Init: the .61/.60 reference-usage layer is
+  wired on every .47 flow end (realized in Part 31); only the library
+  item-redefinitions of the special action pins stay name-only. Row
+  refreshed.
+- ToFunction_Init and ToAssignmentActionUsage_Init: no Function
+  synthesis and no assignment mappings EXIST in formal 2.0 Part 2
+  (7.7.14 + the assignment audit) - the rows were 2.1-era queue
+  artifacts from the Beta-2 text; marked absent (queue items void).
+- ToActorMembership_Init: v1 Actor containment has no normative AS
+  membership carrier in the implemented subset (stays elided).
+- ToUseCaseObjectiveMembership_Init: v1 has no objective concept
+  (the 'not mapped' table); permanently elided.
+- ToEventOccurerenceUsage_Init: no event-occurrence synthesis (Table
+  11); permanently elided.
+- ToInteraction_Init: the sysmlpy TEXTUAL-grammar gap; unrelated
+  artifact.
+
+Honest remaining frontier (documented, not silently open):
+expression-form variants (Expression_else, EqualOperatorExpression,
+OpaqueExpressionFeature in operator contexts, TimeExpression struct
+forms), continuous/discrete/ControlValues metadata, and the
+library-external redefinitions (name-only in all waves). Every one is
+an itemized row in the realization table + the module docstring.

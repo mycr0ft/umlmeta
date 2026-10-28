@@ -2010,8 +2010,10 @@ def _transform_allocate(al, out, index):
 #                                    Subclassification to the realized
 #                                    ConnectionDefinition); reader tables
 #                                    extended for the InformationFlow ends
-# ToSuccessionItemFlow_Init elided   object-flow item ends (ObjectFlow-
-#                                    ItemFlowEnd family) still later wave
+# ToSuccessionItemFlow_Init wiring   the .61/.60 reference-usage layer
+#                                    carries on every .47 flow end; the
+#                                    library item-redefinitions of the
+#                                    special action pins stay name-only
 # ToFlowUsage_Init          wiring   wave B (SuccessionFlowUsage for
 #                                    ObjectFlow)
 # ToAssociation_Init        wiring   wave G: Association/AssociationClass
@@ -2034,8 +2036,9 @@ def _transform_allocate(al, out, index):
 # ToPropertyTypedByClassInterface_Init wiring wave E: Property typed by
 #                                    InterfaceBlock → OccurrenceUsage
 #                                    (7.7.4.2.37; ref form isComposite=false)
-# ToPortConjugation_Init    elided   conjugation machinery (later
-#                                    wave; needs ToConjugation +
+# ToPortConjugation_Init    wiring   conjugation machinery (Part 29/30;
+#                                    the conjugated member and its
+#                                    PortConjugation carry on the port); needs ToConjugation +
 #                                    ToConjugatedPortDefinition +
 #                                    ToConjugatedPortTyping)
 # ToConjugation_Init        wiring   wave J: PortConjugation inside the
@@ -2048,7 +2051,8 @@ def _transform_allocate(al, out, index):
 #                                    PortDefinition + owned conjugated
 #                                    definition (7.8.7.3.3); Interface ->+
 #                                    '~'-named member (7.7.10.2.15)
-# ToConjugatedPortTyping_Init elided (same)
+# ToConjugatedPortTyping_Init elided (a stub target - no mapping rule
+#                                    triggers it; the port types plainly)
 # ToConnectionUsage_Init    wiring   DeriveReqt (wave C) and Connector
 # ToConnector_Init          wiring   Connector → ConnectionUsage
 #                                    (7.7.12.2.14)
@@ -2058,11 +2062,12 @@ def _transform_allocate(al, out, index):
 # ToBindingConnectorAsUsage_Init wiring Connector wiring (7.8.4.3.2)
 # ToBehavior_Init           wiring   Activity/OpaqueBehavior →
 #                                    ActionDefinition (wave B)
-# ToFunction_Init           elided   Function synthesis (later wave)
+# ToFunction_Init           absent   no Function synthesis exists in
+#                                    formal 2.0 Part 2 (7.7.14 audited)
 # ToStep_Init               wiring   action usages (wave B)
 # ToActionUsage_Init        wiring   OpaqueAction → ActionUsage
-# ToAssignmentActionUsage_Init elided (assignments elided as in
-#                                    v1_to_v2.py)
+# ToAssignmentActionUsage_Init absent   no assignment mappings exist
+#                                    in formal 2.0 Part 2 (audited)
 # ToCalculationUsage_Init   wiring   OpaqueExpression guards/defaults:
 #                                    the guard's CalculationUsage rides
 #                                    the guarded edge's transition
