@@ -522,9 +522,14 @@ check("Satisfy ends: satisfyingFeature/satisfiedRequirement",
       and sat_u.satisfiedRequirement.declaredName == "Power")
 tc_def = [e for e in rp2.ownedElement
           if type(e).__name__ == "VerificationCaseDefinition"][0]
-rvms = [e for e in tc_def.ownedElement
-        if type(e).__name__ == "RequirementVerificationMembership"]
-check("Verify -> RequirementVerificationMembership in the TC",
+rvms = [r for om in tc_def.ownedRelationship
+        if type(om).__name__ == "ObjectiveMembership"
+        and om.ownedObjectiveRequirement is not None
+        for ou in [om.ownedObjectiveRequirement]
+        for r in ou.ownedRelationship
+        if type(r).__name__ == "RequirementVerificationMembership"]
+check("Verify -> RequirementVerificationMembership riding the "
+      "objective in the TC (.3.49/.37)",
       len(rvms) == 1 and rvms[0].verifiedRequirement.declaredName == "Power")
 cu = [e for e in rp2.ownedElement if type(e).__name__ == "ConnectionUsage"]
 check("DeriveReqt -> ConnectionUsage with source/target",
@@ -1532,12 +1537,15 @@ req_u = [e for e in rrout.ownedElement
          and e.declaredName == "R9"][0]
 # the RVM rides the VCD (index) - find the RequirementVerification-
 # Membership; its ownedRelatedElement carries the .40 usage
-rvms = [r for om in tc_def.ownedRelationship
-        if type(om).__name__ == "OwningMembership"
-        for r in om.ownedRelatedElement
+oms = [r for r in tc_def.ownedRelationship
+       if type(r).__name__ == "ObjectiveMembership"]
+rvms = [r for om in oms
+        for ou in [om.ownedObjectiveRequirement]
+        for r in (ou.ownedRelationship if ou is not None else [])
         if type(r).__name__ == "RequirementVerificationMembership"]
-check("Verify -> RequirementVerificationMembership (.3.49)",
-      len(rvms) == 1
+check("Verify -> RequirementVerificationMembership riding the "
+      "objective (.3.49/.37/.38)",
+      len(oms) == 1 and len(rvms) == 1
       and rvms[0].verifiedRequirement.declaredName == "R9")
 if rvms:
     r40 = [x for x in rvms[0].ownedRelatedElement
@@ -1546,7 +1554,7 @@ if rvms:
             if type(rr).__name__ == "ReferenceSubsetting"
             for y in [rr.referencedFeature]]
     check("the RVM carries the .40 requirements usage subsetting the "
-          "verified requirement",
+          "verified requirement (inside the objective)",
           len(r40) == 1 and rsub and rsub[0] is req_u)
     r40_rels = ([type(rr).__name__ for rr in r40[0].ownedRelationship]
                 if r40 else [])
@@ -1554,6 +1562,45 @@ if rvms:
           "reference membership",
           "SubjectMembership" in r40_rels
           and "ReturnParameterMembership" in r40_rels, str(r40_rels))
+
+print()
+print("== wave S: refine/trace metadata + objective choreography "
+      "(7.8.8.3.9-.15, .41-.48, .13/.45) ==")
+spkg = U.Package(name="MetaPkg")
+sreq1 = S.Requirement(name="R20"); sreq1._vals["id"] = "R-20"
+sreq2 = S.Requirement(name="R21"); sreq2._vals["id"] = "R-21"
+refine = S.Refine(name="rf")
+refine.client.append(sreq2); refine.supplier.append(sreq1)
+trace = S.Trace(name="tr")
+trace.client.append(sreq2); trace.supplier.append(sreq1)
+spkg.packagedElement.extend([sreq1, sreq2, refine, trace])
+sout = A.transform_package(spkg)
+sdeps = [e for e in sout.ownedElement
+         if type(e).__name__ == "Dependency"]
+check("Refine/Trace -> annotated Dependencies (7.8.8.3.9/.41)",
+      len(sdeps) == 2
+      and any(type(r).__name__ == "Annotation"
+              for d2 in sdeps for r in d2.ownedRelationship),
+      str(len(sdeps)))
+ann_mus = [x for d2 in sdeps for r in d2.ownedRelationship
+           if type(r).__name__ == "Annotation"
+           for x in r.ownedRelatedElement]
+check("the annotation carries the metadata usage with "
+      "isRefine/isTrace = true (7.8.8.3.13/.45)",
+      len(ann_mus) == 2
+      and all(type(u).__name__ == "MetadataUsage" for u in ann_mus)
+      and sorted([x.declaredName
+                  for u in ann_mus
+                  for fmm in u.ownedRelationship
+                  for x in fmm.ownedRelatedElement])
+      == ["isRefine", "isTrace"])
+trues = [_fv.value.value for u in ann_mus
+         for fmm in u.ownedRelationship
+         for ru in fmm.ownedRelatedElement
+         for _fv in ru.ownedRelationship
+         if type(_fv).__name__ == "FeatureValue"]
+check("the marker values are LiteralBoolean(true)",
+      trues == [True, True], str(trues))
 
 print()
 print("== honesty: unmapped features refuse to guess ==")

@@ -2585,3 +2585,31 @@ wrapped membership).
 
 - check_v1_to_v2_as.py: 124 passed (wave-R block).
 - Full sweep green.
+
+# Part 37: wave S - refine/trace metadata + the objective choreography
+
+The requirements-annotation and verify chain complete their formal
+forms:
+
+- Refine/Trace (7.8.8.3.9-.15 / .41-.48): the mapped Dependency now
+  carries the Annotation whose annotating element is the MetadataUsage
+  (7.8.8.3.15/.47) with the marker feature membership - 'isRefine'/
+  'isTrace' (ReferenceUsage) whose FeatureValue is the
+  LiteralBooleanFactory(true) of .13/.45. The library typing target
+  (RefineData/TraceData MetadataDefinition) and the redefinition onto
+  the library attribute (.14/.46) stay name-only (SysMLv1Library is
+  external, as in the DeriveReqt machinery - itemized).
+- Verify (.3.37/.38): the objective requirement usage
+  ('objective_<testcase>' per the .3.49 example) OWNS the verify's
+  RequirementVerificationMembership; the VCD's empty objective
+  membership (the .3.35 factory) is REPLACED by the real objective
+  (UniqueMapping). The RVM still carries the .40 requirements usage
+  inside (the .49 rule's ownedRelatedElement).
+- Runtime facts pinned: Annotation.annotatingElement is a derived end
+  (the owning pass is the base Membership's ownedRelatedElement).
+
+## Result
+
+- check_v1_to_v2_as.py: 127 passed (wave-S block; wave-C and wave-R
+  verify oracles moved to the objective-riding RVM read).
+- Full sweep green.

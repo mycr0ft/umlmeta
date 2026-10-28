@@ -1660,8 +1660,29 @@ def _transform_verify(verify, out, index):
     rpm0.ownedRelatedElement.append(S2.ReferenceUsage(direction="out"))
     r40.ownedRelationship.append(rpm0)
     rvm.ownedRelatedElement.append(r40)
-    _own_membership(tc, rvm)
-    return rvm
+    # 7.8.8.3.37/.38: the objective requirement usage carries the
+    # verify; the VCD's empty objective membership (the .3.35
+    # factory) is replaced by the real objective (UniqueMapping)
+    obj_ru = S2.RequirementUsage(
+        declaredName="objective_" + (_name(verify.client[0])
+                                     if list(verify.client) else None))
+    obj_ru.ownedRelationship.append(rvm)
+    om = S2.ObjectiveMembership()
+    om.ownedObjectiveRequirement = obj_ru
+    replaced = False
+    for i, rel in enumerate(tc.ownedRelationship):
+        inner = [rel] if type(rel).__name__ == "ObjectiveMembership" \
+            else ((list(rel.ownedRelatedElement)
+                   if type(rel).__name__ == "OwningMembership" else []))
+        if any(type(x).__name__ == "ObjectiveMembership" and not getattr(
+                x, "ownedObjectiveRequirement", None) for x in inner):
+            tc.ownedRelationship[i] = om
+            om._owner = tc
+            replaced = True
+            break
+    if not replaced:
+        _own_membership(tc, om)
+    return om
 
 
 def _transform_derive_reqt(dr, out, index):
@@ -1700,6 +1721,33 @@ def _transform_dependency(dep, out, index, annotated=False):
     for sp in suppliers:
         if sp is not None:
             dep2.supplier.append(sp)
+    if annotated:
+        # Refine/Trace_Mapping (7.8.8.3.9-.15 / .41-.48): the
+        # dependency is annotated with a MetadataUsage typing the
+        # v1-library data definition (RefineData/TraceData - the
+        # library itself is external, so the FeatureTyping target is
+        # carried by qualified NAME, as in the DeriveReqt machinery);
+        # the usage carries 'isRefine'/'isTrace' whose FeatureValue is
+        # LiteralBoolean(true) (the .13/.45 factories). The
+        # redefinition onto the library attribute
+        # (RefineMetadataReferenceUsageRedefinition, .14/.46) needs
+        # SysMLv1Library and stays name-only.
+        mdata = S2.MetadataUsage(declaredName=_name(dep))
+        fm = S2.FeatureMembership()
+        ru = S2.ReferenceUsage(
+            declaredName="isRefine" if isinstance(dep, S.Refine)
+            else "isTrace")
+        fv = S2.FeatureValue()
+        fv.value = S2.LiteralBoolean(value=True)
+        ru.ownedRelationship.append(fv)
+        fm.ownedRelatedElement.append(ru)
+        mdata.ownedRelationship.append(fm)
+        # Annotation::annotatingElement is a derived end in the
+        # runtime - the owning pass is the base Membership's
+        # ownedRelatedElement
+        ann = S2.Annotation()
+        ann.ownedRelatedElement.append(mdata)
+        dep2.ownedRelationship.append(ann)
     _own_membership(out, dep2)
     return dep2
 
