@@ -33,7 +33,11 @@ package Wave3 {
   }
   part inst2 : Block2;
   connection link1 : AssocD connect inst1 to inst2;
-  /* v1 Interaction 'Comm' elided: Interaction -> Interaction (7.7.8.3.6; 2 Lifeline -> PartUsage, 1 Message -> Flow) but the target grammar reader has no interaction element */
+  interaction Comm {
+    part carL;
+    part opL;
+    message m1 from carL to opL;
+  }
   /* v1 StateInvariant 'inv1' elided: mapped to v2 Invariant (7.7.8.3.17) but the target grammar reader has no invariant element */
   /* v1 InteractionUse 'useBase' elided: mapped to v2 Step (7.7.8.3.9) but the target grammar reader has no step element */
   action exec1;

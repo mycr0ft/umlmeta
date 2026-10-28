@@ -375,7 +375,7 @@ for label, needle in (
          "part pv : Block1 = inst1;"),
         ("link instance -> connection usage",
          "connection link1 : AssocD connect inst1 to inst2;"),
-        ("Interaction elision comment", "/* v1 Interaction 'Comm' elided"),
+        ("interaction emitted (7.7.8.3.6)", "interaction"),
         ("StateInvariant elision comment", "/* v1 StateInvariant 'inv1' elided"),
         ("ActionExecutionSpecification -> action usage", "action exec1;")):
     check(label, needle in text3, needle)
@@ -548,6 +548,34 @@ except M.UnmappedFeature as e:
     check("UnmappedFeature raised for unmapped Message", "Message" in str(e), str(e))
 
 print()
+# ---- wave I-textual: interactions (7.7.8.3.x) --------------------------------
+# a v1 interaction: lifelines over mapped parts, one message; emits
+# 'interaction def Handshake { part cli_ll; ... message hi of Ping
+# from cli_ll to srv_ll; }' - sysmlpy 0.97 parses the def+usage forms
+ixpkg = U.Package(name="HandshakePkg")
+ixblk = U.Class(name="Node")
+ix = U.Interaction(name="Handshake")
+cli_p = U.Property(name="cli"); cli_p.type = ixblk
+srv_p = U.Property(name="srv"); srv_p.type = ixblk
+cli_ll = U.Lifeline(name="cli_ll")
+cli_ll.represents = cli_p
+srv_ll = U.Lifeline(name="srv_ll")
+srv_ll.represents = srv_p
+ping = U.Signal(name="Ping")
+msg_ix = U.Message(name="hi")
+msg_ix._vals["signature"] = [ping]
+ix.add("ownedMember", cli_ll)
+ix.add("ownedMember", srv_ll)
+ix.add("ownedMember", msg_ix)
+ixpkg.packagedElement.extend([ixblk, ping, ix])
+text_ix = M.emit_v2(ixpkg)
+counts_ix = M.validate_with_sysmlpy(text_ix)
+check("sysmlpy parses the emitted interaction (7.7.8.3.6)",
+      isinstance(counts_ix, dict) and counts_ix.get("interaction", 0) >= 1,
+      str(counts_ix))
+check("the emitted interaction holds its message",
+      "message" in text_ix and "hi" in text_ix, text_ix[-200:])
+
 print(f"RESULT: {len(PASS)} passed, {len(FAIL)} failed")
 if FAIL:
     print("FAILURES:", FAIL)

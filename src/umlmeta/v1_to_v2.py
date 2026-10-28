@@ -59,9 +59,10 @@ each anchored to the published document:
   ConnectionUsage with slots as 'redefines p = v;' (7.7.4.2.14/.13),
   InterfaceBlock-typed Property -> OccurrenceUsage
   (7.7.4.2.37 PropertyTypedByClassInterface), Interaction ->
-  Interaction (7.7.8.3.6) elided (the target grammar reader has no
-  interaction element; Lifeline -> PartUsage 7.7.8.3.13, Message ->
-  Flow 7.7.8.3.15 noted in the elision), CombinedFragment ->
+  Interaction (7.7.8.3.6 textual: 'interaction def X' +
+  lifelines-as-parts + 'message n of T from a to b;' - the target
+  grammar parses both since sysmlpy 0.97; the AS-side Message->
+  Flow 7.7.8.3.15 realization stays AS-only noted in the elision), CombinedFragment ->
   Interaction (7.7.8.3.3), InteractionOperand -> Interaction
   (7.7.8.3.7), InteractionUse -> Step (7.7.8.3.9), StateInvariant ->
   Invariant (7.7.8.3.17) elided for the same grammar gap,
@@ -435,16 +436,71 @@ def _collect_verifies(pkg) -> list:
 
 
 def emit_interaction(ix, pad) -> list[str]:
-    """Interaction -> Interaction (normative 7.7.8.3.6) - but the target
-    grammar reader has no interaction element, so the normative result is
-    elided with a member inventory (Lifeline -> PartUsage 7.7.8.3.13,
-    Message -> Flow 7.7.8.3.15)."""
-    ls = [m for m in list(ix.ownedMember) if isinstance(m, U.Lifeline)]
-    ms = [m for m in list(ix.ownedMember) if isinstance(m, U.Message)]
+    """Interaction -> Interaction (normative 7.7.8.3.6). The reader
+    (sysmlpy 0.97) parses 'interaction def X { part/message; }' - the
+    lifelines ride as the PartUsage typing of 7.7.8.3.13/.14 (the
+    .3.12 LifelineMembership rides FeatureMembership; the part TYPES
+    by the represented element's type, .3.15, name-only when the
+    representation's type is mapped), messages ride as
+    'message <n> of <payload> from <from> to <to>;' (7.7.8.3.15; the
+    AS-side Message->Flow mapping stays the AS realization - the
+    textual message is the concrete form), fragments/invariants/
+    uses carry as their wave-I forms (StateInvariant -> 'inv',
+    InteractionUse -> a step of the referred, executions -> action
+    usages, CombinedFragment/Operand -> nested interactions)."""
     nm = _name(ix) or "?"
-    return [f"{pad}/* v1 Interaction {nm!r} elided: Interaction -> Interaction "
-            f"(7.7.8.3.6; {len(ls)} Lifeline -> PartUsage, {len(ms)} Message -> "
-            "Flow) but the target grammar reader has no interaction element */"]
+    lines = [f"{pad}interaction {_v2name(nm)} {{"]
+    # the ownedMember read: the derived-union mirror fallback (readers
+    # consult the mirror when the direct read is empty)
+    members = list(ix.ownedMember) or list(ix._vals.get("_ownedMember") or ())
+    for m in members:
+        if isinstance(m, U.Lifeline):
+            ln = _v2name(_name(m) or "?")
+            rep = m._vals.get("represents")
+            typ = getattr(rep, "_vals", {}).get("type") \
+                if rep is not None else None
+            tname = _v2name(_name(typ)) if typ is not None else None
+            lines.append(f"{pad}  part {ln}"
+                         + (f" : {tname}" if tname else "") + ";")
+        elif isinstance(m, U.Message):
+            mn = _v2name(_name(m) or "?")
+            sig = m._vals.get("signature")
+            if isinstance(sig, list):
+                sig = sig[0] if sig else None
+            payload = _v2name(_name(sig)) if sig is not None else None
+            snd = m._vals.get("sendEvent")
+            rcv = m._vals.get("receiveEvent")
+            sender = _name(getattr(snd, "covered", None) or None) \
+                if snd is not None else None
+            receiver = _name(getattr(rcv, "covered", None) or None) \
+                if rcv is not None else None
+            parts = [f"message {mn}"]
+            if payload:
+                parts.append(f"of {payload}")
+            if sender or receiver:
+                parts.append("from _ to _")
+                txt = parts[-1]
+                parts[-1] = (f"from {_v2name(sender or '_')}"
+                             f" to {_v2name(receiver or '_')}")
+            lines.append(f"{pad}  " + " ".join(parts) + ";")
+        elif isinstance(m, U.StateInvariant):
+            lines.append(f"{pad}  inv;")
+        elif isinstance(m, U.InteractionUse):
+            un = _v2name(_name(m) or "?")
+            refers = m._vals.get("refersTo")
+            rn = _v2name(_name(refers)) if refers is not None else None
+            lines.append(f"{pad}  step {un}"
+                         + (f" : {rn}" if rn else "") + ";")
+        elif isinstance(m, (U.CombinedFragment, U.InteractionOperand)):
+            lines.extend(emit_interaction(m, pad + "  "))
+        elif isinstance(m, U.ActionExecutionSpecification):
+            en = _name(m)
+            lines.append(f"{pad}  action {en or 'exec'};")
+        else:
+            raise UnmappedFeature(
+                f"Interaction member {type(m).__name__} (7.7.8.3 inventory)")
+    lines.append(pad + "}")
+    return lines
 
 
 def emit_instancespec(ins, pad) -> list[str]:

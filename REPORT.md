@@ -2900,3 +2900,43 @@ Every activity-node kind is now realized (or normatively elided):
 
 - check_v1_to_v2_as.py: 161 passed (wave-AA block).
 - Full sweep green (21 suites).
+
+# Part 49: wave AB - the interaction grammar fixed upstream + the
+# textual interaction emitter
+
+## sysmlpy 0.98.0 (the upstream fix)
+
+The parser's `interaction` rule
+(typePrefix INTERACTION classifierDeclaration typeBody) rejected every
+'interaction def X { ... }' form (and a bare 'interaction T;'). Fixed
+at the grammar: interactionDefinition/interactionUsage rules (the
+part/occurrence shape) dispatched in definitionElement/
+structureUsageElement; the parser regenerated (the bundled 4.13.2
+jar). The dict/semantic plumbing: the visitor dispatches the
+def/usage (the part-definition dict-maker renamed Interaction-), the
+grammar classes gained InteractionDefinition/InteractionUsage (+ the
+StructureUsageElement/OccurrenceUsageElement dispatches), the loaders
+(definition.py + usage.py) construct the new Interaction semantic
+element and CARRY Message members (the
+_make_message_dict/from-to events now build their
+ownedReferenceSubsetting refs + the 'of' payload;
+Message.load_from_grammar reads from_port/to_port/of_type - the
+message ends/payload were silently empty for every message anywhere).
+
+## umlmeta: the textual interaction emitter (7.7.8.3.6)
+
+emit_interaction now emits the normative textual form: 'interaction
+def X {' - wait, the def/usage distinction: the v1 Interaction
+maps to the textual definition form 'interaction X { ... }' via the
+grammar's interactionUsage/Definition forms; the members:
+lifelines -> parts typed by the represented element's type
+(7.7.8.3.13/.14), messages -> 'message n of T from a to b;'
+(7.7.8.3.15), StateInvariant -> 'inv;', InteractionUse -> 'step n : r;',
+executions -> 'action ...;', fragments/operands -> nested
+'interaction ... { ... }' blocks (the wave-I shapes).
+
+## Result
+
+- check_v1_to_v2.py (textual): 51 passed (2 new: the emitted
+  interaction parses + holds its message).
+- check_v1_to_v2_as.py: 161 passed; full sweep green.
