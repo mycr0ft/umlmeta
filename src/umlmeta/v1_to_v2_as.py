@@ -32,10 +32,12 @@ Wave A: core structural mappings
 
 Wave B: state machines and activities (7.7.11.2.x, 7.7.3.3.x) —
   States/Pseudostates/FinalStates→StateUsage, Transitions→
-  TransitionUsage with source/target ends, regions inlined, initial →
-  unnamed ActionUsage as the StateDefinition's entry subaction
-  (7.7.11.2.8/.9, formal 2.0); OpaqueAction→ActionUsage, ControlFlow→
-  SuccessionAsUsage, object flows→SuccessionFlowUsage.
+  TransitionUsage with source/target ends (ends = the mapped ends per
+  the .2.18 rule; a transition from the initial sources the entry
+  ActionUsage), regions inlined, initial → unnamed ActionUsage as the
+  StateDefinition's entry subaction (7.7.11.2.8/.9, formal 2.0);
+  OpaqueAction→ActionUsage, ControlFlow→SuccessionAsUsage, object
+  flows→SuccessionFlowUsage.
 
 Wave C: requirements chain (7.8.8.3.x) — Requirement→RequirementUsage
   (id on aliasIds, text→Documentation), TestCase→
@@ -73,6 +75,14 @@ Wave G: associations and multiplicities — Association/AssociationClass
   '*') carried under the feature/usage (textual parity: implicit
   [1..1] carries no multiplicity).
 
+Wave J: conjugation (7.8.7.3.3/.20, 7.7.10.2.14) — InterfaceBlock→
+  PortDefinition + an (unnamed) ConjugatedPortDefinition carrying a
+  PortConjugation back to the port definition; U.Interface→
+  PortDefinition with the '~'-named conjugated member
+  (InterfaceConjugatedPortDefinition, '~'+name 7.7.10.2.15) - the
+  conjugated-port TYPING stays plain (ToConjugatedPortTyping is a stub
+  initializer with no triggering rule in the formal).
+
 Wave I: interactions (7.7.8.3.x) — Interaction→Interaction; Lifeline→
   PartUsage typed by represents.type under FeatureMembership; Message→
   Flow (bare — the Message mapping has no rules; message-end
@@ -104,11 +114,14 @@ Honest elisions (documented, no data invented silently):
     range rides a FeatureMembership instead. Multiplicity is wired for
     properties, association ends, and behavior/operation parameters.
   - association end qualifiers/subsettings/defaults: later wave.
-  - interaction message ends/payload (Table-11 occurrences behind
-    them), conjugated ports, object-flow item ends (ObjectFlow-
-    ItemFlowEnd/ToSuccessionItemFlow family), function synthesis,
-    assignments, use-case objectives: elided (see the realization
-    table) or raise UnmappedFeature.
+  - conjugated-port typing (ToConjugatedPortTyping is a stub
+    initializer with no triggering mapping rule - the port carries
+    isConjugated but types plainly), transition-from-initial message
+    ends/payload (Table-11 occurrences behind them; the transition
+    ENDS themselves are wired per the .2.18 rule), object-flow item
+    ends (ObjectFlowItemFlowEnd/ToSuccessionItemFlow family),
+    function synthesis, assignments, use-case objectives: elided (see
+    the realization table) or raise UnmappedFeature.
 """
 from __future__ import annotations
 
@@ -226,6 +239,11 @@ def transform_v1_element(el, index=None):
         # Interaction_Mapping (7.7.8.3.6): to Interaction; lifelines/
         # messages/fragments ride _populate_interaction
         return S2.Interaction(declaredName=_name(el))
+    if isinstance(el, U.Interface):
+        # Interface_Mapping (7.7.10.2.14): to PortDefinition; the
+        # conjugated member ('~' + name, 7.7.10.2.15) and its
+        # PortConjugation ride the population pass
+        return S2.PortDefinition(declaredName=_name(el))
     if isinstance(el, U.Association):
         # Association_Mapping family (7.7.12.2.x; the machine-readable
         # AssociationClass_Mapping 'to' is Systems-Connections-
@@ -236,11 +254,8 @@ def transform_v1_element(el, index=None):
     if isinstance(el, U.Class):
         # Class_Mapping (7.7.4.2.37 family): plain Class to
         # OccurrenceDefinition. Metaclasses with their own normative
-        # mappings (use cases/interactions handled above; U.Interface
-        # itself is a later wave) — not guesses.
-        if isinstance(el, U.Interface):
-            raise UnmappedFeature(
-                f"{type(el).__name__} (own mapping, later wave)")
+        # use cases/interactions handled above; U.Interface has its own
+        # normative mapping (7.7.10.2.14, wave J)
         if isinstance(el, S.Requirement):
             # Requirement_Mapping (7.8.8.3.17)
             return _transform_requirement(el, index)
@@ -422,7 +437,7 @@ def _populate_class(v1cls, v2def, index, pending):
             pm.ownedRelatedElement.append(ref)
             pau.ownedRelationship.append(pm)
         _feature_membership(v2def, pau)
-    for conn in list(v1cls.ownedConnector):
+    for conn in getattr(v1cls, "ownedConnector", ()):
         # Connector_Mapping (7.7.12.2.14) / BindingConnector (7.8.4.3.2):
         # → ConnectionUsage / BindingConnectorAsUsage between the
         # connected roles (resolved through the property index)
@@ -445,7 +460,7 @@ def _populate_class(v1cls, v2def, index, pending):
                 cu.source.append(roles[0])
                 cu.target.append(roles[1])
         _feature_membership(v2def, cu)
-    for nested in list(v1cls.nestedClassifier):
+    for nested in getattr(v1cls, "nestedClassifier", ()):
         nv2 = transform_v1_element(nested)
         index[id(nested)] = nv2
         _own_membership(v2def, nv2)
@@ -543,6 +558,28 @@ def _populate_usecase(uc, v2def, index, pkg):
             am = S2.ActorMembership()
             am.ownedRelatedElement.append(pu)
             v2def.ownedRelationship.append(am)
+
+
+def _attach_port_conjugation(iface_v1, pdef, named):
+    """ConjugatedPortDefinition_Mapping (7.8.7.3.3) +
+    PortConjugation_Mapping (7.8.7.3.20): the interface's PortDefinition
+    owns a ConjugatedPortDefinition (unnamed for InterfaceBlock per the
+    mapping class, '~' + name for UML::Interface per the
+    InterfaceConjugatedPortDefinition_Mapping); the conjugated
+    definition carries a PortConjugation whose originalPortDefinition
+    is the PortDefinition and whose conjugatedType (derived) is the
+    conjugated definition itself.
+
+    ToConjugatedPortTyping_Init (7.4.2.2.7) stays elided: the stub has
+    NO triggering mapping rule in the formal - a conjugated port still
+    types its PortUsage plainly by the original PortDefinition
+    (7.7.12.2.36's rules are inherited-only)."""
+    conj = S2.ConjugatedPortDefinition(
+        declaredName=("~" + (_name(iface_v1) or "?")) if named else None)
+    pc = S2.PortConjugation()
+    pc.originalPortDefinition = pdef
+    conj.ownedRelationship.append(pc)
+    _own_membership(pdef, conj)
 
 
 def _populate_interaction(ix, v2def, index):
@@ -774,23 +811,21 @@ def _populate_statemachine(sm, v2def, index):
                 if not isinstance(tr, U.Transition):
                     continue
                 src, tgt = tr._vals.get("source"), tr._vals.get("target")
-                if isinstance(src, U.Pseudostate) \
-                        and src._vals.get("kind") is U.PseudostateKind.initial:
-                    # transition successions FROM the entry action ride the
-                    # TransitionSuccessionSource machinery (7.7.11.2.20-.25) —
-                    # later wave; elided, not lost
-                    continue
+                # 7.7.11.2.18's ends rule is literal - source/target are
+                # the mapped ends: a transition FROM the initial sources
+                # the (unnamed) entry ActionUsage now that initial
+                # pseudostates map (7.7.11.2.8)
                 src_obj = index.get(id(src))
                 tgt_obj = index.get(id(tgt))
-            if src_obj is None or tgt_obj is None:
-                raise UnmappedFeature(
-                    f"Transition {_name(tr)!r} to element outside the "
-                    "state machine's owned states")
-            tu = S2.TransitionUsage(declaredName=_name(tr))
-            tu.source = src_obj
-            tu.target = tgt_obj
-            _own_membership(v2def, tu)
-            index[id(tr)] = tu
+                if src_obj is None or tgt_obj is None:
+                    raise UnmappedFeature(
+                        f"Transition {_name(tr)!r} to element outside the "
+                        "state machine's owned states")
+                tu = S2.TransitionUsage(declaredName=_name(tr))
+                tu.source = src_obj
+                tu.target = tgt_obj
+                _own_membership(v2def, tu)
+                index[id(tr)] = tu
 
 
 def _populate_activity(act, v2def, index):
@@ -963,6 +998,11 @@ def _populate_namespace(ns_v1, ns2, index, ns_pairs):
             else:
                 _populate_activity(el, v2, index)
                 _populate_behavior_params(el, v2)
+        elif isinstance(el, U.Interface):
+            # Interface attributes/operations ride the generic classifier
+            # machinery (7.7.10.2.14 example: 'attribute <prop>;')
+            _populate_class(el, v2, index, pending_local(index))
+            _attach_port_conjugation(el, v2, named=True)
         elif isinstance(el, U.Interaction):
             _populate_interaction(el, v2, index)
         elif isinstance(el, U.Association):
@@ -972,6 +1012,14 @@ def _populate_namespace(ns_v1, ns2, index, ns_pairs):
             _populate_class(el, v2, index, pending_local(index))
         elif isinstance(el, U.UseCase):
             _populate_usecase(el, v2, index, ns_v1)
+        if isinstance(el, (U.Class, U.Interface)) \
+                and isinstance(el, S.InterfaceBlock) \
+                and v2 is not None:
+            # ConjugatedPortDefinition_Mapping (7.8.7.3.3): the interface
+            # block's port definition owns an (unnamed) conjugated
+            # definition carrying a PortConjugation back to it
+            # (7.8.7.3.20) - the conjugation machinery of the formal
+            _attach_port_conjugation(el, v2, named=False)
 
     # imports (7.7.9.3.12) wire in global pass 3: importing namespaces
     # at any level can reference sibling/deeper namespaces that index
@@ -1433,8 +1481,16 @@ def _transform_allocate(al, out, index):
 #                                    wave; needs ToConjugation +
 #                                    ToConjugatedPortDefinition +
 #                                    ToConjugatedPortTyping)
-# ToConjugation_Init        elided   (same)
-# ToConjugatedPortDefinition_Init elided (same)
+# ToConjugation_Init        wiring   wave J: PortConjugation inside the
+#                                    ConjugatedPortDefinition (original-
+#                                    PortDefinition end; 7.8.7.3.20);
+#                                    conjugated-port TYPING still elided
+#                                    (ToConjugatedPortTyping has no
+#                                    triggering rule in the formal)
+# ToConjugatedPortDefinition_Init wiring  wave J: InterfaceBlock ->
+#                                    PortDefinition + owned conjugated
+#                                    definition (7.8.7.3.3); Interface ->+
+#                                    '~'-named member (7.7.10.2.15)
 # ToConjugatedPortTyping_Init elided (same)
 # ToConnectionUsage_Init    wiring   DeriveReqt (wave C) and Connector
 # ToConnector_Init          wiring   Connector → ConnectionUsage

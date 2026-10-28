@@ -94,7 +94,7 @@ CONSTRUCTIBLE = {"Model", "Package", "Class", "DataType", "Enumeration",
                  "PackageImport", "ElementImport", "InformationFlow", "Lifeline", "Message",
                  "CombinedFragment", "InteractionOperand",
                  "InteractionUse", "StateInvariant",
-                 "ActionExecutionSpecification",
+                 "ActionExecutionSpecification", "Pseudostate", "FinalState",
                  "OccurrenceSpecification",
                  # SysML v1 profile stereotype bases (synthetic
                  # VehicleExample, check_xmi_vehicle.py): behavior /

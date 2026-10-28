@@ -160,17 +160,25 @@ occ_ref = U.Property(name="legacy")
 occ_ref.type = legacy
 vehicle.add("ownedAttribute", occ_ref)
 
-# state machine w/ 2 states, transition
+# state machine w/ initial state, 2 states, transition (formal 2.0:
+# the initial is the entry ActionUsage, 7.7.11.2.8/.9)
 sm = U.StateMachine(name="OpMode")
 reg = U.Region(name="r1")
+p_init = U.Pseudostate(name="p0")
+p_init._vals["kind"] = U.PseudostateKind.initial
 st_on = U.State(name="on")
 st_off = U.State(name="off")
 trans = U.Transition(name="t1")
+t_boot = U.Transition(name="t_boot")
+reg.add("subvertex", p_init)
 reg.add("subvertex", st_on)
 reg.add("subvertex", st_off)
+t_boot.source = p_init
+t_boot.target = st_on
 trans.source = st_on
 trans.target = st_off
 reg.add("transition", trans)
+reg.add("transition", t_boot)
 sm.add("region", reg)
 
 # activity (normative: Activity -> ActionDefinition w/ parameters)

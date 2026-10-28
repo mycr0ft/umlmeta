@@ -2247,3 +2247,51 @@ that gap is in the sysmlpy *textual* grammar, an unrelated artifact.
 - check_v1_to_v2_as.py: 87 passed (79 + 8 wave-I).
 - Sweep green: 45/60/26/19/32/42/19/48/20/18/26/14/26 + text 49 +
   AS 87 (+ vehicle 12).
+
+# Part 29: wave J - conjugation machinery + the transition-from-initial end wiring
+
+## Transition ends close
+
+7.7.11.2.18's ends rule is LITERAL - "TransitionUsage::source [1]
+from.source" (the mapped end). With wave-27's initial-state mapping in
+place, a transition FROM the initial now sources the (unnamed) entry
+ActionUsage - the from-initial elision is gone. The nested
+Succession-with-'source'/'target'-end-features carrier (7.7.11.2.19
+TransitionSuccession + .2.20-.25 subsettings/memberships) remains a
+documented wave-B deviation: the .2.18 rule itself is satisfied
+directly.
+
+Behavioral lockstep: the vehicle round-trip models (check_xmi_vehicle,
+check_xmi_cameo) gained the same initial pseudostate as the textual
+reference model, so the shared byte-parity artifact stays consistent;
+the XMI writer serializes <kind>initial</kind> and the reader carries
+it (Pseudostate/FinalState constructible).
+
+## Conjugation machinery (7.8.7.3.3, 7.8.7.3.20, 7.7.10.2.14/.15)
+
+- S.InterfaceBlock -> PortDefinition now ALSO owns a ConjugatedPort-
+  Definition (unnamed, per the mapping class - no declaredName rule)
+  carrying a PortConjugation whose originalPortDefinition is the port
+  definition (conjugatedType is the derived back-end: the conjugated
+  definition's own type). This re-opens the long-elided ToConjugation
+  /ToConjugatedPortDefinition family.
+- U.Interface exits the "own mapping, later wave" raise list:
+  Interface_Mapping (7.7.10.2.14) -> PortDefinition whose attributes/
+  operations ride the generic classifier machinery (the .2.14 example:
+  'port def SysMLv1Interface { attribute sysMLv1Property; }'), plus a
+  '~'-named ConjugatedPortDefinition member (7.7.10.2.15: '~' +
+  from.name) with its PortConjugation.
+- Conjugated-port TYPING: ToConjugatedPortTyping_Init (7.4.2.2.7) is a
+  stub initializer with NO triggering mapping rule anywhere in the
+  formal - a conjugated port (isConjugated) still types its PortUsage
+  plainly by the original PortDefinition (7.7.12.2.36's rules are
+  inherited-only). Elision documented with the check-visible oracle.
+- _populate_class generalized (ownedConnector/nestedClassifier via
+  getattr) so Interface populates through it (Interface has neither).
+
+## Result
+
+- check_v1_to_v2_as.py: 94 passed (87 + 5 wave-J + 2 new transition
+  checks).
+- Full sweep green, incl. vehicle round-trip 12 (initial included) and
+  cameo 15.

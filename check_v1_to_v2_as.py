@@ -349,9 +349,19 @@ smpkg.add("packagedElement", sm)
 beh = A.transform_package(smpkg)
 sm_def = beh.ownedElement[0]
 sm_members = [type(e).__name__ for e in sm_def.ownedElement]
-check("state def holds 2 StateUsages + 1 TransitionUsage",
+check("state def holds 2 StateUsages + 2 TransitionUsages",
       sm_members.count("StateUsage") == 2
-      and sm_members.count("TransitionUsage") == 1, str(sm_members))
+      and sm_members.count("TransitionUsage") == 2, str(sm_members))
+boot_tu = [e for e in sm_def.ownedElement
+           if type(e).__name__ == "TransitionUsage"
+           and e.declaredName == "boot"][0]
+entry_au = [x for r in sm_def.ownedRelationship
+            if type(r).__name__ == "StateSubactionMembership"
+            for x in r.ownedRelatedElement][0]
+check("transition from initial sources the entry ActionUsage "
+      "(7.7.11.2.18 ends rule)",
+      boot_tu.source is entry_au
+      and boot_tu.target.declaredName == "Idle")
 ssms = [r for r in sm_def.ownedRelationship
         if type(r).__name__ == "StateSubactionMembership"]
 check("initial Pseudostate -> unnamed ActionUsage as the ENTRY "
@@ -364,7 +374,8 @@ check("initial Pseudostate -> unnamed ActionUsage as the ENTRY "
       str([(str(r.kind), [type(x).__name__ for x in r.ownedRelatedElement])
            for r in ssms]))
 tu = [e for e in sm_def.ownedElement
-      if type(e).__name__ == "TransitionUsage"][0]
+      if type(e).__name__ == "TransitionUsage"
+      and e is not boot_tu][0]
 check("transition source/target wired",
       tu.source.declaredName == "Idle" and tu.target.declaredName == "Running")
 
@@ -981,6 +992,63 @@ check("plain OccurrenceSpecifications not mapped (7.7.8.2 Table 11)",
       not any(type(x).__name__ in ("ActionUsage", "Feature")
               and x.declaredName == "tick"
               for x in mem_children(ix_def)))
+
+print()
+print("== wave J: conjugation machinery (7.8.7.3.3/.17/.20, 7.7.10.2.14) ==")
+jpkg = U.Package(name="CjgPkg")
+jib = S.InterfaceBlock(name="Bus")
+jpkg.packagedElement.append(jib)
+jif = U.Interface(name="MyIf")
+jsig = U.Signal(name="Sig2")
+seqpkg = None  # (wave-I scope does not leak into wave J)
+jpkg.packagedElement.append(jsig)
+jattr = U.Property(name="sig"); jattr.type = jsig
+jif.add("ownedAttribute", jattr)
+jpkg.packagedElement.append(jif)
+jf = U.Port(name="bus"); jf.type = jib
+jf._vals["isConjugated"] = True
+jhost = S.Block(name="Host2")
+jhost.add("ownedAttribute", jf)
+jpkg.packagedElement.append(jhost)
+jout = A.transform_package(jpkg)
+ibus = [e for e in jout.ownedElement
+        if type(e).__name__ == "PortDefinition"
+        and e.declaredName == "Bus"][0]
+conjs = [x for om in ibus.ownedRelationship
+         if isinstance(om, S2.OwningMembership)
+         for x in om.ownedRelatedElement
+         if type(x).__name__ == "ConjugatedPortDefinition"]
+check("InterfaceBlock -> PortDefinition + owned ConjugatedPortDefinition",
+      len(conjs) == 1 and conjs[0].declaredName is None)
+pcs = [r for r in conjs[0].ownedRelationship
+       if type(r).__name__ == "PortConjugation"]
+check("PortConjugation inside: originalPortDefinition = the interface def",
+      len(pcs) == 1
+      and pcs[0].originalPortDefinition is ibus)
+myif = [e for e in jout.ownedElement
+        if type(e).__name__ == "PortDefinition"
+        and e.declaredName == "MyIf"][0]
+iconjs = [x for om in myif.ownedRelationship
+          if isinstance(om, S2.OwningMembership)
+          for x in om.ownedRelatedElement
+          if type(x).__name__ == "ConjugatedPortDefinition"]
+check("Interface -> PortDefinition + '~'-named conjugated member "
+      "(7.7.10.2.14/.15)",
+      len(iconjs) == 1 and iconjs[0].declaredName == "~MyIf")
+ipc = [r for r in iconjs[0].ownedRelationship
+       if type(r).__name__ == "PortConjugation"]
+check("InterfacePortConjugation ties original to conjugated",
+      len(ipc) == 1 and ipc[0].originalPortDefinition is myif)
+iface_attr = [x for x in myif.ownedElement if x.declaredName == "sig"][0]
+check("Interface ownedAttribute -> feature carried by the classifier "
+      "machinery (Signal-typed -> ItemUsage, 7.7.10.2.22)",
+      type(iface_attr).__name__ == "ItemUsage")
+host2_def = [e for e in jout.ownedElement if e.declaredName == "Host2"][0]
+port_use = [x for x in host2_def.ownedElement
+            if type(x).__name__ == "PortUsage"][0]
+check("isConjugated port still plainly typed (ToConjugatedPortTyping "
+      "is a stub initializer; no mapping rule triggers it)",
+      any(t.type is ibus for t in port_use.ownedTyping))
 
 print()
 print("== honesty: unmapped features refuse to guess ==")
