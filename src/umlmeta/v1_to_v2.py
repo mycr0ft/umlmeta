@@ -2,37 +2,43 @@
 """Clean-room SysML v1 -> SysML v2 textual-notation emitter.
 
 Mapping authority: OMG "SysML v2.0 Beta 4, Part 2: SysML v1 to SysML v2
-Transformation" (ptc/2025-04-07). Normative statements implemented here,
+Transformation" — formal/26-03-03, SysML v2.0 Part 2, content
+September 2025; normative machine-readable: SysMLv1Tov2.xmi (ptc/25-04-10),
+the same file Beta 4 (ptc/2025-04-07) pointed at. Anchors re-verified
+against the formal text (Part 27 re-base audit). Statements here,
 each anchored to the published document:
 
   Block->PartDefinition (7.8.4.3.3), Property typed by block->PartUsage
   w/ isComposite direct (7.8.4.3.13), Property untyped->Feature,
-  ValueType->AttributeDefinition (7.8.4.3.14), Enumeration->Enumeration-
+  ValueType->AttributeDefinition (7.8.4.3.15), Enumeration->Enumeration-
   Definition, EnumerationLiteral->EnumerationUsage, ConstraintBlock->
-  ConstraintDefinition (7.8.5.3.1), Association/AssociationBlock->
+  ConstraintDefinition (7.8.5.2.1), Association/AssociationBlock->
   ConnectionDefinition (7.7.12.2.x / 7.8.4.3.x), Connector->ConnectionUsage
   (7.7.12.2.14), BindingConnector->BindingConnectorAsUsage (7.8.4.3.2),
   InterfaceBlock->PortDefinition (7.8.7.3.16), Port typed by InterfaceBlock->
   PortUsage (7.7.12.2.36), untyped Port->PortUsage (7.7.12.2.37),
   Property typed by Class/Interface->OccurrenceUsage (7.7.4.2.37),
   plain Class->OccurrenceDefinition, Actor->PartDefinition (7.7.13.3.1),
-  Signal->ItemDefinition, InformationItem->ItemDefinition (7.7.7.3.x),
+  Signal->ItemDefinition 7.7.10.2.22, InformationItem->ItemDefinition
+  7.7.7.2.7,
   Activity->ActionDefinition (7.7.3.3.1), OpaqueBehavior->ActionDefinition,
   Operation->PerformActionUsage (7.7.4.2.23), Parameter->ReferenceUsage
   w/ direction (7.7.4.2.24; return -> out per the Activity textual example),
   StateMachine->StateDefinition (7.7.11.2.16), State->StateUsage
-  (7.7.11.2.15), Pseudostate->StateUsage (7.7.11.2.13), FinalState->
-  StateUsage (7.7.11.2.8), InitialState elided per SYSML2_-203
-  (7.7.11.2.10), Transition->TransitionUsage (7.7.11.2.18), Region
-  inlined (7.7.11.2.12), Requirement->RequirementUsage (7.8.8.3.30)
+  (7.7.11.2.12), Pseudostate->StateUsage (7.7.11.2.10), FinalState->
+  StateUsage (7.7.11.2.7), InitialState->ActionUsage as the
+  StateDefinition's ENTRY subaction ('entry action;',
+  7.7.11.2.8/.9 — the formal 2.0 behavior, no longer the Beta-4
+  elision), Transition->TransitionUsage (7.7.11.2.18), Region
+  inlined (7.7.11.2.11), Requirement->RequirementUsage (7.8.8.3.17)
   with id per the DeriveReqt textual example, Satisfy->
-  SatisfyRequirementUsage (7.8.8.3.44), Verify->RequirementVerification-
+  SatisfyRequirementUsage (7.8.8.3.22), Verify->RequirementVerification-
   Membership (7.8.8.3.49, emitted inside the TestCase objective),
-  TestCase->VerificationCaseDefinition (7.8.8.3.26) with
+  TestCase->VerificationCaseDefinition (7.8.8.3.35 TestCaseActivity) with
   'return verdict : VerificationCases::VerdictKind' (VerdictKind rule),
-  DeriveReqt->DerivationConnections::Derivation connection (7.8.8.3.15),
+  DeriveReqt->DerivationConnections::Derivation connection (7.8.8.3.1),
   Refine/Trace->Dependency annotated with v1-library metadata
-  (7.8.8.3.35 / 7.8.8.3.51; local RefineData/TraceData metadata stubs
+  (7.8.8.3.9 / 7.8.8.3.41; local RefineData/TraceData metadata stubs
   stand in for SysMLv1Library), Allocate->AllocationDefinition /
   AllocationUsage (7.8.3.3.9 / 7.8.3.3.10), PackageImport->
   NamespaceImport (7.7.9.3.12; elided because the target grammar reader
@@ -583,9 +589,9 @@ def emit_element(el, indent, verify_rels=()) -> list[str]:
                        U.ExecutionOccurrenceSpecification,
                        U.DestructionOccurrenceSpecification, U.OccurrenceSpecification,
                        U.Gate, U.GeneralOrdering, U.Continuation)):
-        # Table 11 (7.7.8.2): not mapped in ptc/2025-04-07
+        # Table 11 (7.7.8.2): not mapped in the formal 2.0 transformation
         return [f"{pad}/* v1 {type(el).__name__} {_name(el)!r} not mapped "
-                "in ptc/2025-04-07 (7.7.8.2 Table 11) */"]
+                "in formal/26-03-03 (7.7.8.2 Table 11) */"]
     if isinstance(el, U.DataType):
         return emit_datatype(el, pad)
     if isinstance(el, U.Class):
@@ -824,7 +830,7 @@ def _activity_node(n, edges, indent, flow_connected) -> list[str]:
     if isinstance(n, U.ActivityParameterNode):
         return []   # its parameter is already emitted as an activity parameter
     return [f"{pad}/* v1 {type(n).__name__} {_name(n)!r} not mapped in "
-            "ptc/2025-04-07 */"]
+            "formal/26-03-03 (7.7.8.2 Table 11) */"]
 
 
 def _opaque_action(n, indent, flow_connected) -> list[str]:
@@ -1029,8 +1035,10 @@ def _activity_edge(e, edges, indent) -> list[str]:
 
 def emit_statemachine(sm, indent) -> list[str]:
     """StateMachine -> StateDefinition; Region inlined; State/Pseudostate/
-    FinalState -> StateUsage; InitialState elided (SYSML2_-203);
-    Transition -> TransitionUsage ('first <src> then <tgt>')."""
+    FinalState -> StateUsage; InitialState -> ActionUsage as the
+    definition's entry subaction ('entry action;', 7.7.11.2.8/.9 formal
+    2.0 — no longer the Beta-4 elision); Transition -> TransitionUsage
+    ('first <src> then <tgt>')."""
     pad = "  " * indent
     nm = _name(sm) or "?"
     regions = [m for m in list(sm.ownedMember) if isinstance(m, U.Region)]
@@ -1048,6 +1056,11 @@ def emit_statemachine(sm, indent) -> list[str]:
             if isinstance(st, U.Transition):
                 continue
             out += _emit_state_like(st, indent + 1)
+            if isinstance(st, U.Pseudostate) \
+                    and st._vals.get("kind") is U.PseudostateKind.initial:
+                # InitialState_Mapping (7.7.11.2.8) + membership (7.7.11.2.9):
+                # entry subaction of the StateDefinition
+                out[-1:] = [f"{pad}  entry action;"]
         for tr in list(r.ownedMember):
             if isinstance(tr, U.Transition):
                 out += _emit_transition(tr, indent + 1)
@@ -1057,12 +1070,10 @@ def emit_statemachine(sm, indent) -> list[str]:
 
 def _emit_state_like(st, indent) -> list[str]:
     pad = "  " * indent
-    if isinstance(st, U.Pseudostate) and st._vals.get("kind") is U.PseudostateKind.initial:
-        # normative: InitialState -> StateUsage, flagged SYSML2_-203
-        return [f"{pad}/* v1 initial state elided (SYSML2_-203) */"]
     nm = _name(st) or "state"
     docs = _doc_lines(st)
-    inner = [m for m in list(st.ownedMember) if isinstance(m, U.State)]
+    inner = [m for m in list(getattr(st, "ownedMember", ()))
+             if isinstance(m, U.State)]
     if not inner and not docs:
         return [f"{pad}state {nm};"]
     out = [f"{pad}state {nm} {{"]
@@ -1073,15 +1084,20 @@ def _emit_state_like(st, indent) -> list[str]:
     return out
 
 
-def _emit_transition(tr, indent) -> list[str]:
+def _emit_transition(tr, indent, initial_emitted=False) -> list[str]:
     pad = "  " * indent
     nm = _name(tr) or "transition"
     src, tgt = tr._vals.get("source"), tr._vals.get("target")
     sn, tn = _name(src), _name(tgt)
-    if sn is None and isinstance(src, U.Pseudostate) \
+    if isinstance(src, U.Pseudostate) \
             and src._vals.get("kind") is U.PseudostateKind.initial:
-        return [f"{pad}/* v1 transition from initial state elided "
-                "(SYSML2_-203) */"]
+        # the initial pseudostate is now the StateDefinition's unnamed
+        # entry ActionUsage (7.7.11.2.8); a succession FROM it rides the
+        # TransitionSuccessionSource machinery (7.7.11.2.20-.25) — the
+        # Beta-4 elision stands for the succession itself
+        return [f"{pad}/* v1 transition from the entry (initial) action "
+                "elided: needs TransitionSuccessionSource machinery "
+                "(7.7.11.2.20-.25) */"]
     if sn is None or tn is None:
         raise UnmappedFeature(f"Transition {nm!r} without named source/target")
     guard = _guard_expr(tr)

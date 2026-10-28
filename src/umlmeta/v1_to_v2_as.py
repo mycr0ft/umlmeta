@@ -2,7 +2,8 @@
 """v1_to_v2_as.py — clean-room SysML v1 → v2 abstract-syntax transformer.
 
 Requirement 3 of the transformation conformance clause (§2 of
-ptc/2025-04-07): transform an abstract-syntax representation of an input
+formal/26-03-03 — SysML v2.0 Part 2): transform an abstract-syntax
+representation of an input
 SysML v1 model into an abstract-syntax representation of a SysML v2
 model. This module constructs umlmeta.sysml2 objects (R2 artifact) from
 umlmeta.uml25 + umlmeta.sysml objects (R1 artifacts) — the same normative
@@ -10,7 +11,10 @@ mappings v1_to_v2.py implements for textual notation, but building the
 AS the clause demands.
 
 Mapping authority: OMG "SysML v2.0 Beta 4, Part 2: SysML v1 to SysML v2
-Transformation" (ptc/2025-04-07), same anchors as v1_to_v2.py. Anything
+Transformation" (formal/26-03-03, SysML v2.0 Part 2, content
+September 2025 — same normative machine-readable XMI as Beta 4;
+anchors re-verified against the formal text), same anchors as
+v1_to_v2.py. Anything
 without a normative mapping raises UnmappedFeature.
 
 Wave A: core structural mappings
@@ -18,9 +22,9 @@ Wave A: core structural mappings
   Property typed by block + isComposite→PartUsage (7.8.4.3.13),
   non-composite block-typed Property→PartUsage w/ isComposite=false
   (the 'ref part' form), Property untyped→Feature, ValueType→
-  AttributeDefinition (7.8.4.3.14), Enumeration→EnumerationDefinition,
+  AttributeDefinition (7.8.4.3.15), Enumeration→EnumerationDefinition,
   EnumerationLiteral→EnumerationUsage, ConstraintBlock→
-  ConstraintDefinition (7.8.5.3.1), plain Class→OccurrenceDefinition,
+  ConstraintDefinition (7.8.5.2.1), plain Class→OccurrenceDefinition,
   Property typed by plain Class→OccurrenceUsage (7.7.4.2.37),
   Generalization→Subclassification (7.7.4.2.12), typing via
   FeatureTyping (Core-Features), Comment→Documentation
@@ -28,8 +32,9 @@ Wave A: core structural mappings
 
 Wave B: state machines and activities (7.7.11.2.x, 7.7.3.3.x) —
   States/Pseudostates/FinalStates→StateUsage, Transitions→
-  TransitionUsage with source/target ends, regions inlined, initial
-  elided (SYSML2_-203); OpaqueAction→ActionUsage, ControlFlow→
+  TransitionUsage with source/target ends, regions inlined, initial →
+  unnamed ActionUsage as the StateDefinition's entry subaction
+  (7.7.11.2.8/.9, formal 2.0); OpaqueAction→ActionUsage, ControlFlow→
   SuccessionAsUsage, object flows→SuccessionFlowUsage.
 
 Wave C: requirements chain (7.8.8.3.x) — Requirement→RequirementUsage
@@ -44,7 +49,7 @@ Wave D: To*_Init realization (7.7.4.2.36 subsets/redefines/defaults,
   ItemDefinition/ItemUsage).
 
 Wave E: use cases and interfaces — UseCase→UseCaseDefinition
-  (7.7.13.3.3) with subject memberships, Include→IncludeUseCaseUsage
+  (7.7.13.3.4) with subject memberships, Include→IncludeUseCaseUsage
   (7.7.13.3.x, IncludeFeatureTyping to the addition's definition),
   Extend/ExtensionPoint not mapped (no normative target); InterfaceBlock→
   PortDefinition (7.8.7.3.16, replacing the wave-A PartDefinition
@@ -167,7 +172,7 @@ def transform_v1_element(el, index=None):
     if isinstance(el, U.Package):
         return S2.Package(declaredName=_name(el))
     if isinstance(el, S.ConstraintBlock):
-        # ConstraintBlock_Mapping (7.8.5.3.1): to ConstraintDefinition
+        # ConstraintBlock_Mapping (7.8.5.2.1): to ConstraintDefinition
         # (before the Block check: ConstraintBlock specializes Block)
         return S2.ConstraintDefinition(declaredName=_name(el))
     if isinstance(el, S.InterfaceBlock):
@@ -181,7 +186,7 @@ def transform_v1_element(el, index=None):
         # Block_Mapping (7.8.4.3.3): to PartDefinition
         return S2.PartDefinition(declaredName=_name(el))
     if isinstance(el, S.ValueType):
-        # ValueType_Mapping (7.8.4.3.14): to AttributeDefinition
+        # ValueType_Mapping (7.8.4.3.15): to AttributeDefinition
         return S2.AttributeDefinition(declaredName=_name(el))
     if isinstance(el, U.Enumeration):
         # Enumeration_Mapping: to EnumerationDefinition (before the
@@ -189,7 +194,7 @@ def transform_v1_element(el, index=None):
         return S2.EnumerationDefinition(declaredName=_name(el))
     if isinstance(el, U.DataType):
         # plain DataType (non-stereotyped): same mapping family as
-        # ValueType -> AttributeDefinition (7.8.4.3.14)
+        # ValueType -> AttributeDefinition (7.8.4.3.15)
         return S2.AttributeDefinition(declaredName=_name(el))
     if isinstance(el, U.EnumerationLiteral):
         # EnumerationLiteral_Mapping: to EnumerationUsage
@@ -198,12 +203,12 @@ def transform_v1_element(el, index=None):
         # Actor_Mapping (7.7.13.3.1): to PartDefinition
         return S2.PartDefinition(declaredName=_name(el))
     if isinstance(el, (U.Signal, U.InformationItem)):
-        # Signal_Mapping / InformationItem_Mapping (7.7.7.3.x):
+        # Signal_Mapping (7.7.10.2.22) / InformationItem_Mapping (7.7.7.2.7):
         # → ItemDefinition (Signal/InformationItem are Classifiers,
         # not Classes — dispatch must precede the Class check)
         return S2.ItemDefinition(declaredName=_name(el))
     if isinstance(el, U.UseCase):
-        # UseCase_Mapping (7.7.13.3.3): to UseCaseDefinition; subject and
+        # UseCase_Mapping (7.7.13.3.4): to UseCaseDefinition; subject and
         # Include wiring ride the use-case population pass
         return S2.UseCaseDefinition(declaredName=_name(el))
     if isinstance(el, U.Association):
@@ -222,7 +227,7 @@ def transform_v1_element(el, index=None):
             raise UnmappedFeature(
                 f"{type(el).__name__} (own mapping, later wave)")
         if isinstance(el, S.Requirement):
-            # Requirement_Mapping (7.8.8.3.30)
+            # Requirement_Mapping (7.8.8.3.17)
             return _transform_requirement(el, index)
         if isinstance(el, S.TestCase):
             # TestCase_Mapping (7.8.8.3.27): TestCase →
@@ -263,7 +268,8 @@ def transform_property(prop, owner_def, index):
     ToSubsetting_Init / ToRedefinition_Init / ToReferenceSubsetting_Init
     (subsettedProperty / redefinedProperty, 7.7.4.2.36), ToPartUsage /
     ToReferenceUsage / ToOccurrenceUsage / ToOccurenceDefinition,
-    ToItemDefinition / ToItemUsage (Signal/InformationItem, 7.7.7.3.x),
+    ToItemDefinition / ToItemUsage (Signal 7.7.10.2.22, InformationItem
+  7.7.7.2.7),
     ToPortDefinition / ToPortUsage (Port machinery, 7.8.7.3.16 /
     7.7.12.2.36/.37), ToPerformActionUsage (Operation, 7.7.4.2.23),
     ToConnectionUsage (Connector, 7.7.12.2.14), ToBindingConnectorAsUsage
@@ -308,7 +314,7 @@ def transform_property(prop, owner_def, index):
     elif isinstance(t, (S.ValueType, U.DataType, U.Enumeration)):
         usage = S2.AttributeUsage(declaredName=nm)
     elif isinstance(t, (U.Signal, U.InformationItem)):
-        usage = S2.ItemUsage(declaredName=nm)   # 7.7.7.3.x
+        usage = S2.ItemUsage(declaredName=nm)   # 7.7.10.2.22
     elif isinstance(t, U.Class):
         usage = S2.OccurrenceUsage(declaredName=nm)
         if not composite:
@@ -603,7 +609,11 @@ def _attach_multiplicity(mult_el, feature):
 def _populate_statemachine(sm, v2def, index):
     """StateMachine internals (7.7.11.2.x): Regions inlined — States/
     Pseudostates/FinalStates → StateUsage; Transitions → TransitionUsage
-    with source/target; initial states elided (SYSML2_-203)."""
+    with source/target ends. InitialState (7.7.11.2.8, formal 2.0 — no
+    longer the Beta-4 elision): an initial Pseudostate maps to an
+    unnamed ActionUsage carried as the entry subaction
+    (StateSubactionMembership, kind=entry, 7.7.11.2.9) of the
+    StateDefinition."""
     for member in list(sm.ownedMember):
         if isinstance(member, U.Region):
             for st in list(member.ownedMember):
@@ -611,19 +621,34 @@ def _populate_statemachine(sm, v2def, index):
                     continue
                 if isinstance(st, U.Pseudostate) \
                         and st._vals.get("kind") is U.PseudostateKind.initial:
-                    continue  # elided (SYSML2_-203)
+                    # InitialState_Mapping (7.7.11.2.8) +
+                    # InitialStateSubactionMembership_Mapping (7.7.11.2.9):
+                    # initial -> unnamed ActionUsage carried as the ENTRY
+                    # subaction (StateSubactionMembership, kind=entry) of the
+                    # StateDefinition (the formal 2.0 behavior; the Beta-4
+                    # elision is gone)
+                    au = S2.ActionUsage()
+                    ssm = S2.StateSubactionMembership()
+                    ssm.kind = S2.StateSubactionKind.entry
+                    ssm.ownedRelatedElement.append(au)
+                    v2def.ownedRelationship.append(ssm)
+                    index[id(st)] = au
+                    continue
                 su = S2.StateUsage(declaredName=_name(st))
                 _own_membership(v2def, su)
                 index[id(st)] = su
-        for tr in list(member.ownedMember):
-            if not isinstance(tr, U.Transition):
-                continue
-            src, tgt = tr._vals.get("source"), tr._vals.get("target")
-            if isinstance(src, U.Pseudostate) \
-                    and src._vals.get("kind") is U.PseudostateKind.initial:
-                continue  # elided (SYSML2_-203)
-            src_obj = index.get(id(src))
-            tgt_obj = index.get(id(tgt))
+            for tr in list(member.ownedMember):
+                if not isinstance(tr, U.Transition):
+                    continue
+                src, tgt = tr._vals.get("source"), tr._vals.get("target")
+                if isinstance(src, U.Pseudostate) \
+                        and src._vals.get("kind") is U.PseudostateKind.initial:
+                    # transition successions FROM the entry action ride the
+                    # TransitionSuccessionSource machinery (7.7.11.2.20-.25) —
+                    # later wave; elided, not lost
+                    continue
+                src_obj = index.get(id(src))
+                tgt_obj = index.get(id(tgt))
             if src_obj is None or tgt_obj is None:
                 raise UnmappedFeature(
                     f"Transition {_name(tr)!r} to element outside the "
@@ -915,7 +940,7 @@ def _owning_membership_of(root, target):
 # --------------------------------------------------------------------------
 
 def _transform_requirement(req, index):
-    """Requirement_Mapping (7.8.8.3.30): Requirement → RequirementUsage
+    """Requirement_Mapping (7.8.8.3.17): Requirement → RequirementUsage
     with the v1 id carried as the requirement's declaredShortId-style
     text (the textual example puts the id in quotes next to the name);
     text → Documentation (normative: text → doc)."""
@@ -935,7 +960,7 @@ def _transform_requirement(req, index):
 
 
 def _transform_satisfy(sat, out, index):
-    """Satisfy_Mapping (7.8.8.3.44): Satisfy → SatisfyRequirementUsage;
+    """Satisfy_Mapping (7.8.8.3.22): Satisfy → SatisfyRequirementUsage;
     v1 client (the satisfying part) → satisfyingFeature; v1 supplier
     (the requirement) → satisfiedRequirement."""
     clients = [index.get(id(c)) for c in list(sat.client)]
@@ -980,7 +1005,7 @@ def _transform_verify(verify, out, index):
 
 
 def _transform_derive_reqt(dr, out, index):
-    """DeriveReqt_Mapping (7.8.8.3.15): DeriveReqt → ConnectionUsage
+    """DeriveReqt_Mapping (7.8.8.3.1): DeriveReqt → ConnectionUsage
     typed by the DerivationConnections::Derivation model-library
     connection (referenced by qualified name; the library itself is
     external — the same name reference the textual form emits)."""
@@ -1115,7 +1140,8 @@ def _transform_allocate(al, out, index):
 # --------------------------------------------------------------------------
 # To*_Init realization table (normative XMI: Mappings-Initializers)
 # --------------------------------------------------------------------------
-# The 78 helper initializers of ptc/2025-04-07 and their realization in
+# The 78 helper initializers of the transformation spec (formal
+# 2.0, Part 2) and their realization in
 # this module. "wiring" = the helper's object construction is realized;
 # "defaults" = the helper only supplies mapping-language default values
 # that the construction path sets directly (isUnique=true, isOrdered=
@@ -1200,7 +1226,7 @@ def _transform_allocate(al, out, index):
 # ToUsage_Init              wiring   *Usage constructions
 # ToNamespace_Init          wiring   package/namespace memberships
 # ToUseCaseDefinition_Init  wiring   wave E: UseCase → UseCaseDefinition
-#                                    (7.7.13.3.3; per the normative
+#                                    (7.7.13.3.4; per the normative
 #                                    SysMLv1Tov2.xmi mapping classes)
 # ToUseCaseSubjectMembership_Init wiring wave E: SubjectMembership +
 #                                    'subject_<name>' ReferenceUsage
@@ -1229,7 +1255,7 @@ def _transform_allocate(al, out, index):
 # ToPartUsage_Init          wiring   composite block-typed Property
 # ToReferenceUsage_Init     wiring   parameters ('ref' ends)
 # ToItemDefinition_Init     wiring   Signal/InformationItem
-#                                    (7.7.7.3.x)
+#                                    (7.7.10.2.22 / 7.7.7.2.7)
 # ToItemUsage_Init          wiring   Property typed by Signal/
 #                                    InformationItem
 # ToItemFeature_Init        defaults item features ride ItemUsage
@@ -1292,10 +1318,13 @@ def _transform_allocate(al, out, index):
 # ToCalculationUsage_Init   wiring   guard/else inline calcs (textual
 #                                    calibrated form; AS elides)
 # ToPerformActionUsage_Init wiring   Operation → PerformActionUsage
-# ToStateUsage_Init         wiring   wave B (7.7.11.2.13/.15/.8)
+# ToStateUsage_Init         wiring   wave B (Pseudostate 7.7.11.2.10,
+#                                    State 7.7.11.2.12, FinalState
+#                                    7.7.11.2.7) + initial -> ActionUsage
+#                                    entry subaction (7.7.11.2.8/.9)
 # ToTransitionUsage_Init    wiring   wave B (7.7.11.2.18)
 # ToStateSubactionMembership_Init wiring wave B state internals
-# ToRequirementUsage_Init   wiring   wave C (7.8.8.3.30)
+# ToRequirementUsage_Init   wiring   wave C (7.8.8.3.17)
 # ToMetadataUsage_Init      wiring   MetadataUsage constructions for
 #                                    the v1-library metadata stubs
 #                                    (PortData/RefineData/TraceData)

@@ -2082,3 +2082,96 @@ check 45, profiles 60, sysml2 26, ocl 19, dodaf 32, derived 42, query
 14, mdzip_import 26, xmi_cameo 15, v1_to_v2_as 78, bdd 10, deployment
 6, textual pipeline 47, vehicle 12 - ALL GREEN, corpus suites
 unblocked.
+
+# Part 27: formal-spec re-base (2.0 → the published standard + the 2.1 line)
+
+The transformation specification the repo anchors to went formal:
+**formal/26-03-03 — OMG SysML v2.0, Part 2: SysML v1 to v2 Transformation,
+content dated September 2025** (the "Sep 2025" SysML v2.0 formal that
+sysml.org lists; the 26-03-xx document numbers are the March 2026
+publication batch, and the 2026-04 ISO-submitted release). The Beta-4
+PDF (ptc/2025-04-07) pointed at the same normative machine-readable
+file (SysMLv1Tov2.xmi, ptc/25-04-10), so the wave-E/F/G/H wiring pinned
+against ~/umlmeta/SysMLv1Tov2.xmi was already formal-grade; the re-base
+is the anchor/citation layer plus the behavioral deltas the formal
+introduced.
+
+## The 2.1 line (September 2026 release)
+
+The latest SysML-v2-Release (2026-09) ships **SysML 2.1 Beta 2 / KerML
+1.1 Beta 2** (Release 2026-07, dated August 2026) - RTF ballots 1-3
+applied to the formal 2.0, explicitly preliminary until the FTFs
+complete. Its Part 2 PDF renumbers ~600 mapping sections wholesale
+(the Overview/Mapping-Specifications sub split moved:
+7.7.8.3.x -> 7.7.8.2.x, 7.7.13.3.x -> 7.7.13.2.x, 7.8.8.3.x ->
+7.8.8.2.x; 7.8.5.2.1 unchanged; Tables compressed 33 -> 20) and its
+own change list says **Part 2 received no RTF resolutions** - the
+transformative content is unchanged, the anchors moved. Standing
+decision: this tree anchors the FORMAL 2.0 (the standard); the 2.1
+renumber map is recorded here for a mechanical migration when 2.1
+goes formal. The RTF action is all Part 1/KerML AS-side (library
+models, assignment actions, flows::messages subsetting, SYSML2_-159),
+which will land as a gen/sysml2 regeneration wave from the 2.1
+machine-readable XMI once formal.
+
+## Behavioral deltas implemented (formal 2.0 vs the Beta-4-era code)
+
+- **InitialState now maps** (7.7.11.2.8/.2.9): an initial Pseudostate
+  maps to an UNNAMED ActionUsage carried as the ENTRY subaction
+  (StateSubactionMembership, kind=entry) of the StateDefinition. The
+  Beta-4 elision (SYSML2_-203) is gone in both pipelines: AS-side
+  through _populate_statemachine; textual-side emits `entry action;`
+  (validated by sysmlpy 0.96.4). A transition FROM the initial still
+  elides: its succession rides TransitionSuccessionSource machinery
+  (7.7.11.2.20-.25), the next queued behavioral wave.
+
+## Anchor corrections (cited numbers were wrong against BOTH Beta 4 and formal; verified per-section against the formal body)
+
+| Claimed | Was | Formal truth |
+|---|---|---|
+| ConstraintBlock->ConstraintDefinition | 7.8.5.3.1 | 7.8.5.2.1 |
+| Requirement->RequirementUsage | 7.8.8.3.30 | 7.8.8.3.17 |
+| Satisfy->SatisfyRequirementUsage | 7.8.8.3.44 | 7.8.8.3.22 |
+| Refine->Dependency+metadata | 7.8.8.3.35 | 7.8.8.3.9 |
+| Trace->Dependency+metadata | 7.8.8.3.51 | 7.8.8.3.41 |
+| TestCase->VerificationCaseDefinition | 7.8.8.3.26 | 7.8.8.3.35 (TestCaseActivity) |
+| DeriveReqt->ConnectionUsage | 7.8.8.3.15 | 7.8.8.3.1 |
+| ValueType->AttributeDefinition | 7.8.4.3.14 | 7.8.4.3.15 |
+| Signal->ItemDefinition | 7.7.7.3.x | 7.7.10.2.22 |
+| InformationItem->ItemDefinition | 7.7.7.3.x | 7.7.7.2.7 |
+| Pseudostate->StateUsage | 7.7.11.2.13 | 7.7.11.2.10 |
+| FinalState->StateUsage | 7.7.11.2.8 | 7.7.11.2.7 |
+| State->StateUsage | 7.7.11.2.15 | 7.7.11.2.12 |
+| Region inlined | 7.7.11.2.12 | 7.7.11.2.11 |
+| UseCase->UseCaseDefinition | 7.7.13.3.3 | 7.7.13.3.4 |
+
+Verified-correct (no change): Block 7.8.4.3.3, PartProperty 7.8.4.3.13,
+Connector 7.7.12.2.14, BindingConnector 7.8.4.3.2, InterfaceBlock
+7.8.7.3.16, Port 7.7.12.2.36/.37, Dependency 7.7.6.2.9, Activity
+7.7.3.3.1 (ActivityAsDefinition), Operation 7.7.4.2.23, Parameter
+7.7.4.2.24, Verify 7.8.8.3.49, Allocate usage 7.8.3.3.9, Actor
+7.7.13.3.1, Include 7.7.13.3.2, the full interaction family
+7.7.8.3.1-.19, via-port machinery 7.7.2.3.1-.19 (2.1 renumbered this
+to 7.7.2.2.1-.19).
+
+## Newly-observed formal machinery (queued, not yet implemented)
+
+- 7.7.11.2.19-.26: TransitionSuccessionSource/Target machinery (the
+  transition-from-initial carrier above).
+- 7.8.7.3.3/.17/.20: ConjugatedPortDefinition / InterfaceBlockConjugated
+  / PortConjugation - the conjugation family IS normatively specified
+  in the formal (the "later wave" elision has a real target now).
+- 7.8.7.3.8-.14: FullPortMetadata* - the PortData metadata machinery is
+  fully specified (7.8.7.3.8-.14) rather than the "local stub" the
+  textual emitter carries.
+- 7.8.8.3.35-.40: TestCase family incl.
+  TestCaseActivityReturnParameterMembership (the 'return verdict'
+  line), Verify objectives .3.45-.49.
+
+## Result
+
+- check_v1_to_v2_as: 79 passed (+1 entry-subaction check).
+- check_v1_to_v2: 49 passed (+2: entry action + succession elision;
+  sysmlpy-validated).
+- Full sweep green: 45/60/26/19/32/42/19/48/20/18/26/14/26 + text 49 +
+  AS 79 (+ vehicle 12, mdzip probe 26).

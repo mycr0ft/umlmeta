@@ -123,14 +123,21 @@ vehicle.add("ownedAttribute", occ_ref)
 # state machine w/ initial state, 2 states, transition
 sm = U.StateMachine(name="OpMode")
 reg = U.Region(name="r1")
+p_init = U.Pseudostate(name="p0")
+p_init._vals["kind"] = U.PseudostateKind.initial
 st_on = U.State(name="on")
 st_off = U.State(name="off")
 trans = U.Transition(name="t1")
+t_boot = U.Transition(name="boot")
+reg.add("subvertex", p_init)
 reg.add("subvertex", st_on)
 reg.add("subvertex", st_off)
+t_boot.source = p_init
+t_boot.target = st_on
 trans.source = st_on
 trans.target = st_off
 reg.add("transition", trans)
+reg.add("transition", t_boot)
 sm.add("region", reg)
 
 # activity (normative: Activity -> ActionDefinition w/ parameters)
@@ -220,6 +227,13 @@ for label, key, minimum in (
         ("metadata", "metadata", 1),              # RefineData stub
         ("occurrence", "part", 3)):               # occurrence def LegacyPart
     check(label, counts.get(key, 0) >= minimum, str(counts))
+
+for label, needle in (
+        ("InitialState -> entry action of the StateDefinition "
+         "(7.7.11.2.8/.9, formal 2.0)", "entry action;"),
+        ("transition from initial -> succession elision comment",
+         "transition from the entry (initial) action")):
+    check(label, needle in text, needle)
 
 # ---- wave 3: FullPort/ProxyPort, FlowProperty, constraints, instances -------
 W3 = U.Package(name="Wave3")

@@ -205,7 +205,7 @@ sib_as = find(as_pkg, "sibling", S2.PartUsage)[0]
 check("non-composite block-typed Property -> PartUsage isComposite=false"
       " (the 'ref part' form)", sib_as._vals.get("isComposite") is False)
 mass_as = find(as_pkg, "mass", S2.AttributeUsage)[0]
-check("ValueType -> AttributeDefinition (7.8.4.3.14), usage typed by it",
+check("ValueType -> AttributeDefinition (7.8.4.3.15), usage typed by it",
       typing_of(mass_as) is find(as_pkg, "Kilogram", S2.AttributeDefinition)[0])
 paint_as = find(as_pkg, "paint", S2.AttributeUsage)[0]
 check("Enumeration -> EnumerationDefinition; typed AttributeUsage",
@@ -221,7 +221,7 @@ legr_as = find(as_pkg, "legRef", S2.OccurrenceUsage)[0]
 check("Class-typed referential Property -> OccurrenceUsage"
       " isComposite=false", legr_as._vals.get("isComposite") is False)
 cb_as = find(as_pkg, "Adder", S2.ConstraintDefinition)
-check("ConstraintBlock -> ConstraintDefinition (7.8.5.3.1)",
+check("ConstraintBlock -> ConstraintDefinition (7.8.5.2.1)",
       len(cb_as) == 1)
 actor_as = find(as_pkg, "Operator", S2.PartDefinition)
 check("Actor -> PartDefinition (7.7.13.3.1)", len(actor_as) == 1)
@@ -330,10 +330,17 @@ smpkg = U.Package(name="Beh")
 sm = U.StateMachine(name="OpMode")
 region = U.Region(name="r")
 sm.region.append(region)
+init0 = U.Pseudostate(name="start")
+init0._vals["kind"] = U.PseudostateKind.initial
 idle = U.State(name="Idle")
 running = U.State(name="Running")
+region.subvertex.append(init0)
 region.subvertex.append(idle)
 region.subvertex.append(running)
+t0 = U.Transition(name="boot")
+region.transition.append(t0)
+t0.source = init0
+t0.target = idle
 t1 = U.Transition(name="power_on")
 region.transition.append(t1)
 t1.source = idle
@@ -345,6 +352,17 @@ sm_members = [type(e).__name__ for e in sm_def.ownedElement]
 check("state def holds 2 StateUsages + 1 TransitionUsage",
       sm_members.count("StateUsage") == 2
       and sm_members.count("TransitionUsage") == 1, str(sm_members))
+ssms = [r for r in sm_def.ownedRelationship
+        if type(r).__name__ == "StateSubactionMembership"]
+check("initial Pseudostate -> unnamed ActionUsage as the ENTRY "
+      "subaction of the StateDefinition (7.7.11.2.8/.9, formal 2.0)",
+      len(ssms) == 1
+      and str(ssms[0].kind) == "StateSubactionKind.entry"
+      and [type(x).__name__ for x in ssms[0].ownedRelatedElement]
+      == ["ActionUsage"]
+      and ssms[0].ownedRelatedElement[0].declaredName is None,
+      str([(str(r.kind), [type(x).__name__ for x in r.ownedRelatedElement])
+           for r in ssms]))
 tu = [e for e in sm_def.ownedElement
       if type(e).__name__ == "TransitionUsage"][0]
 check("transition source/target wired",
@@ -470,7 +488,7 @@ check("Port -> PortUsage typed by the interface definition",
       or any(t.type.declaredName == "IF" for t in p_use.ownedTyping))
 sig_def = [e for e in oout.ownedElement
            if type(e).__name__ == "ItemDefinition"][0]
-check("Signal -> ItemDefinition (7.7.7.3.x)",
+check("Signal -> ItemDefinition (7.7.10.2.22)",
       sig_def.declaredName == "Cmd")
 lu = [e for e in psu.ownedElement if e.declaredName == "lastCmd"][0]
 check("Signal-typed Property -> ItemUsage",
@@ -497,7 +515,7 @@ car.add("useCase", checkout)            # subject association (one subject)
 ucpkg = A.transform_package(upkg)
 ucd = [e for e in ucpkg.ownedElement
        if type(e).__name__ == "UseCaseDefinition"][0]
-check("UseCase -> UseCaseDefinition (7.7.13.3.3)", ucd.declaredName == "Checkout")
+check("UseCase -> UseCaseDefinition (7.7.13.3.4)", ucd.declaredName == "Checkout")
 subj_ms = [r for r in ucd.ownedRelationship
            if type(r).__name__ == "SubjectMembership"]
 check("subject -> SubjectMembership with 'subject_' ReferenceUsage",

@@ -32,9 +32,11 @@ package VehicleExample {
   item def MoveCommand;
   part def Operator;
   state def OpMode {
+    entry action;
     state on;
     state off;
     transition t1 first on then off;
+    /* v1 transition from the entry (initial) action elided: needs TransitionSuccessionSource machinery (7.7.11.2.20-.25) */
   }
   action def Generate {
     in demand;
