@@ -2175,3 +2175,75 @@ to 7.7.2.2.1-.19).
   sysmlpy-validated).
 - Full sweep green: 45/60/26/19/32/42/19/48/20/18/26/14/26 + text 49 +
   AS 79 (+ vehicle 12, mdzip probe 26).
+
+# Part 28: wave I - interaction machinery (7.7.8.3.x)
+
+The interaction mapping family - Beta-4-era "grammar gap" elisions -
+is realized AS-side (the formal 2.0 specifies all of it; the AS runtime
+carries every target class). The textual emitter keeps its elision:
+that gap is in the sysmlpy *textual* grammar, an unrelated artifact.
+
+## Normative wiring (formal body + machine-readable)
+
+- Interaction_Mapping (7.7.8.3.6, ownedRelationship rule):
+  lifelines/messages/fragments/invariants/uses/combinedFragments are
+  excluded from the generic `elements` set and union their own
+  memberships; plain OccurrenceSpecifications, message-end
+  occurrence specs, Gates and Continuations are NOT mapped
+  (Table 11, 7.7.8.2).
+- Lifelines -> PartUsages (7.7.8.3.13) typed by mapped
+  represents.type (7.7.8.3.14: FeatureTyping::type =
+  ElementMain_Mapping.getMapped(from.represents.type)) under
+  LifelineMembership (7.7.8.3.12, FeatureMembership).
+- Messages -> Flow (7.7.8.3.15: prose "ItemFlow", machine-readable
+  target class KerML Flow with its payload family - the AS has no
+  ItemFlow class in the 20250201 XMI; "Mapping Target Flow"). The
+  Message mapping has NO rules of its own - the flow carries no
+  ends/payload (the ends would be the Table-11 occurrences).
+- StateInvariants -> Invariants (7.7.8.3.17) typed by the mapped
+  invariant element (7.7.8.3.19) under StateInvariantMembership
+  (7.7.8.3.18).
+- InteractionUses -> Steps (7.7.8.3.9) typed by the mapped refersTo
+  interaction (7.7.8.3.11) under InteractionUseMembership (7.7.8.3.10).
+- ActionExecutionSpecification/BehaviorExecutionSpecification ->
+  ActionUsages (7.7.8.3.1/.2) under ExecutionSpecificationMembership
+  (7.7.8.3.5: to EndFeatureMembership).
+- CombinedFragments -> nested Interactions (7.7.8.3.3) with operands ->
+  nested Interactions (7.7.8.3.7/.8); both under OwningMembership -
+  the nested piece is a KerML Type (Interaction), not a Feature, so a
+  FeatureMembership is not well-typed (CombinedFragment/Operand
+  Membership 'to' hrefs are empty in the machine-readable and the
+  membership is described as a plain "membership relationship for
+  memberElement()").
+
+## Changes
+
+- v1_to_v2_as.py: U.Interaction -> S2.Interaction dispatch (out of the
+  "later wave" raise list); _populate_interaction per the rule above
+  (generic ownedElements ride OwningMembership per the `elements` set);
+  module docstring + realization-table ToInteraction_Init rows updated
+  (wiring AS-side / elided textual-side).
+- xmi21.py: interaction-fragment reader tables - COMPOSITE lifeline/
+  message/fragment/operand; REF_SINGLE represents/signature/refersTo/
+  covered/sendEvent/receiveEvent/start/finish; CONSTRUCTIBLE
+  Lifeline/Message/CombinedFragment/InteractionOperand/
+  InteractionUse/StateInvariant/ActionExecutionSpecification/
+  OccurrenceSpecification. (Message-end occurrence specs remain
+  Table-11-unmapped at R3; they are carried R1-side as records.)
+- check_v1_to_v2_as.py: wave-I section, 8 checks; the old
+  "Interaction raises UnmappedFeature" honesty check replaced with
+  Continuation (Table 11).
+
+## Queued (formal-specified, not yet implemented)
+
+- 7.7.11.2.19-.26 TransitionSuccessionSource/Target (transitions from
+  the new entry-action carrier).
+- 7.8.7.3.3/.17/.20 conjugation family; 7.8.7.3.8-.14 FullPortMetadata
+  (the PortData stub upgrade); 7.8.8.3.35-.40 TestCase return-value
+  machinery detail.
+
+## Result
+
+- check_v1_to_v2_as.py: 87 passed (79 + 8 wave-I).
+- Sweep green: 45/60/26/19/32/42/19/48/20/18/26/14/26 + text 49 +
+  AS 87 (+ vehicle 12).

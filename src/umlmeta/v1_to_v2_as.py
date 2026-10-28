@@ -73,6 +73,16 @@ Wave G: associations and multiplicities — Association/AssociationClass
   '*') carried under the feature/usage (textual parity: implicit
   [1..1] carries no multiplicity).
 
+Wave I: interactions (7.7.8.3.x) — Interaction→Interaction; Lifeline→
+  PartUsage typed by represents.type under FeatureMembership; Message→
+  Flow (bare — the Message mapping has no rules; message-end
+  occurrences are Table-11-unmapped); StateInvariant→Invariant typed
+  by the invariant element; InteractionUse→Step typed by the refersTo
+  interaction; ExecutionSpecification→ActionUsage EndFeatureMembership;
+  CombinedFragment/InteractionOperand→nested Interactions under
+  OwningMembership; plain occurrence specs/Continuations/Gates not
+  mapped (Table 11).
+
 Wave H: InformationFlow machinery — InformationFlow → FlowDefinition
   per the normative mapping class, with the normative filter (only
   flows realized by connectors/associations map; unrealized flows
@@ -94,10 +104,11 @@ Honest elisions (documented, no data invented silently):
     range rides a FeatureMembership instead. Multiplicity is wired for
     properties, association ends, and behavior/operation parameters.
   - association end qualifiers/subsettings/defaults: later wave.
-  - interaction machinery, conjugated ports, object-flow item ends
-    (ObjectFlowItemFlowEnd/ToSuccessionItemFlow family), function
-    synthesis, assignments, use-case objectives: elided (see
-    the realization table) or raise UnmappedFeature.
+  - interaction message ends/payload (Table-11 occurrences behind
+    them), conjugated ports, object-flow item ends (ObjectFlow-
+    ItemFlowEnd/ToSuccessionItemFlow family), function synthesis,
+    assignments, use-case objectives: elided (see the realization
+    table) or raise UnmappedFeature.
 """
 from __future__ import annotations
 
@@ -211,6 +222,10 @@ def transform_v1_element(el, index=None):
         # UseCase_Mapping (7.7.13.3.4): to UseCaseDefinition; subject and
         # Include wiring ride the use-case population pass
         return S2.UseCaseDefinition(declaredName=_name(el))
+    if isinstance(el, U.Interaction):
+        # Interaction_Mapping (7.7.8.3.6): to Interaction; lifelines/
+        # messages/fragments ride _populate_interaction
+        return S2.Interaction(declaredName=_name(el))
     if isinstance(el, U.Association):
         # Association_Mapping family (7.7.12.2.x; the machine-readable
         # AssociationClass_Mapping 'to' is Systems-Connections-
@@ -221,9 +236,9 @@ def transform_v1_element(el, index=None):
     if isinstance(el, U.Class):
         # Class_Mapping (7.7.4.2.37 family): plain Class to
         # OccurrenceDefinition. Metaclasses with their own normative
-        # mappings (use cases handled above; interactions, interfaces,
-        # ports machinery) are later waves — not guesses.
-        if isinstance(el, (U.Interaction, U.Interface)):
+        # mappings (use cases/interactions handled above; U.Interface
+        # itself is a later wave) — not guesses.
+        if isinstance(el, U.Interface):
             raise UnmappedFeature(
                 f"{type(el).__name__} (own mapping, later wave)")
         if isinstance(el, S.Requirement):
@@ -530,6 +545,124 @@ def _populate_usecase(uc, v2def, index, pkg):
             v2def.ownedRelationship.append(am)
 
 
+def _populate_interaction(ix, v2def, index):
+    """Interactions internals (7.7.8.3.x, formal 2.0):
+
+    - Lifelines -> PartUsages (7.7.8.3.13) typed by mapped
+      represents.type (7.7.8.3.14), carried by LifelineMembership
+      (7.7.8.3.12 -> FeatureMembership; PartUsage is a Feature);
+    - Messages -> Flow (7.7.8.3.15; ItemFlow in the prose = the KerML
+      Flow payload family; the machine-readable target class is Flow)
+      via MessageMembership (7.7.8.3.16 -> FeatureMembership). The
+      Message mapping has NO rules of its own, so the flow carries no
+      ends/payload: message-end occurrences are Table-11-unmapped
+      (7.7.8.2).
+    - StateInvariants -> Invariants (7.7.8.3.17) typed by the mapped
+      invariant element (7.7.8.3.19) under
+      StateInvariantMembership (7.7.8.3.18).
+    - InteractionUses -> Steps (7.7.8.3.9) typed by the mapped
+      refersTo interaction (7.7.8.3.11) under
+      InteractionUseMembership (7.7.8.3.10).
+    - ExecutionSpecifications -> ActionUsages (7.7.8.3.1/.2) under
+      ExecutionSpecificationMembership (7.7.8.3.5 ->
+      EndFeatureMembership).
+    - CombinedFragments -> nested Interactions (7.7.8.3.3) under
+      CombinedFragmentMembership (7.7.8.3.4 -> OwningMembership: the
+      nested piece is a Type, not a Feature), with their operands ->
+      nested Interactions (7.7.8.3.7) under
+      InteractionOperandMembership (7.7.8.3.8 -> OwningMembership).
+    - Plain OccurrenceSpecifications and Continuations are NOT mapped
+      (Table 11, 7.7.8.2) - recorded, never silently lost (the
+      interaction's remaining ownedElements ride generic memberships
+      per the Interaction rule's `elements` set)."""
+    for member in list(ix.ownedMember):
+        if isinstance(member, (U.Lifeline, U.Message, U.Comment,
+                               U.InteractionFragment,
+                               U.OccurrenceSpecification)):
+            continue   # handled below / Table-11-unmapped / docs in pass 1
+        mv2 = transform_v1_element(member, index)
+        _own_membership(v2def, mv2)
+        index[id(member)] = mv2
+        _attach_documentation(member, mv2)
+
+    for ll in list(ix.ownedMember):
+        if not isinstance(ll, U.Lifeline):
+            continue
+        rep = ll._vals.get("represents")
+        rt = rep._vals.get("type") if rep is not None else None
+        rdef = index.get(id(rt)) if rt is not None else None
+        if rdef is None:
+            raise UnmappedFeature(
+                f"Lifeline {_name(ll)!r} typed by external/unordered "
+                f"{type(rt).__name__ if rt is not None else 'none'}")
+        pu = S2.PartUsage(declaredName=_name(ll))
+        _type_feature(pu, rdef)
+        fm = S2.FeatureMembership()
+        fm.ownedRelatedElement.append(pu)
+        v2def.ownedRelationship.append(fm)
+        index[id(ll)] = pu
+
+    for m1 in list(ix.ownedMember):
+        if not isinstance(m1, U.Message):
+            continue
+        fl = S2.Flow(declaredName=_name(m1))
+        fm = S2.FeatureMembership()
+        fm.ownedRelatedElement.append(fl)
+        v2def.ownedRelationship.append(fm)
+        index[id(m1)] = fl
+
+    for frag in list(ix.fragment):
+        if isinstance(frag, U.StateInvariant):
+            itype_el = frag._vals.get("invariant")
+            i_obj = index.get(id(itype_el[0])) if itype_el else None
+            if i_obj is None:
+                raise UnmappedFeature(
+                    f"StateInvariant {_name(frag)!r} invariant element "
+                    f"external/unordered")
+            iv = S2.Invariant(declaredName=_name(frag))
+            _type_feature(iv, i_obj)
+            fm = S2.FeatureMembership()
+            fm.ownedRelatedElement.append(iv)
+            v2def.ownedRelationship.append(fm)
+            index[id(frag)] = iv
+        elif isinstance(frag, U.InteractionUse):
+            ref = frag._vals.get("refersTo")
+            rdef = index.get(id(ref)) if ref is not None else None
+            if rdef is None or not isinstance(rdef, S2.Interaction):
+                raise UnmappedFeature(
+                    f"InteractionUse {_name(frag)!r} refersTo external/"
+                    f"unordered interaction")
+            st = S2.Step(declaredName=_name(frag))
+            _type_feature(st, rdef)
+            fm = S2.FeatureMembership()
+            fm.ownedRelatedElement.append(st)
+            v2def.ownedRelationship.append(fm)
+            index[id(frag)] = st
+        elif isinstance(frag, U.ExecutionSpecification):
+            au = S2.ActionUsage(declaredName=_name(frag))
+            em = S2.EndFeatureMembership()
+            em.ownedRelatedElement.append(au)
+            v2def.ownedRelationship.append(em)
+            index[id(frag)] = au
+        elif isinstance(frag, U.CombinedFragment):
+            cfi = S2.Interaction(declaredName=_name(frag))
+            om2 = S2.OwningMembership()
+            om2.ownedRelatedElement.append(cfi)
+            v2def.ownedRelationship.append(om2)
+            index[id(frag)] = cfi
+            for op in list(frag.ownedElement):
+                if not isinstance(op, U.InteractionOperand):
+                    continue
+                opf = S2.Interaction(declaredName=_name(op))
+                omp = S2.OwningMembership()
+                omp.ownedRelatedElement.append(opf)
+                cfi.ownedRelationship.append(omp)
+                index[id(op)] = opf
+    # remaining fragment kinds (plain OccurrenceSpecifications,
+    # Continuations, Gates) are Table-11-unmapped: recorded in the
+    # element lists, never carried
+
+
 def _populate_association(assoc, conn, index):
     """Association_Mapping internals (7.7.12.2.x; the machine-readable
     AssociationClass_Mapping 'to' is ConnectionDefinition, whose ends
@@ -830,6 +963,8 @@ def _populate_namespace(ns_v1, ns2, index, ns_pairs):
             else:
                 _populate_activity(el, v2, index)
                 _populate_behavior_params(el, v2)
+        elif isinstance(el, U.Interaction):
+            _populate_interaction(el, v2, index)
         elif isinstance(el, U.Association):
             # before the Class branch: AssociationClass specializes BOTH
             _populate_association(el, v2, index)
@@ -1331,8 +1466,13 @@ def _transform_allocate(al, out, index):
 # ToTextualRepresentation_Init defaults (textual forms are the
 #                                    other pipeline's output; AS wave
 #                                    carries no TextualRepresentation)
-# ToInteraction_Init        elided   7.7.8.3.6 (grammar gap, as in
-#                                    v1_to_v2.py)
+# ToInteraction_Init        wiring   wave I: Interaction->Interaction
+#                                    (7.7.8.3.6) + lifelines/messages/
+#                                    fragments per the family (.3.1-.19);
+#                                    AS-only (the textual emitter keeps
+#                                    the grammar-gap elision)
+# ToInteraction_Init        elided   (textual emitter: sysmlpy textual
+#                                    grammar has no interaction element)
 # ToSpecialization_Init     wiring   Subclassification machinery
 #                                    (generalization → Subclassification)
 # ToSubclassification_Init  wiring   (same, 7.7.4.2.12)

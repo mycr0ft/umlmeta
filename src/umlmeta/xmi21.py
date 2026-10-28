@@ -52,6 +52,8 @@ COMPOSITE = {"packagedElement", "nestedClassifier", "ownedAttribute",
              "subvertex", "transition", "packageImport", "slot",
              "generalization", "ownedRule",
              "elementImport",
+             # interaction fragments (7.7.8.3.x)
+             "lifeline", "message", "fragment", "operand",
              # SysML v1 profile bases (synthetic VehicleExample,
              # check_xmi_vehicle.py): Connector ends, UseCase includes
              "end", "include"}
@@ -61,6 +63,9 @@ STRING = {"name", "body", "visibility", "language", "URI"}
 REF_SINGLE = {"type", "association", "general", "classifier",
               "specification", "importedPackage", "owningPackage",
               "importedElement",
+              # interaction ends/refs (7.7.8.3.x)
+              "represents", "signature", "refersTo", "covered",
+              "sendEvent", "receiveEvent", "start", "finish",
               # containment opposite on PackageImport (idempotent with the
               # add() hook's wiring)
               "importingNamespace",
@@ -86,7 +91,11 @@ CONSTRUCTIBLE = {"Model", "Package", "Class", "DataType", "Enumeration",
                  "OpaqueExpression", "Connector", "ConnectorEnd",
                  "Generalization", "InstanceSpecification", "Slot",
                  "InstanceValue", "Dependency", "Interface",
-                 "PackageImport", "ElementImport", "InformationFlow",
+                 "PackageImport", "ElementImport", "InformationFlow", "Lifeline", "Message",
+                 "CombinedFragment", "InteractionOperand",
+                 "InteractionUse", "StateInvariant",
+                 "ActionExecutionSpecification",
+                 "OccurrenceSpecification",
                  # SysML v1 profile stereotype bases (synthetic
                  # VehicleExample, check_xmi_vehicle.py): behavior /
                  # requirement metaclasses absent from the

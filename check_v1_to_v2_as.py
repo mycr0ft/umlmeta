@@ -893,15 +893,105 @@ check("unrealized InformationFlow is not mapped (normative filter)",
               and e.declaredName == "NoReal" for e in fout.ownedElement))
 
 print()
+print("== wave I: interactions (7.7.8.3.x) ==")
+seqpkg = U.Package(name="SeqPkg")
+blk_cli = S.Block(name="Client"); blk_srv = S.Block(name="Server")
+sig_ping = U.Signal(name="Ping")
+seqpkg.packagedElement.extend([blk_cli, blk_srv, sig_ping])
+host1 = S.Block(name="H1"); host2 = S.Block(name="H2")
+seqpkg.packagedElement.extend([host1, host2])
+rep1 = U.Property(name="cli"); rep1.type = blk_cli
+rep2 = U.Property(name="srv"); rep2.type = blk_srv
+host1.add("ownedAttribute", rep1)
+host2.add("ownedAttribute", rep2)
+ix = U.Interaction(name="Sequence")
+ix2 = U.Interaction(name="SubSequence")
+seqpkg.packagedElement.extend([ix, ix2])
+ll1 = U.Lifeline(name="ll_cli"); ll1.represents = rep1
+ll2 = U.Lifeline(name="ll_srv"); ll2.represents = rep2
+msg = U.Message(name="ping"); msg.signature = sig_ping
+si = U.StateInvariant(name="si")
+si._vals["invariant"] = [sig_ping]
+iu = U.InteractionUse(name="useSub"); iu.refersTo = ix2
+exec1 = U.ActionExecutionSpecification(name="exec1")
+op = U.InteractionOperand(name="op")
+cf = U.CombinedFragment(name="cf")
+seq = U.OccurrenceSpecification(name="tick")
+cf.add("operand", op)
+ix.add("lifeline", ll1)
+ix.add("lifeline", ll2)
+ix.add("message", msg)
+ix.add("fragment", si)
+ix.add("fragment", iu)
+ix.add("fragment", exec1)
+ix.add("fragment", cf)
+ix.add("fragment", seq)
+iout = A.transform_package(seqpkg)
+ix_def = [e for e in iout.ownedElement
+          if type(e).__name__ == "Interaction"][0]
+check("Interaction -> Interaction (7.7.8.3.6)", ix_def.declaredName == "Sequence")
+def mem_children(ns, cls=None, kind="FeatureMembership"):
+    return [x for om in ns.ownedRelationship
+            if type(om).__name__ == kind
+            for x in om.ownedRelatedElement
+            if cls is None or type(x).__name__ == cls]
+cli_as = [e for e in iout.ownedElement if e.declaredName == "Client"][0]
+srv_as = [e for e in iout.ownedElement if e.declaredName == "Server"][0]
+parts = mem_children(ix_def, cls="PartUsage")
+check("lifelines -> PartUsages via FeatureMembership, typed by "
+      "represents.type's definition (7.7.8.3.13/.14)",
+      len(parts) == 2
+      and any(any(t.type is cli_as for t in p.ownedTyping) for p in parts)
+      and any(any(t.type is srv_as for t in p.ownedTyping) for p in parts),
+      str([(p.declaredName, [t.type.declaredName for t in p.ownedTyping])
+           for p in parts]))
+flows = mem_children(ix_def, cls="Flow")
+check("Message -> Flow via FeatureMembership (7.7.8.3.15/.16)",
+      len(flows) == 1 and flows[0].declaredName == "ping")
+ping_item = [e for e in iout.ownedElement if e.declaredName == "Ping"][0]
+inv = mem_children(ix_def, cls="Invariant")
+check("StateInvariant -> Invariant typed by the invariant ref "
+      "(7.7.8.3.17/.19)",
+      len(inv) == 1
+      and any(t.type is ping_item for t in inv[0].ownedTyping))
+sub_def = [e for e in iout.ownedElement
+           if type(e).__name__ == "Interaction"
+           and e.declaredName == "SubSequence"][0]
+steps = mem_children(ix_def, cls="Step")
+check("InteractionUse -> Step typed by the refersTo interaction "
+      "(7.7.8.3.9/.11)",
+      len(steps) == 1
+      and any(t.type is sub_def for t in steps[0].ownedTyping))
+execs = [x for om in ix_def.ownedRelationship
+         if isinstance(om, S2.EndFeatureMembership)
+         for x in om.ownedRelatedElement]
+check("ActionExecutionSpecification -> ActionUsage via "
+      "EndFeatureMembership (7.7.8.3.1/.5)",
+      len(execs) == 1 and execs[0].declaredName == "exec1")
+cfx = mem_children(ix_def, cls="Interaction", kind="OwningMembership")
+op_int = [x for om in cfx[0].ownedRelationship
+          if isinstance(om, S2.OwningMembership)
+          for x in om.ownedRelatedElement
+          if type(x).__name__ == "Interaction"]
+check("CombinedFragment -> nested Interaction (7.7.8.3.3) with the "
+      "operand as a nested Interaction (7.7.8.3.7/.8)",
+      len(cfx) == 1 and cfx[0].declaredName == "cf"
+      and len(op_int) == 1 and op_int[0].declaredName == "op")
+check("plain OccurrenceSpecifications not mapped (7.7.8.2 Table 11)",
+      not any(type(x).__name__ in ("ActionUsage", "Feature")
+              and x.declaredName == "tick"
+              for x in mem_children(ix_def)))
+
+print()
 print("== honesty: unmapped features refuse to guess ==")
 orphan = U.Package(name="Orphan")
-orphan.add("packagedElement", U.Interaction(name="IX"))
+orphan.add("packagedElement", U.Continuation(name="CX"))
 try:
     A.transform_package(orphan)
-    check("UnmappedFeature raised for Interaction", False)
+    check("UnmappedFeature raised for Continuation", False)
 except A.UnmappedFeature as e:
-    check("UnmappedFeature raised for Interaction", "Interaction" in str(e),
-          str(e))
+    check("UnmappedFeature raised for Continuation",
+          "Continuation" in str(e), str(e))
 ext = U.Package(name="Ext")
 blk = S.Block(name="B"); ext.add("packagedElement", blk)
 other = S.Block(name="Elsewhere")
