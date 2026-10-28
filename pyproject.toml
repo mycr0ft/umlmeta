@@ -1,6 +1,6 @@
 [project]
 name = "umlmeta"
-version = "0.1.0"
+version = "0.2.0"
 description = "Clean-room Python UML 2.5.1 / SysML v1 metamodel, XMI readers and writers, and the SysML v1 to v2 transformation"
 readme = "README.md"
 requires-python = ">=3.9"

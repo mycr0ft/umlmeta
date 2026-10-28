@@ -11,7 +11,7 @@ derivations, query helpers) are importable as ``umlmeta.<module>``.
 Clean-room discipline: every semantic is traceable to an OMG document.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 __all__ = [
     "bpmn",
