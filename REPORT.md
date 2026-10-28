@@ -1874,3 +1874,90 @@ reader carried Engine under Lib, but the AS Lib was empty).
   /home/jfox/proj/pyoslc/.venv/lib/python3.13/site-packages (the
   sysmlpy venv at ~/proj/sysmlpy no longer carries the package; the
   .pth in the pyoslc venv points at the source tree).
+
+# Part 23: wave G - associations (7.7.12.2.x) and multiplicity bounds in AS
+
+Wave G closes ToAssociation_Init (the biggest remaining textual-only
+mapping family) and the long-standing "multiplicity bounds have no AS
+carrier" honest elision.
+
+## Normative wiring (SysMLv1Tov2.xmi mapping classes)
+
+- AssociationCommon_Mapping (abstract base): UML::Association ->
+  SysML v2 connection machinery; the concrete AssociationClass_Mapping
+  'to' is Systems-Connections-ConnectionDefinition and its comment says
+  the class covers the plain-Association case ("currently identical
+  with the mapping of UML4SysML::AssociationClass" is stated for
+  AssociationBlock, whose 'to' is ConnectionDefinition too).
+  AssociationBlock itself has no generated stereotype class in
+  gen/sysml.py (only present as applied stereotypes in corpora), so the
+  AS mapping dispatch is on UML Association/AssociationClass.
+- Ends: ConnectionDefinition "end Features must be Usages"; the
+  NonOwned/OwnedEnd_Mapping family carries per-end typing
+  (StructuralFeatureToFeatureTyping) + multiplicity memberships.
+  AS realization: memberEnds -> ReferenceUsage (isEnd=true) in
+  memberEnd order, owned via EndFeatureMembership, typed by the end
+  type's definition (identity through the index); later wave: end
+  qualifiers/subsettings/defaults.
+- MultiplicityElement_Mapping: MultiplicityElement ->
+  MultiplicityRange (declaredName 'multiplicity'),
+  ownedRelationship = MultiplicityLowerBoundOwningMembership +
+  MultiplicityUpperBoundOwningMembership, memberNames 'lowerBound'/
+  'upperBound'; absent v1 lower bound -> DefaultLowerBound Literal.
+  MultiplicityMembership_Factory maps the common shapes to named
+  library ranges (external, same treatment as DeriveReqt) with an
+  explicit MultiplicityElement_Factory.create(lo, hi) fallback - the AS
+  realization always constructs the explicit range (self-contained;
+  documented choice).
+
+## Dialect facts pinned
+
+- The normative membership subtype MultiplicityMembership does not
+  exist in the Beta4-generated AS runtime; the MultiplicityRange
+  attaches through a FeatureMembership under the feature (both are
+  FeatureMembership-family carriers). Documented deviation.
+- MultiplicityRange specializes Feature in KerML (Multiplicity is a
+  Type AND a Feature), so FeatureMembership is well-typed for it.
+- Textual parity rule carried over from the validated emitter: an
+  implicit [1..1] carries NO multiplicity at all; an absent lower bound
+  is the UML default 1 (so explicit [0..1] requires a lowerValue 0
+  literal; EMF omits <value> when it equals the feature default, which
+  the reader already normalizes).
+- '*' upper bound -> LiteralInfinity (KerML's unbounded literal;
+  UML UnlimitedNatural(-1) semantics map to it).
+- v1 memberEnd is what real corpora carry (REF_MULTI in the reader);
+  hand-built associations must add memberEnd explicitly (ownedEnd does
+  not back-populate it - the generated memberEnd is a plain writable
+  end, not a union descriptor).
+- AssociationClass specializes both Class and Association: the pass-2
+  dispatch checks Association BEFORE Class.
+
+## Changes
+
+- src/umlmeta/v1_to_v2_as.py: Association/AssociationClass dispatch ->
+  ConnectionDefinition; _populate_association (memberEnd -> end
+  ReferenceUsages via EndFeatureMembership, typing, index registration);
+  _attach_multiplicity + _bound_value (MultiplicityRange construction
+  with named bound memberships; implicit-[1..1] elision), wired into
+  _attach_feature_extras (properties) and _populate_association (ends);
+  realization table ToAssociation_Init row; module docstring wave list
+  + elision list updated (the multiplicity elision is CLOSED for
+  properties and association ends).
+- check_v1_to_v2_as.py: wave-G section, 7 checks (Association ->
+  ConnectionDefinition, memberEnd-order typed isEnd ends, AssociationClass
+  -> ConnectionDefinition, [0..1] MultiplicityRange with named bound
+  memberships, [0..*] with LiteralInfinity, implicit [1..1] elision).
+
+## Result
+
+- check_v1_to_v2_as.py: 72 passed (65 + 7 wave-G).
+- Sweep: check 45, profiles 60, sysml2 26, ocl 19, bdd 10, deployment 6,
+  textual pipeline 47 (sysmlpy 0.96.4), vehicle 12 - all green.
+
+## Wave G addendum (same commit): parameter multiplicities
+
+Behavior/operation parameters now carry their bounds too: both
+parameter wiring paths (_populate_behavior_params for
+Activity/OpaqueBehavior; _populate_class's operation loop for
+PerformActionUsage, 7.7.4.2.24) run _attach_multiplicity on the
+ReferenceUsage. check_v1_to_v2_as: 73 passed.

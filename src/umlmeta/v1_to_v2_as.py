@@ -59,21 +59,30 @@ Wave F: imports and recursive namespaces — PackageImport→
   importedMembership = the AS OwningMembership of the imported element),
   and the transformer now populates nested packages recursively.
 
+Wave G: associations and multiplicities — Association/AssociationClass
+  → ConnectionDefinition (7.7.12.2.x; ends must be Usages) with
+  memberEnd → end ReferenceUsages (isEnd) via EndFeatureMembership
+  typed by the end definitions; v1 multiplicity bounds →
+  MultiplicityRange 'multiplicity' with lowerBound/upperBound
+  OwningMembership memberNames (LiteralInteger / LiteralInfinity for
+  '*') carried under the feature/usage (textual parity: implicit
+  [1..1] carries no multiplicity).
+
 One v1 element maps to exactly ONE v2 AS object (kept in the index);
 usage typings reference that object rather than duplicating it.
 
 Honest elisions (documented, no data invented silently):
-  - multiplicities: v1 upperValue/lowerValue have no settable AS end
-    (MultiplicityRange bounds are derived unions in the metamodel and
-    the runtime has no FeatureMultiplicityMembership storage); the
-    textual pipeline carries them, the AS wave does not yet.
   - ElementImport alias → importedMemberName: no carrier in the
     generated AS runtime (documented elision; the import still
     resolves the named element).
-  - interaction machinery, conjugated ports, Association→
-    ConnectionDefinition, item flows, function synthesis, assignments,
-    use-case actors/objectives: elided (see the realization table) or
-    raise UnmappedFeature.
+  - MultiplicityMembership (the normative membership subtype for
+    attached multiplicities) is not in the generated AS runtime; the
+    range rides a FeatureMembership instead. Multiplicity is wired for
+    properties, association ends, and behavior/operation parameters.
+  - association end qualifiers/subsettings/defaults: later wave.
+  - interaction machinery, conjugated ports, item flows, function
+    synthesis, assignments, use-case actors/objectives: elided (see
+    the realization table) or raise UnmappedFeature.
 """
 from __future__ import annotations
 
@@ -187,6 +196,13 @@ def transform_v1_element(el, index=None):
         # UseCase_Mapping (7.7.13.3.3): to UseCaseDefinition; subject and
         # Include wiring ride the use-case population pass
         return S2.UseCaseDefinition(declaredName=_name(el))
+    if isinstance(el, U.Association):
+        # Association_Mapping family (7.7.12.2.x; the machine-readable
+        # AssociationClass_Mapping 'to' is Systems-Connections-
+        # ConnectionDefinition and its ends must be Usages — plain
+        # Association maps through the same abstract base):
+        # memberEnds -> end ReferenceUsages via EndFeatureMembership
+        return S2.ConnectionDefinition(declaredName=_name(el))
     if isinstance(el, U.Class):
         # Class_Mapping (7.7.4.2.37 family): plain Class to
         # OccurrenceDefinition. Metaclasses with their own normative
@@ -302,7 +318,9 @@ def _attach_feature_extras(prop, usage, index):
     through the index (property → AS feature, populated by pass 2);
     a value becomes a FeatureValue whose owned expression is a
     FeatureReferenceExpression (InstanceValue → feature reference,
-    7.7.4.2.16) or a literal-carried Expression."""
+    7.7.4.2.16) or a literal-carried Expression. Multiplicity bounds
+    ride _attach_multiplicity (MultiplicityElement_Mapping)."""
+    _attach_multiplicity(prop, usage)
     subs = [t for t in list(prop.subsettedProperty)]
     for sub in subs:
         target = index.get(id(sub))
@@ -368,6 +386,7 @@ def _populate_class(v1cls, v2def, index, pending):
             if d is not None:
                 val = str(getattr(d, "value", d))
                 ref.direction = "out" if val == "return" else val
+            _attach_multiplicity(prm, ref)
             pm = S2.ParameterMembership()
             pm.ownedRelatedElement.append(ref)
             pau.ownedRelationship.append(pm)
@@ -468,6 +487,82 @@ def _populate_usecase(uc, v2def, index, pkg):
         v2def.ownedRelationship.append(sm)
 
 
+def _populate_association(assoc, conn, index):
+    """Association_Mapping internals (7.7.12.2.x; the machine-readable
+    AssociationClass_Mapping 'to' is ConnectionDefinition, whose ends
+    must be Usages): memberEnds -> end ReferenceUsages in memberEnd
+    order, each owned via EndFeatureMembership (isEnd), typed by the
+    end type's definition, with the end's multiplicity (7.7.12.2.x
+    NonOwnedEnd/OwnedEnd family's typing + multiplicity memberships).
+    Qualifiers/subsettings/defaults on ends are later-wave."""
+    for e in list(assoc.memberEnd):
+        ru = S2.ReferenceUsage(declaredName=_name(e))
+        ru.isEnd = True
+        t = e._vals.get("type")
+        if t is not None:
+            tdef = index.get(id(t))
+            if tdef is None:
+                raise UnmappedFeature(
+                    f"connection end {_name(e)!r} typed by "
+                    f"external/unordered {type(t).__name__} "
+                    f"{_as_type_name(t)!r}")
+            _type_feature(ru, tdef)
+        em = S2.EndFeatureMembership()
+        em.ownedRelatedElement.append(ru)
+        conn.ownedRelationship.append(em)
+        index[id(e)] = ru
+        _attach_multiplicity(e, ru)
+
+
+def _bound_value(mult_el, val_name):
+    """A v1 multiplicity bound (lowerValue/upperValue literal) as an
+    int or '*' — the same read the validated textual emitter uses."""
+    lit = mult_el._vals.get(val_name)
+    v = lit._vals.get("value") if isinstance(lit, U._Element) else None
+    if isinstance(v, U.UnlimitedNatural):
+        return "*" if v.unbounded else v.n
+    return v
+
+
+def _attach_multiplicity(mult_el, feature):
+    """MultiplicityElement_Mapping (7.7.12.2.x family): v1 multiplicity
+    bounds -> MultiplicityRange named 'multiplicity', its bound
+    OwningMemberships named 'lowerBound'/'upperBound' (per the
+    MultiplicityLower/UpperBoundOwningMembership_Mapping memberNames)
+    carrying LiteralInteger / LiteralInfinity for '*'.
+
+    Textual parity (the validated textual emitter): implicit [1..1]
+    carries no multiplicity at all; absent lower is the UML default 1.
+    Carrier deviation (documented): the normative membership subtype
+    MultiplicityMembership is not in the generated AS runtime, so the
+    range attaches through a FeatureMembership under the feature."""
+    lo = _bound_value(mult_el, "lowerValue")
+    hi = _bound_value(mult_el, "upperValue")
+    lo = 1 if lo is None else int(lo)
+    if (hi in (None, 1)) and lo == 1:
+        return   # implicit [1..1]: no carrier (textual parity)
+    hi_is_star = (hi == "*")
+    hi_n = -1 if hi_is_star else (1 if hi is None else int(hi))
+
+    def bound_lit(value_n, star):
+        if star:
+            return S2.LiteralInfinity()
+        lit = S2.LiteralInteger()
+        lit.value = value_n
+        return lit
+
+    rng = S2.MultiplicityRange(declaredName="multiplicity")
+    for name, lit in (("lowerBound", bound_lit(lo, False)),
+                      ("upperBound", bound_lit(hi_n, hi_is_star))):
+        om = S2.OwningMembership()
+        om.memberName = name
+        om.ownedRelatedElement.append(lit)
+        rng.ownedRelationship.append(om)
+    fm = S2.FeatureMembership()
+    fm.ownedRelatedElement.append(rng)
+    feature.ownedRelationship.append(fm)
+
+
 def _populate_statemachine(sm, v2def, index):
     """StateMachine internals (7.7.11.2.x): Regions inlined — States/
     Pseudostates/FinalStates → StateUsage; Transitions → TransitionUsage
@@ -554,7 +649,8 @@ def _populate_activity(act, v2def, index):
 
 def _populate_behavior_params(behavior, v2def):
     """Parameter → ReferenceUsage with direction (7.7.4.2.24; return →
-    out per the Activity textual example)."""
+    out per the Activity textual example); the parameter's multiplicity
+    rides _attach_multiplicity (MultiplicityElement_Mapping)."""
     for p in list(behavior.ownedParameter):
         ref = S2.ReferenceUsage(declaredName=_name(p))
         d = p._vals.get("direction")
@@ -563,6 +659,7 @@ def _populate_behavior_params(behavior, v2def):
             # normative (7.7.4.2.24): return -> out per the Activity
             # textual example
             ref.direction = "out" if val == "return" else val
+        _attach_multiplicity(p, ref)
         _feature_membership(v2def, ref)
 
 
@@ -669,6 +766,9 @@ def _populate_namespace(ns_v1, ns2, index, ns_pairs):
             else:
                 _populate_activity(el, v2, index)
                 _populate_behavior_params(el, v2)
+        elif isinstance(el, U.Association):
+            # before the Class branch: AssociationClass specializes BOTH
+            _populate_association(el, v2, index)
         elif isinstance(el, U.Class):
             _populate_class(el, v2, index, pending_local(index))
         elif isinstance(el, U.UseCase):
@@ -1024,6 +1124,17 @@ def _transform_allocate(al, out, index):
 # ToSuccessionItemFlow_Init elided   same
 # ToFlowUsage_Init          wiring   wave B (SuccessionFlowUsage for
 #                                    ObjectFlow)
+# ToAssociation_Init        wiring   wave G: Association/AssociationClass
+#                                    -> ConnectionDefinition (7.7.12.2.x;
+#                                    AssociationClass_Mapping 'to' =
+#                                    ConnectionDefinition, ends must be
+#                                    Usages) - memberEnds -> end
+#                                    ReferenceUsages (isEnd) via
+#                                    EndFeatureMembership, typed by the
+#                                    end types; end qualifiers/subsettings/
+#                                    defaults later wave (AssociationBlock
+#                                    has no generated stereotype class in
+#                                    gen/sysml.py)
 # ToPortDefinition_Init     wiring   InterfaceBlock → PortDefinition
 #                                    (7.8.7.3.16 — wave E replaced the
 #                                    wave-A PartDefinition carrier; the

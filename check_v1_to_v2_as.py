@@ -660,6 +660,140 @@ except A.UnmappedFeature as e:
           "external/unordered" in str(e), str(e))
 
 print()
+print("== wave G: associations (7.7.12.2.x) and multiplicities ==")
+apkg = U.Package(name="AsoPkg")
+wheel = S.Block(name="Wheel"); axle = S.Block(name="Axle")
+apkg.packagedElement.extend([wheel, axle])
+assoc = U.Association(name="Mounts")
+pe1 = U.Property(name="wheels"); pe1.type = wheel
+pe2 = U.Property(name="axle"); pe2.type = axle
+assoc.add("ownedEnd", pe1)
+assoc.add("ownedEnd", pe2)
+assoc.add("memberEnd", pe1)      # real corpora carry memberEnd idrefs
+assoc.add("memberEnd", pe2)
+apkg.packagedElement.append(assoc)
+ac = U.AssociationClass(name="Fastens")
+fbe1 = U.Property(name="a"); fbe1.type = wheel
+fbe2 = U.Property(name="b"); fbe2.type = axle
+ac.add("ownedEnd", fbe1); ac.add("ownedEnd", fbe2)
+ac.add("memberEnd", fbe1); ac.add("memberEnd", fbe2)
+apkg.packagedElement.append(ac)
+aout = A.transform_package(apkg)
+conn = [e for e in aout.ownedElement
+        if type(e).__name__ == "ConnectionDefinition"][0]
+check("Association -> ConnectionDefinition (7.7.12.2.x)",
+      conn.declaredName == "Mounts")
+def end_usages(c):
+    return [x for om in c.ownedRelationship
+            if isinstance(om, S2.EndFeatureMembership)
+            for x in om.ownedRelatedElement]
+ends = end_usages(conn)
+check("memberEnd -> end ReferenceUsages in memberEnd order, typed",
+      [u.declaredName for u in ends] == ["wheels", "axle"] and all(
+          u.ownedTyping and t.type.declaredName in ("Wheel", "Axle")
+          for u in ends for t in [u.ownedTyping[0]]),
+      str([(u.declaredName, [t.type.declaredName for t in u.ownedTyping])
+           for u in ends]))
+check("ends are isEnd features (EndFeatureMembership constraint)",
+      all(u._vals.get("isEnd") for u in ends))
+ab_conn = [e for e in aout.ownedElement if e.declaredName == "Fastens"][0]
+check("AssociationClass -> ConnectionDefinition "
+      "(AssociationClass_Mapping 'to' = ConnectionDefinition)",
+      type(ab_conn).__name__ == "ConnectionDefinition"
+      and [u.declaredName for u in end_usages(ab_conn)] == ["a", "b"])
+
+mpkg = U.Package(name="MPkg")
+mb = S.Block(name="Box")
+optp = U.Property(name="opt"); optp.type = mb
+lo0 = U.LiteralInteger(); lo0._vals["value"] = 0
+optp._vals["lowerValue"] = lo0
+up1 = U.LiteralInteger(); up1._vals["value"] = 1
+optp._vals["upperValue"] = up1
+manyp = U.Property(name="many"); manyp.type = mb
+lo_m = U.LiteralInteger()          # value 0: EMF omits it by default
+lo_m._vals["value"] = 0
+manyp._vals["lowerValue"] = lo_m
+u_star = U.LiteralUnlimitedNatural(); u_star._vals["value"] = \
+    U.UnlimitedNatural("*")
+manyp._vals["upperValue"] = u_star
+plainp = U.Property(name="plain"); plainp.type = mb
+mb.add("ownedAttribute", optp)
+mb.add("ownedAttribute", manyp)
+mb.add("ownedAttribute", plainp)
+mpkg.packagedElement.append(mb)
+mout = A.transform_package(mpkg)
+box = mout.ownedElement[0]
+
+
+def mult_range(feature):
+    """The MultiplicityRange carried under a feature, if any."""
+    for fm in feature.ownedRelationship:
+        if isinstance(fm, S2.FeatureMembership):
+            for x in fm.ownedRelatedElement:
+                if type(x).__name__ == "MultiplicityRange":
+                    return x
+    return None
+
+
+def bound_val(rng, member_name):
+    for om in rng.ownedRelationship:
+        if om.memberName == member_name:
+            for x in om.ownedRelatedElement:
+                if type(x).__name__ in ("LiteralInteger",
+                                        "LiteralInfinity"):
+                    return x
+    return None
+
+
+opt_u = [e for e in box.ownedElement if e.declaredName == "opt"][0]
+rng = mult_range(opt_u)
+check("[0..1] -> MultiplicityRange w/ named bound memberships",
+      rng is not None and rng.declaredName == "multiplicity"
+      and isinstance(bound_val(rng, "lowerBound"), S2.LiteralInteger)
+      and bound_val(rng, "lowerBound")._vals.get("value") == 0
+      and bound_val(rng, "upperBound")._vals.get("value") == 1,
+      str(rng and [(om.memberName,
+                    [type(x).__name__ for x in om.ownedRelatedElement])
+                   for om in rng.ownedRelationship]
+          if rng else None))
+many_u = [e for e in box.ownedElement if e.declaredName == "many"][0]
+rng2 = mult_range(many_u)
+check("[0..*] -> MultiplicityRange with LiteralInfinity upperBound",
+      rng2 is not None
+      and isinstance(bound_val(rng2, "upperBound"), S2.LiteralInfinity))
+plain_u = [e for e in box.ownedElement if e.declaredName == "plain"][0]
+check("implicit [1..1] carries no multiplicity (textual-parity)",
+      mult_range(plain_u) is None)
+
+pmpkg = U.Package(name="ParamPkg")
+pdev = S.Block(name="Dev")
+pop = U.Operation(name="read")
+pparm = U.Parameter(name="vals")
+try:
+    pparm._vals["direction"] = U.ParameterDirectionKind("out")
+except (ValueError, AttributeError):
+    pparm._vals["direction"] = "out"
+lo_p = U.LiteralInteger(); lo_p._vals["value"] = 0
+pparm._vals["lowerValue"] = lo_p
+up_p = U.LiteralUnlimitedNatural(); up_p._vals["value"] = \
+    U.UnlimitedNatural(3)
+pparm._vals["upperValue"] = up_p
+pop.ownedParameter.append(pparm)
+pdev.add("ownedOperation", pop)
+pmpkg.packagedElement.append(pdev)
+pout = A.transform_package(pmpkg)
+pdef = pout.ownedElement[0]
+pau = [e for e in pdef.ownedElement
+       if type(e).__name__ == "PerformActionUsage"][0]
+pref = [x for om in pau.ownedRelationship
+        if isinstance(om, S2.ParameterMembership)
+        for x in om.ownedRelatedElement][0]
+check("parameter [0..3] -> MultiplicityRange (7.7.4.2.24 + multiplicity)",
+      mult_range(pref) is not None
+      and bound_val(mult_range(pref), "lowerBound")._vals.get("value") == 0
+      and bound_val(mult_range(pref), "upperBound")._vals.get("value") == 3)
+
+print()
 print("== honesty: unmapped features refuse to guess ==")
 orphan = U.Package(name="Orphan")
 orphan.add("packagedElement", U.Interaction(name="IX"))
