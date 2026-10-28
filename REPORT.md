@@ -2690,3 +2690,28 @@ an itemized row in the realization table + the module docstring.
 
 - check_v1_to_v2_as.py: 132 passed.
 - Full sweep green.
+
+# Part 41: wave U - allocation ends (7.8.3.3.1-.6)
+
+The Allocate machinery completes its formal form AND loses a latent
+misroute:
+
+- Dispatch: S.Allocate extends Abstraction - the pass-3 chain checked
+  the generic Abstraction branch FIRST, silently swallowing
+  allocations into the Dependency mapping; Allocate now dispatches
+  before Abstraction (class-of-bug: stereotype-subclass dispatch
+  order - same family as the wave-M catch-all fix).
+- 7.8.3.3.1/.2/.4/.6: the AllocationDefinition carries the end
+  ReferenceUsages (isEnd) under FeatureMemberships, typed by the
+  mapped end definitions - a Type end types by itself, a property end
+  types by its property's type (the .3.3 from.owner resolving to the
+  same element per the .3.1 example). The redefinition onto
+  Allocations::Allocation::source/target stays name-only (the library
+  is external). The AllocationUsage (the usage ends) stays.
+  Docstring anchors corrected (7.8.3.3.9/.10 was a Beta-4-era
+  numbering).
+
+## Result
+
+- check_v1_to_v2_as.py: 135 passed (wave-U block).
+- Full sweep green (21 suites incl. bdd/deployment).

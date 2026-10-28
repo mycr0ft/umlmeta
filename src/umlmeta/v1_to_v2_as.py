@@ -1475,12 +1475,15 @@ def transform_package(pkg):
                 _transform_verify(el, ns2, index)
             elif isinstance(el, S.DeriveReqt):
                 _transform_derive_reqt(el, ns2, index)
+            elif isinstance(el, S.Allocate):
+                # BEFORE the Abstraction branch - Allocate extends
+                # Abstraction; the dependency mapping would otherwise
+                # silently swallow it
+                _transform_allocate(el, ns2, index)
             elif isinstance(el, (U.Abstraction, U.Dependency)):
                 _transform_dependency(el, ns2, index,
                                       annotated=isinstance(el, (S.Refine,
                                                                 S.Trace)))
-            elif isinstance(el, S.Allocate):
-                _transform_allocate(el, ns2, index)
             elif isinstance(el, U.InformationFlow):
                 _transform_informationflow(el, ns2, index)
 
@@ -1907,8 +1910,9 @@ def _transform_informationflow(flow, out, index):
 
 
 def _transform_allocate(al, out, index):
-    """Allocate_Mapping (7.8.3.3.9/.10): Allocate → AllocationUsage
-    (usage ends) inside an AllocationDefinition; source/target ends."""
+    """Allocate_Mapping (7.8.3.3.1): Allocate → AllocationDefinition
+    carrying the typed end reference-usages (.3.2/.4/.6) and the
+    AllocationUsage (the usage ends)."""
     src = next(iter(list(al.client)), None)
     tgt = next(iter(list(al.supplier)), None)
     if src is None or tgt is None:
@@ -1921,6 +1925,32 @@ def _transform_allocate(al, out, index):
         raise UnmappedFeature(
             "Allocate ends reference unmapped definitions")
     al_def = S2.AllocationDefinition(declaredName=_name(al))
+    # 7.8.3.3.1/.3.2/.3.4/.3.6: the Definition's end machinery - the
+    # client/supplier ReferenceUsages (isEnd), typed by the mapped end
+    # element when it is a Type (per the .3.1 example, a Property end
+    # types by the property's type - the same element .3.3's
+    # from.owner resolves to for usage ends); the redefinition onto
+    # Allocations::Allocation::source/target stays name-only (the
+    # library is external)
+    for ends_src, key in ((al.client, "source"), (al.supplier, "target")):
+        end_el = next(iter(list(ends_src)), None)
+        if end_el is None:
+            continue
+        ty = end_el._vals.get("type") if isinstance(end_el, U.Property) \
+            else end_el
+        if isinstance(ty, list):        # raw single-store unwraps
+            ty = ty[0] if ty else None
+        ty2 = index.get(id(ty)) if ty is not None else None
+        if ty2 is None:
+            raise UnmappedFeature(
+                f"Allocate {_name(al)!r} {key} end type external/"
+                f"unordered {_name(end_el)!r}")
+        ref = S2.ReferenceUsage()
+        ref.isEnd = True
+        _type_feature(ref, ty2)
+        fm = S2.FeatureMembership()
+        fm.ownedRelatedElement.append(ref)
+        al_def.ownedRelationship.append(fm)
     al_usage = S2.AllocationUsage()
     al_usage.source.append(src_obj)
     al_usage.target.append(tgt_obj)

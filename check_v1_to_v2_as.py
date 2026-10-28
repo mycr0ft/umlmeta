@@ -1709,6 +1709,59 @@ check("a TimeExpression default maps via its inner expr "
       tv is not None and tlit == ["3s"], str(tlit))
 
 print()
+print("== wave U: allocation ends (7.8.3.3.1-.6) ==")
+upkg = U.Package(name="AllocPkg")
+ua = U.Class(name="ADef")
+ub = U.Class(name="BDef")
+ual = S.Allocate(name="a12")
+ual.client.append(ua); ual.supplier.append(ub)
+up2 = U.Package(name="Alloc2")
+p2a = U.Property(name="pa")
+p2a.type = ua
+pb2 = U.Class(name="HostB"); pb2.ownedAttribute.append(p2a)
+ual2 = S.Allocate()
+ual2.client.append(p2a); ual2.supplier.append(ub)
+up2.packagedElement.extend([ua, ub, pb2, ual2])
+upkg.packagedElement.extend([ua, ub, ual])
+uout = A.transform_package(upkg)
+udefs = [e for e in uout.ownedElement
+         if type(e).__name__ == "AllocationDefinition"]
+check("Allocate -> AllocationDefinition with typed ends "
+      "(7.8.3.3.1)",
+      len(udefs) == 1 and len(udefs[0].ownedRelationship) >= 3)
+urefs = [x for u in udefs
+         for r in u.ownedRelationship
+         if type(r).__name__ == "FeatureMembership"
+         for x in r.ownedRelatedElement
+         if type(x).__name__ == "ReferenceUsage"]
+u_typed = []
+for ru in urefs:
+    for ft in ru.ownedTyping:
+        u_typed.append(getattr(getattr(ft, "type", None),
+                               "declaredName", None))
+check("the end ReferenceUsages are isEnd + typed by the mapped defs "
+      "(.3.3/.3.4)",
+      len(urefs) == 2
+      and all(ru.isEnd for ru in urefs)
+      and u_typed == ["ADef", "BDef"], str(u_typed))
+# usage-to-def: the property's type resolves the end
+uout2 = A.transform_package(up2)
+ua2 = [e for e in uout2.ownedElement
+       if type(e).__name__ == "AllocationDefinition"][0]
+u2refs = [x for r in ua2.ownedRelationship
+          if type(r).__name__ == "FeatureMembership"
+          for x in r.ownedRelatedElement
+          if type(x).__name__ == "ReferenceUsage"]
+u2t = []
+for ru in u2refs:
+    for ft in ru.ownedTyping:
+        u2t.append(getattr(getattr(ft, "type", None),
+                           "declaredName", None))
+check("a part-property end types by its property's type "
+      "(the .3.3 example)",
+      u2t == ["ADef", "BDef"], str(u2t))
+
+print()
 print("== honesty: unmapped features refuse to guess ==")
 orphan = U.Package(name="Orphan")
 orphan.add("packagedElement", U.Continuation(name="CX"))
