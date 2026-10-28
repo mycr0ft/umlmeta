@@ -2872,3 +2872,31 @@ The CommonAction invocations complete:
 
 - check_v1_to_v2_as.py: 157 passed (wave-Z block).
 - Full sweep green (21 suites).
+
+# Part 48: wave AA - the control nodes complete
+
+Every activity-node kind is now realized (or normatively elided):
+
+- 7.7.3.3.16: an ActivityFinalNode -> TerminateActionUsage ('then
+  termine;'); InitialNode stays elided (the .2/.11/.13/.44
+  source-feature machinery rides the edges); FlowFinalNode elides
+  with its edges (the .34 membership's member rides them).
+- 7.7.3.3.35/.37/.38/.41: a ForkNode carrying the object-flow
+  END-TRANSFER parameters - an 'in ref inputObject<i>' per incoming
+  object flow, an 'out ref outputObject<i> = inputObject1' per
+  outgoing (the .36/.37 FeatureReferenceExpression = the single
+  input) - typed by the flow's type or the connected object node's
+  (the .38 typing: the payload rule).
+- 7.7.3.3.45/.38-.43: the JoinNode ditto (the single output combines
+  the inputs; the tuple-operator form rides the membership carries -
+  the realization carries the first input, itemized).
+- 7.7.3.3.17/.32: CentralBufferNode/DataStoreNode ('not defined in
+  detail yet') -> empty ActionUsages.
+- 7.7.3.3.15 (the .15 machine rule): an ActivityParameterNode ALIASES
+  its parameter's mapped reference usage (the edge-end machinery uses
+  from.source.parameter); no separate AS element.
+
+## Result
+
+- check_v1_to_v2_as.py: 161 passed (wave-AA block).
+- Full sweep green (21 suites).

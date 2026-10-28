@@ -2197,6 +2197,92 @@ check("ReadVariableAction -> an OUT param membering the variable "
       str(r_mem))
 
 print()
+print("== wave AA: control nodes complete (7.7.3.3.16/.17/.32/.35/.45) ==")
+apkg = U.Package(name="CtlPkg")
+apayload = U.DataType(name="Msg")
+aact = U.Activity(name="Split")
+astore = U.OpaqueAction(name="emit")
+apin = U.OutputPin(name="res")
+apin.type = apayload
+astore.add("output", apin)
+afk = U.ForkNode(name="forkB")
+afj = U.ForkNode(name="joinB")
+afj2 = U.JoinNode(name="joinC")
+afin = U.ActivityFinalNode(name="fin")
+abuf = U.CentralBufferNode(name="buf")
+aact.node.append(astore)
+aact.node.append(afk)
+aact.node.append(afj2)
+aact.node.append(abuf)
+aact.node.append(afin)
+aof1 = U.ObjectFlow(name="of1")
+aof1.source = apin
+aof1.target = afk
+aof2 = U.ObjectFlow(name="of2")
+aof2.source = afk
+aof2.target = afj2
+aof3 = U.ObjectFlow(name="of3")
+aof3.source = afj2
+aof3.target = abuf
+acf1 = U.ControlFlow(name="cf1")
+acf1.source = afk
+acf1.target = afin
+for w in (aof1, aof2, aof3, acf1):
+    aact.edge.append(w)
+apkg2 = U.Package(name="CtlPkg")
+apkg2.packagedElement.extend([apayload, aact])
+# the fork's incoming/outgoing back-refs (reader-wired in XMI models)
+afk._vals["incoming"] = [aof1]
+afk._vals["outgoing"] = [aof2, acf1]
+afj2._vals["incoming"] = [aof2]
+afj2._vals["outgoing"] = [aof3]
+aout = A.transform_package(apkg2)
+a_def = [e for e in aout.ownedElement
+         if e.declaredName == "Split"][0]
+a_uses = {}
+for r in a_def.ownedRelationship:
+    if type(r).__name__ not in ("FeatureMembership", "OwningMembership"):
+        continue
+    for x in r.ownedRelatedElement:
+        a_uses[x.declaredName] = x
+afku = a_uses.get("forkB")
+fk_in = [x for r in afku.ownedRelationship
+         if type(r).__name__ == "OwningMembership"
+         for x in r.ownedRelatedElement
+         if type(x).__name__ == "ReferenceUsage"
+         and (x.declaredName or "").startswith("inputObject")]
+fk_out = [x for r in afku.ownedRelationship
+          if type(r).__name__ == "OwningMembership"
+          for x in r.ownedRelatedElement
+          if type(x).__name__ == "ReferenceUsage"
+          and (x.declaredName or "").startswith("outputObject")]
+fk_out_val = ([getattr(g, "declaredName", None) or g
+               for o3 in fk_out
+               for fv6 in o3.ownedRelationship
+               if type(fv6).__name__ == "FeatureValue"
+               for mm6 in fv6.value.ownedRelationship
+               if type(mm6).__name__ == "Membership"
+               for g in (mm6.memberElement if isinstance(
+                   mm6.memberElement, list) else [mm6.memberElement])]
+              if fk_out else [])
+check("ForkNode + the object-flow transfer refs (7.7.3.3.35/.37/.41)",
+      type(afku).__name__ == "ForkNode"
+      and len(fk_in) == 1 and len(fk_out) == 1
+      and fk_out_val == ["inputObject1"], str(fk_out_val))
+check("the fork's object-flow param typed by the flow's type (.38)",
+      any(getattr(getattr(ft, "type", None), "declaredName", None)
+          == "Msg" for ft in fk_in[0].ownedTyping))
+afinu = [x for x in a_uses.get(None, ())] if False else None
+aterm = [x for r in a_def.ownedRelationship
+         if type(r).__name__ in ("FeatureMembership", "OwningMembership")
+         for x in r.ownedRelatedElement
+         if type(x).__name__ == "TerminateActionUsage"]
+check("ActivityFinalNode -> TerminateActionUsage (7.7.3.3.16)",
+      len(aterm) == 1)
+check("CentralBufferNode -> an empty ActionUsage (7.7.3.3.17)",
+      type(a_uses.get("buf")).__name__ == "ActionUsage")
+
+print()
 print("== honesty: unmapped features refuse to guess ==")
 orphan = U.Package(name="Orphan")
 orphan.add("packagedElement", U.Continuation(name="CX"))

@@ -1708,6 +1708,90 @@ def _accept_action(n, v2def, index):
     return au
 
 
+def _fork_join_object_params(node_use, n, v2def, index, fork):
+    """7.7.3.3.37-.43 (the ControlNodeObjectFlow machinery): the
+    object-flow END-TRANSFER parameters of a Fork/JoinNode - an 'in
+    ref inputObject<i>' per incoming object flow and an 'out ref
+    outputObject<i>' per outgoing - the fork's outputs each equal the
+    SINGLE input (the .36 FeatureReferenceExpression = inputObject1),
+    the join's single output combines the inputs (the tuple-operator
+    form: the operator expression rides the membership carries and
+    stays itemized). The typing by the flows' object types rides the
+    input's type when uniform (the .38 Feature rule)."""
+    inc = [fl for fl in (n._vals.get("incoming") or [])]
+    outg = [fl for fl in (n._vals.get("outgoing") or [])]
+    def _p_type(fl):
+        # the .38 typing: the object flow's type or the connected
+        # object node's type (the source for an incoming flow, the
+        # target for an outgoing one) - the payload rule of the
+        # object-flow ends
+        pty = fl._vals.get("type")
+        if isinstance(pty, list):
+            pty = pty[0] if pty else None
+        if pty is None:
+            node = None
+            if fork and fl._vals.get("source") is not None:
+                node = fl._vals.get("source")
+                if isinstance(node, list):
+                    node = node[0] if node else None
+            if not fork and fl._vals.get("target") is not None:
+                node = fl._vals.get("target")
+                if isinstance(node, list):
+                    node = node[0] if node else None
+            if node is not None:
+                pty = node._vals.get("type")
+                if isinstance(pty, list):
+                    pty = pty[0] if pty else None
+                if isinstance(node, U.Pin) and pty is None:
+                    pty = getattr(node, "type", None)
+                    if isinstance(pty, list):
+                        pty = pty[0] if pty else None
+        return index.get(id(pty)) if pty is not None else None
+    inputs = []
+    for i, fl in enumerate(inc, 1):
+        if not isinstance(fl, U.ObjectFlow):
+            continue
+        pref = S2.ReferenceUsage(declaredName=f"inputObject{i}")
+        pref.direction = "in"
+        pt = _p_type(fl)
+        if pt is not None:
+            _type_feature(pref, pt)
+        _own_membership(node_use, pref)
+        inputs.append(pref)
+    for o, fl in enumerate(outg, 1):
+        if not isinstance(fl, U.ObjectFlow):
+            continue
+        oref = S2.ReferenceUsage(declaredName=f"outputObject{o}")
+        oref.direction = "out"
+        if fork:
+            if inputs:
+                # .36/.37: out ref outputObject<i> = inputObject1
+                ofv = S2.FeatureValue()
+                ofre = S2.FeatureReferenceExpression()
+                om = S2.Membership()
+                om.memberElement = inputs[0]
+                ofre.ownedRelationship.append(om)
+                ofv.value = ofre
+                oref.ownedRelationship.append(ofv)
+            pt = _p_type(fl)
+            if pt is not None:
+                _type_feature(oref, pt)
+        elif inputs:
+            # .41-.43: the single output = (the tuple of the inputs);
+            # the operator-expression form rides the membership
+            # carries - the realization carries the FIRST input as
+            # the combined reference (the tuple operator itself is
+            # itemized queued)
+            ofv = S2.FeatureValue()
+            ofre = S2.FeatureReferenceExpression()
+            om = S2.Membership()
+            om.memberElement = inputs[0]
+            ofre.ownedRelationship.append(om)
+            ofv.value = ofre
+            oref.ownedRelationship.append(ofv)
+        _own_membership(node_use, oref)
+
+
 def _populate_activity(act, v2def, index):
     """Activity internals (7.7.3.3.x): nodes → action usages /
     control-node usages; edges → SuccessionAsUsage (ControlFlow) or
@@ -1749,18 +1833,68 @@ def _populate_activity(act, v2def, index):
             index[id(n)] = au
             _opaque_body_repr(au, n)   # OABody (7.7.2.3.2.3/.4)
             _action_pins(n, au, index)
+        elif isinstance(n, U.ActivityParameterNode):
+            # 7.7.3.3.15: an edge end's source = the PARAMETER for a
+            # parameter node - the APN aliases its parameter's mapped
+            # reference usage (the parameter itself mapped by the
+            # behavior's parameter pass); no separate element
+            apn_p = n._vals.get("parameter")
+            if isinstance(apn_p, list):
+                apn_p = apn_p[0] if apn_p else None
+            mapped = index.get(id(apn_p)) if apn_p is not None else None
+            index[id(n)] = mapped          # aliased (None ok - the
+            # edges raise the unordered error for a missing parameter)
         elif isinstance(n, U.DecisionNode):
             du = S2.DecisionNode(declaredName=nm)
             _own_membership(v2def, du)
             index[id(n)] = du
-        elif isinstance(n, U.MergeNode):
+        elif isinstance(n, U.ForkNode):
+            # 7.7.3.3.35/.37-.41: a ForkNode + the object-flow
+            # END-TRANSFER parameters when object flows connect: an
+            # 'in ref inputObject<i>' per incoming object flow and an
+            # 'out ref outputObject<i> = inputObject1' per outgoing
+            # (each output equals the single input - the same
+            # _Edge param form the JoinMerge rule set builds)
+            fk = S2.ForkNode(declaredName=nm)
+            _own_membership(v2def, fk)
+            index[id(n)] = fk
+            _fork_join_object_params(fk, n, v2def, index, fork=True)
+        elif isinstance(n, (U.JoinNode, U.MergeNode)):
+            if isinstance(n, U.JoinNode):
+                # 7.7.3.3.45/.38-.43: the join's object-flow
+                # parameters; the single output combines the inputs
+                # (the tuple-operator form rides the membership
+                # carries - itemized)
+                jn = S2.JoinNode(declaredName=nm)
+                _own_membership(v2def, jn)
+                index[id(n)] = jn
+                _fork_join_object_params(jn, n, v2def, index,
+                                         fork=False)
+                continue
             mu = S2.MergeNode(declaredName=nm)
             _own_membership(v2def, mu)
             index[id(n)] = mu
-        elif isinstance(n, (U.InitialNode, U.FinalNode)):
+        elif isinstance(n, U.InitialNode):
             # normative: elided (initial → source feature of outgoing
-            # edges; final → done-subsetted feature; 7.7.3.3.22)
+            # edges, 7.7.3.3.2/.11/.13/.44)
             continue
+        elif isinstance(n, U.ActivityFinalNode):
+            # 7.7.3.3.16: the final -> TerminateActionUsage ('then
+            # termine;')
+            tf = S2.TerminateActionUsage()
+            _own_membership(v2def, tf)
+            index[id(n)] = tf
+        elif isinstance(n, U.FlowFinalNode):
+            # 7.7.3.3.34: the flow final's out-membership ride; the
+            # flow-final edge ends elide like the initial (the
+            # membership's member elides with them)
+            continue
+        elif isinstance(n, (U.CentralBufferNode, U.DataStoreNode)):
+            # 7.7.3.3.17/.32: 'not defined in detail yet' - an empty
+            # ActionUsage (carrying the buffer's store behavior)
+            cbu = S2.ActionUsage(declaredName=nm)
+            _own_membership(v2def, cbu)
+            index[id(n)] = cbu
         elif isinstance(n, (U.AcceptEventAction, U.AcceptCallAction)):
             _accept_action(n, v2def, index)
         elif isinstance(n, (U.SendSignalAction, U.SendObjectAction)):
