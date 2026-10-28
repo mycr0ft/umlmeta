@@ -2748,3 +2748,25 @@ form has existed since wave D; the AS side caught up):
 
 - check_v1_to_v2_as.py: 140 passed (wave-V block).
 - Full sweep green (21 suites incl. bdd/deployment).
+
+# Part 43: wave V2 - the change-invocation machinery + reply/unmarshall
+
+- 7.7.2.3.1.6-.15: the change parameter's full trigger-invocation
+ machinery is realized - FeatureValue (.5) -> TriggerInvocation-
+Expression (.6) -> the .10 FeatureMembership -> the trigger
+Expression (.7) -> the ResultExpressionMembership (.8) -> the
+FeatureChainExpression (.9) with its parameter membership (.15) and
+the FeatureValue (.12) -> the FeatureReferenceExpression (.13) whose
+Membership.memberElement (.14) carries the MAPPED changeExpression
+(the .18 calc; the machine text reads the raw element - the
+single-object rule resolves it through the mapped calc). The .2
+rule's separate calc-riding FeatureMembership stays (the rule set
+carries both).
+- 7.7.2.3.1.24/.25: ReplyAction (rides AcceptCallAction's no-mapping)
+and UnmarshallAction ('not specified yet') -> EMPTY ActionUsages
+keeping the connections.
+
+## Result
+
+- check_v1_to_v2_as.py: 143 passed.
+- Full sweep green (21 suites).

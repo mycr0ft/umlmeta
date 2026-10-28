@@ -1854,11 +1854,62 @@ recv_body = ([getattr(z, "value", None)
               for z in om3.ownedRelatedElement
               if type(z).__name__ == "LiteralString"])
 check("the receiver membership via the trigger's port (.17/.16/.18)",
-      len(fvs_on_au2) == 1 and recv_body == ["p1"], str(recv_body))
+      len(fvs_on_au2) == 2 and recv_body == ["p1"], str(recv_body))
 check("AcceptCallAction -> an EMPTY AcceptActionUsage (7.7.2.3.1.1)",
       v_uses.get("callAc") is not None
       and type(v_uses["callAc"]).__name__ == "AcceptActionUsage"
       and not [r for r in v_uses["callAc"].ownedRelationship])
+ch_ref = [x for r in au2.ownedRelationship
+          if type(r).__name__ == "ParameterMembership"
+          for x in r.ownedRelatedElement]
+tie = ([x for r in ch_ref for fv3 in r.ownedRelationship
+        if type(fv3).__name__ == "FeatureValue"
+        for x in (fv3._vals.get("value"),)
+        if type(x).__name__ == "TriggerInvocationExpression"])
+check("the change parameter's FeatureValue -> the invocation "
+      "expression (.5/.6)",
+      len(ch_ref) >= 1 and tie and len(tie) == 1)
+inv_exprs = ([x for r in tie[0].ownedRelationship
+              if type(r).__name__ == "FeatureMembership"
+              for x in r.ownedRelatedElement
+              if type(x).__name__ == "Expression"] if tie else [])
+rem_fces = ([x for e3 in inv_exprs
+             for r3 in e3.ownedRelationship
+             if type(r3).__name__ == "ResultExpressionMembership"
+             for x in r3.ownedRelatedElement
+             if type(x).__name__ == "FeatureChainExpression"]
+            if inv_exprs else [])
+ch_fvs = ([x for fce_ in rem_fces
+           for r3 in fce_.ownedRelationship
+           if type(r3).__name__ == "FeatureValue"
+           for x in [r3._vals.get("value")]
+           if type(x).__name__ == "FeatureReferenceExpression"]
+          if rem_fces else [])
+mem_calc = ([x for fre_ in ch_fvs
+             for r3 in fre_.ownedRelationship
+             if type(r3).__name__ == "Membership"
+             for x in [r3.memberElement]])
+check("the .7/.8/.9 result-expression chain ends at the FRE whose "
+      "membership carries the changeExpression's calc (.10/.14)",
+      len(inv_exprs) == 1 and len(rem_fces) == 1 and len(mem_calc) == 1
+      and type(mem_calc[0][0]).__name__ == "CalculationUsage",
+      str(mem_calc))
+# reply/unmarshall empties
+vre = U.ReplyAction(name="rep")
+vum = U.UnmarshallAction(name="ump")
+va.node.append(vre)
+va.node.append(vum)
+vout = A.transform_package(vpkg)
+va_def2 = [e for e in vout.ownedElement
+           if type(e).__name__ == "ActionDefinition"][0]
+v_empty = [x for r in va_def2.ownedRelationship
+           if type(r).__name__ in ("FeatureMembership",
+                                   "OwningMembership")
+           for x in r.ownedRelatedElement
+           if x.declaredName in ("rep", "ump")]
+check("ReplyAction/UnmarshallAction -> empty ActionUsages (.24/.25)",
+      len(v_empty) == 2
+      and all(type(x).__name__ == "ActionUsage" for x in v_empty))
 
 print()
 print("== honesty: unmapped features refuse to guess ==")

@@ -1352,6 +1352,40 @@ def _accept_action(n, v2def, index):
         fm = S2.FeatureMembership()
         fm.ownedRelatedElement.append(_opaque_expr_calc(ce, index))
         au.ownedRelationship.append(fm)
+        # 7.7.2.3.1.6-.15: the change parameter's trigger-invocation
+        # machinery - FeatureValue (.5) -> TriggerInvocationExpression
+        # (.6) -> the .10 FeatureMembership -> the trigger Expression
+        # (.7) -> the ResultExpressionMembership (.8) -> the
+        # FeatureChainExpression (.9) with its parameter membership
+        # (.15) and the FeatureValue (.12) -> the
+        # FeatureReferenceExpression (.13) whose Membership.memberElement
+        # (.14) carries the mapped changeExpression (the calc; the
+        # machine text reads the raw element - the normative single-
+        # object rule resolves it through the mapped calc)
+        calc = fm.ownedRelatedElement[0]
+        tie = S2.TriggerInvocationExpression()
+        inv_fm = S2.FeatureMembership()
+        texpr = S2.Expression()
+        rem = S2.ResultExpressionMembership()
+        fce = S2.FeatureChainExpression()
+        ch_prm = S2.ParameterMembership()
+        ch_prm.ownedRelatedElement.append(S2.ReferenceUsage(
+            direction="in"))
+        fce.ownedRelationship.append(ch_prm)
+        ch_fv = S2.FeatureValue()
+        ch_fre = S2.FeatureReferenceExpression()
+        ch_mem = S2.Membership()
+        ch_mem.memberElement = calc
+        ch_fre.ownedRelationship.append(ch_mem)
+        ch_fv.value = ch_fre
+        fce.ownedRelationship.append(ch_fv)
+        rem.ownedRelatedElement.append(fce)
+        texpr.ownedRelationship.append(rem)
+        inv_fm.ownedRelatedElement.append(texpr)
+        tie.ownedRelationship.append(inv_fm)
+        fv_c = S2.FeatureValue()
+        fv_c.value = tie
+        ref.ownedRelationship.append(fv_c)
     else:
         raise UnmappedFeature(
             f"AcceptEventAction {_name(n)!r} trigger of "
@@ -1450,6 +1484,13 @@ def _populate_activity(act, v2def, index):
             continue
         elif isinstance(n, (U.AcceptEventAction, U.AcceptCallAction)):
             _accept_action(n, v2def, index)
+        elif isinstance(n, (U.ReplyAction, U.UnmarshallAction)):
+            # 7.7.2.3.1.24/.25: empty ActionUsages (ReplyAction rides
+            # AcceptCallAction's no-mapping; UnmarshallAction is 'not
+            # specified yet' - both keep the connections)
+            au2 = S2.ActionUsage(declaredName=_name(n))
+            _own_membership(v2def, au2)
+            index[id(n)] = au2
         else:
             raise UnmappedFeature(
                 f"Activity node {type(n).__name__} (later wave)")
