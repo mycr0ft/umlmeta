@@ -1912,6 +1912,70 @@ check("ReplyAction/UnmarshallAction -> empty ActionUsages (.24/.25)",
       and all(type(x).__name__ == "ActionUsage" for x in v_empty))
 
 print()
+print("== wave W: send-signal actions (7.7.2.3.3.24-.35) ==")
+wpkg = U.Package(name="SendPkg")
+wsig = U.Signal(name="Ping")
+wblk = U.Class(name="Peer")
+wact = U.Activity(name="Talk")
+wsnd = U.SendSignalAction(name="ping")
+wsnd._vals["signal"] = [wsig]
+wtgt = U.InputPin(name="tgtPin")
+wtgt.type = wblk
+wsnd._vals["target"] = [wtgt]
+wact.node.append(wsnd)
+wpkg.packagedElement.extend([wsig, wblk, wact])
+wout = A.transform_package(wpkg)
+w_def = [e for e in wout.ownedElement
+         if type(e).__name__ == "ActionDefinition"][0]
+w_uses = {}
+for r in w_def.ownedRelationship:
+    if type(r).__name__ not in ("FeatureMembership", "OwningMembership"):
+        continue
+    for x in r.ownedRelatedElement:
+        w_uses[x.declaredName] = x
+wsu = w_uses.get("ping")
+check("SendSignalAction -> ActionUsage (7.7.2.3.3.24)",
+      wsu is not None and type(wsu).__name__ == "ActionUsage")
+ssaus = [x for r in wsu.ownedRelationship
+         if type(r).__name__ == "FeatureMembership"
+         for x in r.ownedRelatedElement
+         if type(x).__name__ == "SendActionUsage"]
+check("the .25 SendActionUsage membership",
+      len(ssaus) == 1
+      and any(type(r).__name__ == "ParameterMembership"
+              and any(getattr(x2, "direction", None) == "in"
+                      for x2 in r.ownedRelatedElement)
+              for r in wsu.ownedRelationship))
+sau = ssaus[0] if ssaus else None
+s_pms = ([r for r in sau.ownedRelationship
+          if type(r).__name__ == "ParameterMembership"] if sau else [])
+s_refs = [x for r in s_pms for x in r.ownedRelatedElement]
+s_typed = []
+for r3 in s_refs:
+    s_typed.extend(getattr(getattr(ft, "type", None), "declaredName",
+                           None) for ft in r3.ownedTyping)
+check("the send's ends: the signal item + the target, both in and "
+      "typed (.28/.31/.34)",
+      len(s_refs) == 2
+      and all(getattr(r3, "direction", None) == "in" for r3 in s_refs)
+      and s_typed == ["Ping", "Peer"], str(s_typed))
+s_fvs = [fv3 for r3 in s_refs
+         for fv3 in r3.ownedRelationship
+         if type(fv3).__name__ == "FeatureValue"]
+s_mems = [x for fv3 in s_fvs
+          for r3 in fv3.value.ownedRelationship
+          if type(r3).__name__ == "Membership"
+          for x in [r3.memberElement]]
+check("the .30/.35 FeatureValues reference the mapped ends (.22-style)",
+      len(s_fvs) == 2
+      and len(s_mems) == 2
+      and {type(m3[0]).__name__ for m3 in s_mems}
+      == {"OccurrenceDefinition", "PartDefinition"}
+      or (len(s_mems) == 2 and len({type(m3[0]).__name__
+                                    for m3 in s_mems}) == 2),
+      str([(type(m3[0]).__name__,) for m3 in s_mems]))
+
+print()
 print("== honesty: unmapped features refuse to guess ==")
 orphan = U.Package(name="Orphan")
 orphan.add("packagedElement", U.Continuation(name="CX"))

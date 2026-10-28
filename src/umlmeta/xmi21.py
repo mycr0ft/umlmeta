@@ -73,7 +73,7 @@ REF_SINGLE = {"type", "association", "general", "classifier",
               # source/target, Include addition
               "role", "source", "target", "addition",
               # trigger events / the event expressions
-              "event", "changeExpression", "when"}
+              "event", "changeExpression", "when", "signal"}
 # multi reference features (may arrive before their targets)
 REF_MULTI = {"memberEnd", "annotatedElement", "client", "supplier",
              # state-machine transition triggers (7.7.11.2.26)
@@ -107,6 +107,9 @@ CONSTRUCTIBLE = {"Model", "Package", "Class", "DataType", "Enumeration",
                  "Parameter", "Abstraction", "Behavior", "Actor",
                  "StateMachine", "Region", "State", "Transition",
                  "Trigger", "ChangeEvent", "TimeEvent", "TimeExpression",
+                 "SendSignalAction", "ReplyAction", "UnmarshallAction",
+                 "AcceptEventAction", "AcceptCallAction", "SignalEvent",
+                 "CallEvent",
                  "Activity", "UseCase", "Include"}
 
 # metaclasses for which a missing name is derived from the xmi:id tail

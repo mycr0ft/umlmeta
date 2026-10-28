@@ -2770,3 +2770,31 @@ keeping the connections.
 
 - check_v1_to_v2_as.py: 143 passed.
 - Full sweep green (21 suites).
+
+# Part 44: wave W - send-signal actions in AS (7.7.2.3.3.24-.35)
+
+The send machinery completes the signal family symmetric to wave V:
+
+- 7.7.2.3.3.24: SendSignalAction → ActionUsage (declaredName from the
+  action) carrying the .25 SSAFeatureMembership -> SendActionUsage
+  (SSASendActionUsage's .24-inner rule set .3.3.24-.35) and the .26/.27
+  unnamed in-parameter.
+- The SendActionUsage carries the signal's ITEM parameter
+  (.28/.29/.31: an in ReferenceUsage typed by the mapped signal - the
+  'send <Signal>();' item) whose FeatureValue (.30) = the
+  FeatureReferenceExpression membering the mapped signal; and the
+  target parameter (.33/.34: the 'in target : <type>' ReferenceUsage
+  typed by the send's target pin's type) whose FeatureValue (.35)
+  membering the mapped target. The invocation-expression forms
+  (.30/.35's expression machinery) ride the same name/reference
+  carries as the accept waves; SendObjectAction (.23) and
+  StartClassifierBehaviorAction (.39 'not supported') follow their
+  empty-usage forms when they surface in v1 content (queued).
+- Reader: SendSignalAction/ReplyAction/UnmarshallAction/
+  AcceptEventAction/AcceptCallAction/SignalEvent/CallEvent
+  constructible; 'signal' reference table.
+
+## Result
+
+- check_v1_to_v2_as.py: 147 passed (wave-W block).
+- Full sweep green (21 suites).

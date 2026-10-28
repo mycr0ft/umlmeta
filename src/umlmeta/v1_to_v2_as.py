@@ -1282,6 +1282,84 @@ def _trigger_carrier(tg, ev, index):
     return ms
 
 
+def _send_signal_action(n, v2def, index):
+    """SendSignalAction_Mapping (7.7.2.3.3.24): SendSignalAction ->
+    ActionUsage carrying the .25 SSAFeatureMembership -> the
+    SendActionUsage (SSASendActionUsage, .24's inner rule set
+    7.7.2.3.3.24-.35) and the .26 unnamed in-parameter. The
+    SendActionUsage carries: the signal's item parameter
+    (7.7.2.3.3.28/.29/.31: an in ReferenceUsage typed by the mapped
+    signal - the 'send SysMLv1Signal();' item) whose FeatureValue
+    (.30) = the FeatureReferenceExpression membering the mapped
+    signal; the SSA in-parameter (.26/.27, unnamed); and the target
+    parameter (7.7.2.3.3.33/.34: the in ReferenceUsage typed by the
+    send's target - the 'in target : <type>' - whose FeatureValue
+    (.35) = the FRE membering the mapped target type). The
+    invocation-expression forms (.30/.35's expression machinery) ride
+    the same name/reference carries as the accept waves; the
+    SendObjectAction (.23) and the StartClassifierBehaviorAction
+    (.39 'not supported') forms are queued."""
+    ssu = S2.ActionUsage(declaredName=_name(n))
+    _own_membership(v2def, ssu)
+    index[id(n)] = ssu
+    sig = n._vals.get("signal")
+    if isinstance(sig, list):
+        sig = sig[0] if sig else None
+    tgt = n._vals.get("target")
+    if isinstance(tgt, list):
+        tgt = tgt[0] if tgt else None
+    tgt_ty = tgt._vals.get("type") if tgt is not None else None
+    if isinstance(tgt_ty, list):
+        tgt_ty = tgt_ty[0] if tgt_ty else None
+    sig_def = index.get(id(sig)) if sig is not None else None
+    if sig_def is None:
+        raise UnmappedFeature(
+            f"SendSignalAction {_name(n)!r} signal external/unordered")
+    tgt_def = index.get(id(tgt_ty)) if tgt_ty is not None else None
+    if tgt_def is None:
+        raise UnmappedFeature(
+            f"SendSignalAction {_name(n)!r} target type external/"
+            f"unordered {_as_type_name(tgt_ty)!r}")
+    sau = S2.SendActionUsage()
+    # .28/.29/.31/.30: the item (signal) parameter
+    item = S2.ReferenceUsage()
+    item.direction = "in"
+    _type_feature(item, sig_def)
+    item_fv = S2.FeatureValue()
+    item_fre = S2.FeatureReferenceExpression()
+    im = S2.Membership()
+    im.memberElement = sig_def
+    item_fre.ownedRelationship.append(im)
+    item_fv.value = item_fre
+    item.ownedRelationship.append(item_fv)
+    ipm = S2.ParameterMembership()
+    ipm.ownedRelatedElement.append(item)
+    sau.ownedRelationship.append(ipm)
+    # .33/.34/.35: the target parameter
+    tref = S2.ReferenceUsage()
+    tref.direction = "in"
+    _type_feature(tref, tgt_def)
+    t_fv = S2.FeatureValue()
+    t_fre = S2.FeatureReferenceExpression()
+    tm = S2.Membership()
+    tm.memberElement = tgt_def
+    t_fre.ownedRelationship.append(tm)
+    t_fv.value = t_fre
+    tref.ownedRelationship.append(t_fv)
+    tpm = S2.ParameterMembership()
+    tpm.ownedRelatedElement.append(tref)
+    sau.ownedRelationship.append(tpm)
+    # .25: the SendActionUsage feature membership
+    fm = S2.FeatureMembership()
+    fm.ownedRelatedElement.append(sau)
+    ssu.ownedRelationship.append(fm)
+    # .26/.27: the outer unnamed in-parameter
+    pm26 = S2.ParameterMembership()
+    pm26.ownedRelatedElement.append(S2.ReferenceUsage(direction="in"))
+    ssu.ownedRelationship.append(pm26)
+    return ssu
+
+
 def _accept_action(n, v2def, index):
     """AcceptEventAction_Mapping (7.7.2.3.1.2): AcceptEventAction ->
     AcceptActionUsage; only the FIRST trigger transforms (the spec's
@@ -1484,6 +1562,8 @@ def _populate_activity(act, v2def, index):
             continue
         elif isinstance(n, (U.AcceptEventAction, U.AcceptCallAction)):
             _accept_action(n, v2def, index)
+        elif isinstance(n, U.SendSignalAction):
+            _send_signal_action(n, v2def, index)
         elif isinstance(n, (U.ReplyAction, U.UnmarshallAction)):
             # 7.7.2.3.1.24/.25: empty ActionUsages (ReplyAction rides
             # AcceptCallAction's no-mapping; UnmarshallAction is 'not
