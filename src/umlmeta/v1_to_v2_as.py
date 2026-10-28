@@ -892,6 +892,79 @@ def _populate_statemachine(sm, v2def, index):
                 index[id(tr)] = tu
 
 
+def _opaque_repr(lang, body):
+    """OABody_Mapping (7.7.2.3.2.3): a UML opaque language/body pair ->
+    TextualRepresentation with the language/body stored as SINGLETON
+    lists (the UML ends are multi [0..*]; the normative text reads
+    language/body.first()- shaped singletons; the constructor-kw path
+    would iterate a lone string into single characters)."""
+    r = S2.TextualRepresentation()
+    for name, v in (("language", lang), ("body", body)):
+        if v is None or v == "":
+            continue
+        r._vals[name] = [v] if isinstance(v, str) else list(v)
+    return r
+
+
+def _opaque_body_repr(owner, opaque_el):
+    """OABodyMembership_Mapping (7.7.2.3.2.4): the body's
+    TextualRepresentation joins the element via OwningMembership."""
+    lang = opaque_el._vals.get("language")
+    body = opaque_el._vals.get("body")
+    if body is None and lang is None:
+        return None
+    _own_membership(owner, _opaque_repr(lang, body))
+    return True
+
+
+def _opaque_expr_calc(oe, index):
+    """OpaqueExpression_Mapping (7.7.14.3.18): an OpaqueExpression as a
+    value-specification -> CalculationUsage carrying the guard's
+    language/body as its TextualRepresentation and the required
+    'result' return parameter (out) - the .3.18 example form
+    'calc <oe> { return result : <Boolean>; language ... }'. The
+    return's type is the library ScalarValues::Boolean (external -
+    carried by the direction + name only, as elsewhere)."""
+    cu = S2.CalculationUsage(declaredName=_name(oe))
+    ref = S2.ReferenceUsage(declaredName="result")
+    ref.direction = "out"
+    rpm = S2.ReturnParameterMembership()
+    rpm.ownedRelatedElement.append(ref)
+    cu.ownedRelationship.append(rpm)
+    lang = oe._vals.get("language")
+    body = oe._vals.get("body")
+    if body is not None or lang is not None:
+        _own_membership(cu, _opaque_repr(lang, body))
+    return cu
+
+
+def _edge_guard_transition(e, src_obj, index):
+    """ControlFlowTransitionUsage_Mapping (7.7.3.3.20) /
+    ObjectFlowGuard_Mapping (7.7.3.3.50): a guarded activity edge ALSO
+    carries a TransitionUsage; its guard rides
+    TransitionFeatureMembership (kind=guard, 7.7.3.3.28/.64). For an
+    OpaqueExpression guard the member is the mapped value (the
+    OpaqueExpressionAsValue form, 7.7.14.3.17); this realization
+    carries the guard's CalculationUsage (7.7.14.3.18) - the calc is
+    the informable, check-visible content carrier of the guard text
+    (the .3.20 example shows the calc inline). The deeper
+    FeatureChainExpression + succession-end choreography of .3.17/.23
+    (.28's full set) is queued."""
+    guard_el = e._vals.get("guard")
+    if guard_el is None:
+        return None
+    guard = guard_el[0] if isinstance(guard_el, list) else guard_el
+    if guard is None:
+        return None
+    tu = S2.TransitionUsage(declaredName=_name(e))
+    tu.source = src_obj
+    tfm = S2.TransitionFeatureMembership()
+    tfm.kind = S2.TransitionFeatureKind.guard
+    tfm.ownedRelatedElement.append(_opaque_expr_calc(guard, index))
+    tu.ownedRelationship.append(tfm)
+    return tu
+
+
 def _populate_activity(act, v2def, index):
     """Activity internals (7.7.3.3.x): nodes → action usages /
     control-node usages; edges → SuccessionAsUsage (ControlFlow) or
@@ -904,6 +977,7 @@ def _populate_activity(act, v2def, index):
             au = S2.ActionUsage(declaredName=nm)
             _own_membership(v2def, au)
             index[id(n)] = au
+            _opaque_body_repr(au, n)   # OABody (7.7.2.3.2.3/.4)
             # Pin_Mapping (7.7.2.3.2.5) + ValuePin (.6): the action's
             # pins -> ReferenceUsages carried on the action (in/out by
             # the pin's orientation - the .2.5 example form
@@ -1025,12 +1099,21 @@ def _populate_activity(act, v2def, index):
                 se.ownedRelationship.append(pfm)
             _own_membership(v2def, se)
             index[id(e)] = se
+            # a guarded object flow ALSO carries the guard transition
+            # (ObjectFlowGuard_Mapping, 7.7.3.3.50)
+            gtu = _edge_guard_transition(e, src_obj, index)
+            if gtu is not None:
+                _own_membership(v2def, gtu)
             continue
         se = S2.SuccessionAsUsage(declaredName=_name(e))
         se.source.append(src_obj)
         se.target.append(tgt_obj)
         _own_membership(v2def, se)
         index[id(e)] = se
+        # a guarded edge ALSO carries the guard transition (.3.20/.50)
+        gtu = _edge_guard_transition(e, src_obj, index)
+        if gtu is not None:
+            _own_membership(v2def, gtu)
 
 
 def _populate_behavior_params(behavior, v2def):

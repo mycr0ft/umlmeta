@@ -2412,3 +2412,40 @@ regen-identical except this contract fix (stats.json generated_lines
   one existing oracle adjusted for the second TransitionUsage).
 - Full sweep green (regenerated vehicle artifacts included: vehicle 12,
   cameo 15, text 49).
+
+# Part 32: wave N - opaque bodies + activity-edge guards in AS
+
+The last silent-data-loss surfaces in the activity family close:
+
+## Bodies (7.7.2.3.2.3 OABody / .2.4 OABodyMembership)
+
+An OpaqueAction's language/body -> TextualRepresentation(language,
+body) carried on the action via OwningMembership. Storage shape: the
+UML ends are multi [0..*] - the repr stores SINGLETON lists (the
+normative text reads language/body.first(); the constructor-kw path
+would iterate a lone string into single characters - pinned as a
+dialect fact). OpaqueBehavior bodies ride the same machinery.
+
+## Edge guards (7.7.3.3.20 ControlFlowTransitionUsage / 7.7.3.3.50
+## ObjectFlowGuard)
+
+A guarded ACTIVITY edge silently lost its guard in the AS pipeline;
+now: the succession/flow carries as in wave-M plus a guard
+TransitionUsage carrying the guard via TransitionFeatureMembership
+(kind=guard, 7.7.3.3.28/.64) whose member is the guard's
+CalculationUsage (7.7.14.3.18 OpaqueExpression_Mapping: the
+'return result : ...; language/body' calc form with the return
+carried out and the library-external type carried by name+direction).
+Both pipelines' shapes now agree with the .3.20 example's calc-inlined
+form.
+
+Queued (the full formal choreography of the guarded edges):
+OpaqueExpressionAsValue (7.7.14.3.17, the FeatureChainExpression
+member form with its own param/return memberships), the
+CommonActivityEdgeSuccessionAsUsage succession carrier inside the
+guarded transition, and .3.51-.53's succession-target end features.
+
+## Result
+
+- check_v1_to_v2_as.py: 108 passed (104 + 4 wave-N).
+- Full sweep green (19 suites + text 49 + vehicle 12 + cameo 15).

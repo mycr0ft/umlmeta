@@ -1194,6 +1194,88 @@ check("ObjectNode type -> PayloadFeature typing (7.7.3.3.54/.56)",
       and any(t.type is wa_as for t in payloads[0].ownedTyping))
 
 print()
+print("== wave N: opaque bodies + activity-edge guards "
+      "(7.7.2.3.2.3, 7.7.14.3.18, 7.7.3.3.20/.50) ==")
+npkg = U.Package(name="BodyPkg")
+nact = U.Activity(name="Ops")
+na = U.OpaqueAction(name="step")
+na._vals["language"] = "Python"
+na._vals["body"] = "x = x + 1"
+nact.node.append(na)
+ng = U.OpaqueExpression()
+ng._vals["language"] = "OCL2.0"
+ng._vals["body"] = "c > 10"
+cfl = U.ControlFlow(name="cf2")
+cfl._vals["guard"] = [ng]
+na2 = U.OpaqueAction(name="after")
+nact.node.append(na2)
+cfl.source = na
+cfl.target = na2
+nact.edge.append(cfl)
+ng2 = U.OpaqueExpression()
+ng2._vals["language"] = "OCL2.0"
+ng2._vals["body"] = "ready"
+ofl = U.ObjectFlow(name="of2")
+ofl._vals["guard"] = [ng2]
+ofl.source = na
+ofl.target = na2
+nact.edge.append(ofl)
+p_out2 = U.OutputPin(name="t2")
+na.add("output", p_out2)
+ofl2 = U.ObjectFlow(name="of3")
+ofl2.source = p_out2
+ofl2.target = na2
+nact.edge.append(ofl2)
+npkg.packagedElement.append(nact)
+nout = A.transform_package(npkg)
+ndef = [e for e in nout.ownedElement if e.declaredName == "Ops"][0]
+
+def reprs_of(el):
+    return [x for om in el.ownedRelationship
+            if isinstance(om, S2.OwningMembership)
+            for x in om.ownedRelatedElement
+            if type(x).__name__ == "TextualRepresentation"]
+
+
+step_u = [e for e in ndef.ownedElement if e.declaredName == "step"][0]
+step_reprs = reprs_of(step_u)
+check("OpaqueAction language/body -> TextualRepresentation (7.7.2.3.2.3)",
+      len(step_reprs) == 1
+      and step_reprs[0].language and step_reprs[0].language[0] == "Python"
+      and step_reprs[0].body and step_reprs[0].body[0] == "x = x + 1")
+cf_tu = [e for e in ndef.ownedElement
+         if type(e).__name__ == "TransitionUsage"
+         and e.declaredName == "cf2"][0]
+g_ms = [r for r in cf_tu.ownedRelationship
+        if type(r).__name__ == "TransitionFeatureMembership"]
+calc_u = [x for r in g_ms for x in r.ownedRelatedElement]
+check("guarded ControlFlow -> TransitionUsage w/ guard calc "
+      "(7.7.3.3.20, 7.7.14.3.18)",
+      len(g_ms) == 1 and str(g_ms[0].kind) == "TransitionFeatureKind.guard"
+      and calc_u and type(calc_u[0]).__name__ == "CalculationUsage")
+if calc_u and type(calc_u[0]).__name__ == "CalculationUsage":
+    ret_ms = [r for r in calc_u[0].ownedRelationship
+              if type(r).__name__ == "ReturnParameterMembership"]
+    calc_reprs = reprs_of(calc_u[0])
+    ret_ref = [x for r in ret_ms for x in r.ownedRelatedElement]
+    check("guard calc: return 'result' (out) + language/body "
+          "(7.7.14.3.18 example)",
+          len(ret_ms) == 1
+          and ret_ref and ret_ref[0].direction == "out"
+          and ret_ref[0].declaredName == "result"
+          and len(calc_reprs) == 1
+          and calc_reprs[0].language[0] == "OCL2.0"
+          and calc_reprs[0].body[0] == "c > 10")
+of_tus = [e for e in ndef.ownedElement
+          if type(e).__name__ == "TransitionUsage"]
+of_flows = [e for e in ndef.ownedElement
+            if type(e).__name__ == "SuccessionFlowUsage"]
+check("guarded ObjectFlow -> the flow AND the guard transition; the "
+      "unguarded of3 stays a plain flow",
+      len(of_flows) == 2 and len(of_tus) == 2
+      and {e.declaredName for e in of_tus} == {"cf2", "of2"})
+
+print()
 print("== honesty: unmapped features refuse to guess ==")
 orphan = U.Package(name="Orphan")
 orphan.add("packagedElement", U.Continuation(name="CX"))
