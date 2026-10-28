@@ -1762,6 +1762,105 @@ check("a part-property end types by its property's type "
       u2t == ["ADef", "BDef"], str(u2t))
 
 print()
+print("== wave V: accept-event actions (7.7.2.3.1.2, .1, .17-.23) ==")
+vpkg = U.Package(name="AccPkg")
+vsig = U.Signal(name="Go")
+va = U.Activity(name="Listen")
+vacc = U.AcceptEventAction(name="waitGo")
+vt1 = U.Trigger(name="goT")
+vse = U.SignalEvent()
+vse._vals["signal"] = [vsig]
+vt1._vals["event"] = vse
+vacc._vals["trigger"] = [vt1]
+vtrig2 = U.Trigger(name="goT2")
+vse2 = U.SignalEvent()
+vse2._vals["signal"] = [vsig]
+vtrig2._vals["event"] = vse2
+vacc._vals["trigger"] = vacc._vals.get("trigger") + [vtrig2]
+vstp = U.OpaqueAction(name="then")
+vedge = U.ControlFlow(name="ce")
+vedge.source = vacc
+vedge.target = vstp
+va.node.append(vacc)
+va.node.append(vstp)
+va.edge.append(vedge)
+# change accept with a port
+vacc2 = U.AcceptEventAction(name="waitChange")
+vte2 = U.Trigger(name="chgT")
+vce = U.ChangeEvent()
+voe = U.OpaqueExpression()
+voe._vals["language"] = "OCL"
+voe._vals["body"] = "x > 0"
+vce._vals["changeExpression"] = voe
+vte2._vals["event"] = vce
+vp = U.Port(name="p1")
+vte2._vals["port"] = [vp]
+vacc2._vals["trigger"] = [vte2]
+va.node.append(vacc2)
+voc = U.OpaqueAction(name="oe")
+va.node.append(voc)
+vo_call = U.AcceptCallAction(name="callAc")
+va.node.append(vo_call)
+vcf2 = U.ControlFlow(name="ce2")
+vcf2.source = vacc2
+vcf2.target = voc
+va.edge.append(vcf2)
+vpkg.packagedElement.extend([vsig, va])
+vout = A.transform_package(vpkg)
+va_def = [e for e in vout.ownedElement
+          if type(e).__name__ == "ActionDefinition"][0]
+v_uses = {}
+for r in va_def.ownedRelationship:
+    if type(r).__name__ not in ("FeatureMembership", "OwningMembership"):
+        continue
+    for x in r.ownedRelatedElement:
+        v_uses[x.declaredName] = x
+au1 = v_uses.get("waitGo")
+check("AcceptEventAction -> AcceptActionUsage (7.7.2.3.1.2)",
+      au1 is not None and type(au1).__name__ == "AcceptActionUsage")
+pms = [r for r in au1.ownedRelationship
+       if type(r).__name__ == "ParameterMembership"]
+arefs = [x for r in pms for x in r.ownedRelatedElement]
+check("two triggers: only the FIRST transforms - the accept parameter "
+      "typed by the signal (.21/.19/.20)",
+      len(pms) == 1 and len(arefs) == 1
+      and getattr(arefs[0], "direction", None) == "in"
+      and any(getattr(getattr(ft, "type", None), "declaredName", None)
+              == "Go" for ft in arefs[0].ownedTyping))
+au2 = v_uses.get("waitChange")
+calcs = [x for r in au2.ownedRelationship
+         if type(r).__name__ == "FeatureMembership"
+         for x in r.ownedRelatedElement
+         if type(x).__name__ == "CalculationUsage"]
+check("the change accept carries the changeExpression's calc "
+      "(.2's ElementFeatureMembership -> deviating FeatureMembership)",
+      len(calcs) == 1
+      and any(x.body and x.body[0] == "x > 0"
+              for om in calcs[0].ownedRelationship
+              if type(om).__name__ == "OwningMembership"
+              for x in om.ownedRelatedElement
+              if type(x).__name__ == "TextualRepresentation"))
+fvs_on_au2 = ([fv3 for r in au2.ownedRelationship
+               for x in r.ownedRelatedElement
+               if type(r).__name__ in ("ParameterMembership",
+                                       "FeatureMembership")
+               for fv3 in x.ownedRelationship
+               if type(fv3).__name__ == "FeatureValue"])
+recv_body = ([getattr(z, "value", None)
+              for fv3 in fvs_on_au2
+              if type(fv3.value).__name__ == "FeatureReferenceExpression"
+              for om3 in fv3.value.ownedRelationship
+              if type(om3).__name__ == "OwningMembership"
+              for z in om3.ownedRelatedElement
+              if type(z).__name__ == "LiteralString"])
+check("the receiver membership via the trigger's port (.17/.16/.18)",
+      len(fvs_on_au2) == 1 and recv_body == ["p1"], str(recv_body))
+check("AcceptCallAction -> an EMPTY AcceptActionUsage (7.7.2.3.1.1)",
+      v_uses.get("callAc") is not None
+      and type(v_uses["callAc"]).__name__ == "AcceptActionUsage"
+      and not [r for r in v_uses["callAc"].ownedRelationship])
+
+print()
 print("== honesty: unmapped features refuse to guess ==")
 orphan = U.Package(name="Orphan")
 orphan.add("packagedElement", U.Continuation(name="CX"))

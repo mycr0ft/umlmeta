@@ -1282,6 +1282,101 @@ def _trigger_carrier(tg, ev, index):
     return ms
 
 
+def _accept_action(n, v2def, index):
+    """AcceptEventAction_Mapping (7.7.2.3.1.2): AcceptEventAction ->
+    AcceptActionUsage; only the FIRST trigger transforms (the spec's
+    own note - the further triggers are ignored). A SignalEvent
+    trigger carries the accept parameter (AEAParameterMembership .21
+    -> AEASignalParameter .19: an in ReferenceUsage typed by the
+    mapped signal, .20); a ChangeEvent trigger carries the change
+    parameter (.4: an in ReferenceUsage) plus the changeExpression's
+    CalculationUsage (7.7.14.3.18) via FeatureMembership - the .2
+    rule's ElementFeatureMembership, the deviation family. The
+    receiver membership (.17/.16: an in ReferenceUsage whose
+    FeatureValue (.18) = the trigger-port reference (.22/.23); the
+    port reference carries name-only - the formal's
+    reference-expression membership returns the port) rides per the
+    .2 rule set whenever the trigger states a port. AcceptCallAction
+    (.1): CallEvent is not supported by SysML v2 - an EMPTY
+    AcceptActionUsage keeps the connections. The trigger-invocation
+    machinery of the change parameter (.6-.15) and the Reply/
+    Unmarshall forms (.24/.25) are queued."""
+    au = S2.AcceptActionUsage(declaredName=_name(n))
+    _own_membership(v2def, au)
+    index[id(n)] = au
+    if isinstance(n, U.AcceptCallAction) or not isinstance(n,
+                                                           U.AcceptEventAction):
+        return au
+    trig = list(n._vals.get("trigger") or [])
+    if not trig:
+        raise UnmappedFeature(
+            f"AcceptEventAction {_name(n)!r} without a trigger")
+    if len(trig) > 1:
+        # normative: only the first trigger transforms; all further
+        # are ignored - recorded, not invented
+        pass
+    ev = trig[0]._vals.get("event")
+    if ev is None:
+        raise UnmappedFeature(
+            f"AcceptEventAction {_name(n)!r} trigger without an event")
+    if isinstance(ev, U.SignalEvent):
+        sig = ev._vals.get("signal")
+        if isinstance(sig, list):       # raw single-store unwraps
+            sig = sig[0] if sig else None
+        if sig is None:
+            raise UnmappedFeature(
+                f"AcceptEventAction {_name(n)!r} triggered by an "
+                "unnamed/reference-less signal")
+        sig_def = index.get(id(sig))
+        if sig_def is None:
+            raise UnmappedFeature(
+                f"AcceptEventAction {_name(n)!r} signal external/"
+                f"unordered {_as_type_name(sig)!r}")
+        ref = S2.ReferenceUsage()
+        ref.direction = "in"
+        _type_feature(ref, sig_def)
+        pm = S2.ParameterMembership()
+        pm.ownedRelatedElement.append(ref)
+        au.ownedRelationship.append(pm)
+    elif isinstance(ev, U.ChangeEvent):
+        ref = S2.ReferenceUsage()
+        ref.direction = "in"
+        pm = S2.ParameterMembership()
+        pm.ownedRelatedElement.append(ref)
+        au.ownedRelationship.append(pm)
+        ce = ev._vals.get("changeExpression")
+        if ce is None:
+            raise UnmappedFeature(
+                f"AcceptEventAction {_name(n)!r} change trigger "
+                "without an expressable change expression")
+        fm = S2.FeatureMembership()
+        fm.ownedRelatedElement.append(_opaque_expr_calc(ce, index))
+        au.ownedRelationship.append(fm)
+    else:
+        raise UnmappedFeature(
+            f"AcceptEventAction {_name(n)!r} trigger of "
+            f"{type(ev).__name__} (only the SignalEvent/ChangeEvent "
+            "trigger forms map, 7.7.2.3.1.2)")
+    # the receiver machinery (.17/.16): only when the trigger
+    # states a port
+    ports = list(trig[0]._vals.get("port") or [])
+    if ports:
+        rv = S2.ReferenceUsage()
+        rv.direction = "in"
+        fre = S2.FeatureReferenceExpression()
+        _own_membership(fre, S2.LiteralString(
+            value=_name(ports[0]) or ""))
+        fv = S2.FeatureValue()
+        fre.referent = index.get(id(ports[0])) \
+            if index.get(id(ports[0])) is not None else fre.referent
+        fv.value = fre
+        rv.ownedRelationship.append(fv)
+        rpm = S2.ParameterMembership()
+        rpm.ownedRelatedElement.append(rv)
+        au.ownedRelationship.append(rpm)
+    return au
+
+
 def _populate_activity(act, v2def, index):
     """Activity internals (7.7.3.3.x): nodes → action usages /
     control-node usages; edges → SuccessionAsUsage (ControlFlow) or
@@ -1353,6 +1448,8 @@ def _populate_activity(act, v2def, index):
             # normative: elided (initial → source feature of outgoing
             # edges; final → done-subsetted feature; 7.7.3.3.22)
             continue
+        elif isinstance(n, (U.AcceptEventAction, U.AcceptCallAction)):
+            _accept_action(n, v2def, index)
         else:
             raise UnmappedFeature(
                 f"Activity node {type(n).__name__} (later wave)")

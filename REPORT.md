@@ -2715,3 +2715,36 @@ misroute:
 
 - check_v1_to_v2_as.py: 135 passed (wave-U block).
 - Full sweep green (21 suites incl. bdd/deployment).
+
+# Part 42: wave V - the accept-event machinery in AS
+
+The AEA family (7.7.2.3.1) was the last completely-absent activity
+node kind: the AS-side nodes loop raised UnmappedFeature for every
+AcceptEventAction. Now realized (the textual pipeline's calibrated
+form has existed since wave D; the AS side caught up):
+
+- 7.7.2.3.1.2: AcceptEventAction → AcceptActionUsage - only the FIRST
+  trigger transforms (the spec's own note; further triggers ignored).
+- SignalEvent trigger (7.7.2.3.1.21 AEAParameterMembership ->
+  .19 AEASignalParameter -> .20): a ParameterMembership with an IN
+  ReferenceUsage typed by the mapped signal (unnamed per the rules).
+- ChangeEvent trigger (.4): the change parameter (in, unnamed) plus
+  the changeExpression's CalculationUsage (7.7.14.3.18: the return +
+  language/body) via FeatureMembership - the .2-rule
+  ElementFeatureMembership (the deviation family). The
+  trigger-invocation machinery of the change parameter proper
+  (.6-.15) is queued.
+- The receiver membership (.17/.16): when the trigger states a port,
+  an IN ReferenceUsage whose FeatureValue (.18) = the port reference
+  (.22 FeatureReferenceExpression; the port carries name-only - the
+  .23's membership/return choreography rides the same name-only
+  limitation).
+- AcceptCallAction (7.7.2.3.1.1): CallEvent unsupported by v2 - an
+  EMPTY AcceptActionUsage keeps the activity's connections.
+- ReplyAction (.24)/UnmarshallAction (.25): queued with the
+  unmarshall-accept payload machinery.
+
+## Result
+
+- check_v1_to_v2_as.py: 140 passed (wave-V block).
+- Full sweep green (21 suites incl. bdd/deployment).
