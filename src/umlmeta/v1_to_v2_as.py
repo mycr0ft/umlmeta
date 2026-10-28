@@ -53,6 +53,12 @@ Wave E: use cases and interfaces — UseCase→UseCaseDefinition
   wiring/defaults/elided decisions over the normative SysMLv1Tov2.xmi
   mapping classes.
 
+Wave F: imports and recursive namespaces — PackageImport→
+  NamespaceImport and ElementImport→MembershipImport (7.7.9.3.12,
+  visibility per Helper.getKerMLVisibilityKind with package→public;
+  importedMembership = the AS OwningMembership of the imported element),
+  and the transformer now populates nested packages recursively.
+
 One v1 element maps to exactly ONE v2 AS object (kept in the index);
 usage typings reference that object rather than duplicating it.
 
@@ -61,11 +67,13 @@ Honest elisions (documented, no data invented silently):
     (MultiplicityRange bounds are derived unions in the metamodel and
     the runtime has no FeatureMultiplicityMembership storage); the
     textual pipeline carries them, the AS wave does not yet.
-  - imports (ToNamespaceImport/ToMembershipImport, 7.7.9.3.12): elided —
-    the R1 reader carries no PackageImport/ElementImport ends yet.
+  - ElementImport alias → importedMemberName: no carrier in the
+    generated AS runtime (documented elision; the import still
+    resolves the named element).
   - interaction machinery, conjugated ports, Association→
-    ConnectionDefinition, item flows, function synthesis, assignments:
-    elided (see the realization table) or raise UnmappedFeature.
+    ConnectionDefinition, item flows, function synthesis, assignments,
+    use-case actors/objectives: elided (see the realization table) or
+    raise UnmappedFeature.
 """
 from __future__ import annotations
 
@@ -562,49 +570,18 @@ def transform_package(pkg):
     """MainMapping (§7.2.2.4): transform a v1 Package (and contents)
     into a v2 AS Package. Returns the v2 root Package.
 
-    pass 1: one AS definition per v1 member (the index is the
-    conformance-critical identity: every reference resolves to it);
-    pass 2: features/nested members/generalizations per owner;
-    pass 3: generalizations resolved against the index by identity.
+    pass 1: one AS definition per v1 member, recursively (the index is
+    the conformance-critical identity: every reference resolves to it);
+    pass 2: features/nested members/imports per owner namespace;
+    pass 2.5: feature extras once the whole tree is indexed;
+    pass 3: relationship ends (requirements chain, generalizations)
+    resolved against the index by identity.
     """
     out = S2.Package(declaredName=_name(pkg) or "Package")
     index = {}   # id(v1 element) -> v2 AS object
-    pending_generalizations = []
+    ns_pairs = []   # (v1 namespace, AS namespace) in discovery order
 
-    # pass 1: one AS definition per v1 member (the index is the
-    # conformance-critical identity: every reference resolves to it);
-    # relationships (Satisfy/Verify/DeriveReqt/Dependency/Allocate) are
-    # not built here — pass 3 resolves their ends from the index
-    for el in list(pkg.ownedMember):
-        if isinstance(el, (S.Satisfy, S.Verify, S.DeriveReqt, S.Allocate,
-                           U.Abstraction, U.Dependency, U.Include,
-                           U.Extend)):
-            # Include/Extend are relationship-owned use-case machinery:
-            # Include wires in _populate_usecase (7.7.13.3.x), Extend is
-            # normatively unmapped (no guess)
-            continue  # built in pass 3 (ends need the completed index)
-        v2 = transform_v1_element(el, index)
-        index[id(el)] = v2
-        _own_membership(out, v2)
-        _attach_documentation(el, v2)
-        if isinstance(el, U.Enumeration):
-            for lit in list(el.ownedLiteral):
-                lv2 = S2.EnumerationUsage(declaredName=_name(lit))
-                _feature_membership(v2, lv2)
-
-    # pass 2: features / nested members / collected generalizations
-    for el in list(pkg.ownedMember):
-        v2 = index.get(id(el))
-        if isinstance(el, (U.StateMachine, U.Activity, U.OpaqueBehavior)):
-            if isinstance(el, U.StateMachine):
-                _populate_statemachine(el, v2, index)
-            else:
-                _populate_activity(el, v2, index)
-                _populate_behavior_params(el, v2)
-        elif isinstance(el, U.Class):
-            _populate_class(el, v2, index, pending_generalizations)
-        elif isinstance(el, U.UseCase):
-            _populate_usecase(el, v2, index, pkg)
+    _populate_namespace(pkg, out, index, ns_pairs)
 
     # pass 2.5: feature extras (subsets/redefines/values, 7.7.4.2.36)
     # after ALL owners populated so cross-block targets resolve
@@ -614,22 +591,30 @@ def transform_package(pkg):
             _attach_feature_extras(prop, usage, index)
     index.pop("_prop_uses", None)
 
-    # pass 3: requirements chain (7.8.8.3.x) — relationships resolve
-    # their client/supplier ends against the pass-1 index
-    for el in list(pkg.ownedMember):
-        if isinstance(el, S.Satisfy):
-            _transform_satisfy(el, out, index)
-        elif isinstance(el, S.Verify):
-            _transform_verify(el, out, index)
-        elif isinstance(el, S.DeriveReqt):
-            _transform_derive_reqt(el, out, index)
-        elif isinstance(el, (U.Abstraction, U.Dependency)):
-            _transform_dependency(el, out, index,
-                                  annotated=isinstance(el, (S.Refine, S.Trace)))
-        elif isinstance(el, S.Allocate):
-            _transform_allocate(el, out, index)
+    # pass 3: relationship machinery per namespace (7.7.13.3.x imports
+    # wired in pass 2; 7.8.8.3.x chain members resolve ends here)
+    for ns_v1, ns2 in ns_pairs:
+        for el in list(ns_v1.ownedMember):
+            if isinstance(el, S.Satisfy):
+                _transform_satisfy(el, ns2, index)
+            elif isinstance(el, S.Verify):
+                _transform_verify(el, ns2, index)
+            elif isinstance(el, S.DeriveReqt):
+                _transform_derive_reqt(el, ns2, index)
+            elif isinstance(el, (U.Abstraction, U.Dependency)):
+                _transform_dependency(el, ns2, index,
+                                      annotated=isinstance(el, (S.Refine,
+                                                                S.Trace)))
+            elif isinstance(el, S.Allocate):
+                _transform_allocate(el, ns2, index)
 
-    for sub_def, g in pending_generalizations:
+    # pass 3 (cont.): imports wire per namespace once the whole tree is
+    # indexed (7.7.9.3.12); membership search walks the full AS tree
+    index["_as_root"] = out
+    for ns_v1, ns2 in ns_pairs:
+        _populate_imports(ns_v1, ns2, index)
+
+    for sub_def, g in index.get("_gens", []):
         t = g._vals.get("general")
         general = index.get(id(t))
         if general is None:
@@ -639,6 +624,151 @@ def transform_package(pkg):
         subc.general = general
         sub_def.ownedSpecialization.append(subc)
     return out
+
+
+_SKIP_PASS1 = (S.Satisfy, S.Verify, S.DeriveReqt, S.Allocate,
+               U.Abstraction, U.Dependency, U.Include, U.Extend,
+               U.PackageImport, U.ElementImport)
+
+
+def _populate_namespace(ns_v1, ns2, index, ns_pairs):
+    """pass 1 + pass 2 for ONE namespace level, recursing into nested
+    packages. Wave F: the transformer previously populated only the top
+    level, which both left nested definitions untransformed and made
+    imports on nested namespaces unwireable.
+
+    pass 1: definitions + memberships (+ nested recursion); pass 2:
+    per-owner population. Include/Extend are relationship-owned use-case
+    machinery (Include wires in _populate_usecase, Extend is normatively
+    unmapped); PackageImport/ElementImport wire via _populate_imports."""
+    ns_pairs.append((ns_v1, ns2))
+    for el in list(ns_v1.ownedMember):
+        if isinstance(el, _SKIP_PASS1):
+            # Include/Extend: built in pass 2 / normatively unmapped;
+            # PackageImport/ElementImport: wired via _populate_imports
+            continue
+        v2 = transform_v1_element(el, index)
+        index[id(el)] = v2
+        _own_membership(ns2, v2)
+        _attach_documentation(el, v2)
+        if isinstance(el, U.Enumeration):
+            for lit in list(el.ownedLiteral):
+                lv2 = S2.EnumerationUsage(declaredName=_name(lit))
+                _feature_membership(v2, lv2)
+        if isinstance(el, U.Package):
+            _populate_namespace(el, v2, index, ns_pairs)
+
+    # pass 2: features / nested members / collected generalizations
+    for el in list(ns_v1.ownedMember):
+        v2 = index.get(id(el))
+        if v2 is None:
+            continue
+        if isinstance(el, (U.StateMachine, U.Activity, U.OpaqueBehavior)):
+            if isinstance(el, U.StateMachine):
+                _populate_statemachine(el, v2, index)
+            else:
+                _populate_activity(el, v2, index)
+                _populate_behavior_params(el, v2)
+        elif isinstance(el, U.Class):
+            _populate_class(el, v2, index, pending_local(index))
+        elif isinstance(el, U.UseCase):
+            _populate_usecase(el, v2, index, ns_v1)
+
+    # imports (7.7.9.3.12) wire in global pass 3: importing namespaces
+    # at any level can reference sibling/deeper namespaces that index
+    # only after every level's pass 1
+
+
+def pending_local(index):
+    """Generalizations collected per namespace pass 2 ride the shared
+    pending list held on the index (resolutions run once at the end)."""
+    return index.setdefault("_gens", [])
+
+
+def _visibility_v1_to_v2(vis):
+    """Helper.getKerMLVisibilityKind (normative SysMLv1Tov2.xmi):
+    public→public, protected→protected, private→private,
+    package→public; a missing v1 visibility is the UML default
+    'public' for PackageImport/ElementImport."""
+    name = str(getattr(vis, "value", vis) or "public")
+    name = name.rsplit(".", 1)[-1]
+    if name == "package":
+        return S2.VisibilityKind.public
+    lit = {l.name: l for l in S2.VisibilityKind}.get(name)
+    if lit is None:
+        raise UnmappedFeature(f"visibility {vis!r} has no KerML mapping")
+    return lit
+
+
+def _populate_imports(ns_v1, ns2, index):
+    """NamespaceImport/MembershipImport wiring (7.7.9.3.12, per the
+    normative PackageImport_Mapping / ElementImport_Mapping):
+
+    - PackageImport → NamespaceImport: importedNamespace = the AS
+      namespace of the imported package; visibility per Helper
+      (package → public).
+    - ElementImport → MembershipImport: importedMembership = the AS
+      OwningMembership that owns the imported element's definition
+      (ElementOwningMembership_Mapping.getMapped(from.importedElement)),
+      so the import aliases the SAME membership (importedElement is
+      derived: importedMembership.memberElement). The v1 alias →
+      importedMemberName has no carrier in the generated AS runtime
+      (documented elision).
+
+    Import relationship ownership: OwningMembership under the importing
+    namespace (importOwningNamespace is the owningRelatedElement).
+    Targets outside the transformed scope raise UnmappedFeature."""
+    for pi in list(ns_v1._vals.get("packageImport") or []):
+        tgt = index.get(id(pi.importedPackage)) if pi.importedPackage \
+            is not None else None
+        if tgt is None:
+            raise UnmappedFeature(
+                f"PackageImport of external/unordered "
+                f"{_name(pi.importedPackage)!r}")
+        ni = S2.NamespaceImport()
+        ni.importedNamespace = tgt
+        ni._vals["visibility"] = _visibility_v1_to_v2(
+            pi._vals.get("visibility"))
+        _own_membership(ns2, ni)
+    for ei in list(ns_v1._vals.get("elementImport") or []):
+        tgt_el = ei._vals.get("importedElement")
+        tgt_def = index.get(id(tgt_el)) if tgt_el is not None else None
+        if tgt_def is None:
+            raise UnmappedFeature(
+                f"ElementImport of external/unordered "
+                f"{_name(tgt_el)!r}")
+        mem = _owning_membership_of(index.get("_as_root"), tgt_def)
+        if mem is None:
+            raise UnmappedFeature(
+                f"ElementImport of {_name(tgt_el)!r} with no AS "
+                f"owning membership in scope")
+        mi = S2.MembershipImport()
+        mi.importedMembership = mem
+        mi._vals["visibility"] = _visibility_v1_to_v2(
+            ei._vals.get("visibility"))
+        _own_membership(ns2, mi)
+
+
+def _owning_membership_of(root, target):
+    """The OwningMembership owning *target*, found by walking the
+    namespace tree under *root* (BFS over namespace-owned
+    relationships)."""
+    seen = set()
+    queue = [root]
+    while queue:
+        cur = queue.pop(0)
+        if id(cur) in seen:
+            continue
+        seen.add(id(cur))
+        for om in list(cur.ownedRelationship):
+            if not isinstance(om, S2.OwningMembership):
+                continue
+            if target in om.ownedRelatedElement:
+                return om
+            for owned in om.ownedRelatedElement:
+                if isinstance(owned, S2.Namespace):
+                    queue.append(owned)
+    return None
 
 
 # --------------------------------------------------------------------------
@@ -789,9 +919,24 @@ def _transform_allocate(al, out, index):
 #                                    runtime constructors)
 # ToNamespace_Init          wiring   every Package/definition carries
 #                                    member/namespace via memberships
-# ToNamespaceImport_Init    elided   7.7.9.3.12 (reader has no import)
-# ToMembershipImport_Init   elided   same
-# ToImport_Init             elided   covers both import forms
+# ToNamespaceImport_Init    wiring   wave F: PackageImport →
+#                                    NamespaceImport, importedNamespace =
+#                                    AS namespace of the imported package,
+#                                    visibility per Helper (package →
+#                                    public), OwningMembership under the
+#                                    importing namespace (7.7.9.3.12)
+# ToMembershipImport_Init   wiring   wave F: ElementImport →
+#                                    MembershipImport, importedMembership
+#                                    = the AS OwningMembership of the
+#                                    imported element (ElementImport →
+#                                    MembershipImport); v1 alias →
+#                                    importedMemberName elided (no
+#                                    carrier in the generated runtime)
+# ToImport_Init             wiring   covers both import forms; targets
+#                                    outside the transformed scope raise
+#                                    UnmappedFeature; requires the wave-F
+#                                    recursive namespace population
+#                                    (nested packages now transform)
 # ToComment_Init            wiring   _attach_documentation
 # ToDocumentation_Init      wiring   _attach_documentation (7.4.2.1.9)
 # ToAnnotatingElement_Init  wiring   _attach_documentation (Annotation)

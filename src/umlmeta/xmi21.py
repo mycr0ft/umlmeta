@@ -51,6 +51,7 @@ COMPOSITE = {"packagedElement", "nestedClassifier", "ownedAttribute",
              "ownedParameter", "ownedOperation", "ownedMember", "region",
              "subvertex", "transition", "packageImport", "slot",
              "generalization", "ownedRule",
+             "elementImport",
              # SysML v1 profile bases (synthetic VehicleExample,
              # check_xmi_vehicle.py): Connector ends, UseCase includes
              "end", "include"}
@@ -59,6 +60,7 @@ STRING = {"name", "body", "visibility", "language", "URI"}
 # single reference features
 REF_SINGLE = {"type", "association", "general", "classifier",
               "specification", "importedPackage", "owningPackage",
+              "importedElement",
               # containment opposite on PackageImport (idempotent with the
               # add() hook's wiring)
               "importingNamespace",
@@ -80,7 +82,7 @@ CONSTRUCTIBLE = {"Model", "Package", "Class", "DataType", "Enumeration",
                  "OpaqueExpression", "Connector", "ConnectorEnd",
                  "Generalization", "InstanceSpecification", "Slot",
                  "InstanceValue", "Dependency", "Interface",
-                 "PackageImport",
+                 "PackageImport", "ElementImport",
                  # SysML v1 profile stereotype bases (synthetic
                  # VehicleExample, check_xmi_vehicle.py): behavior /
                  # requirement metaclasses absent from the

@@ -28,6 +28,7 @@ Needs lxml (the R1 reader); everything else stdlib.
 Run: python3 check_v1_to_v2_as.py
 """
 import sys
+import os
 import tempfile
 from pathlib import Path
 
@@ -559,6 +560,104 @@ check("Extend/ExtensionPoint not mapped: no AS artifact, no guess "
       len(eout.ownedElement) == 2
       and not any(type(x).__name__ == "IncludeUseCaseUsage"
                   for d in eout.ownedElement for x in d.ownedElement))
+
+print()
+print("== wave F: imports (7.7.9.3.12) ==")
+# R1 leg: the reader carries PackageImport/ElementImport
+XMI_IMP = """<?xml version="1.0" encoding="UTF-8"?>
+<xmi:XMI xmi:version="2.1" xmlns:uml="http://schema.omg.org/spec/UML/2.0"
+         xmlns:xmi="http://schema.omg.org/spec/XMI/2.1">
+  <uml:Package xmi:id="m1" xmi:type="uml:Package">
+    <name>M</name>
+    <packagedElement xmi:type="uml:Package" xmi:id="p_app">
+      <name>App</name>
+      <packageImport xmi:type="uml:PackageImport" xmi:id="pi1"
+                     visibility="private">
+        <importedPackage xmi:idref="p_lib"/>
+      </packageImport>
+      <packageImport xmi:type="uml:PackageImport" xmi:id="pi2">
+        <importedPackage xmi:idref="p_lib"/>
+      </packageImport>
+      <elementImport xmi:type="uml:ElementImport" xmi:id="ei1"
+                     visibility="package" alias="V">
+        <importedElement xmi:idref="c_engine"/>
+      </elementImport>
+      <packagedElement xmi:type="uml:Class" xmi:id="c_root">
+        <name>Root</name>
+      </packagedElement>
+    </packagedElement>
+    <packagedElement xmi:type="uml:Package" xmi:id="p_lib">
+      <name>Lib</name>
+      <packagedElement xmi:type="uml:Class" xmi:id="c_engine">
+        <name>Engine</name>
+      </packagedElement>
+    </packagedElement>
+  </uml:Package>
+</xmi:XMI>
+"""
+with tempfile.NamedTemporaryFile("w", suffix=".xmi", delete=False) as fp:
+    fp.write(XMI_IMP)
+    imp_xmi_path = fp.name
+rimp = xmi21.read_xmi21(imp_xmi_path)
+app_r1 = [m for m in list(rimp.roots[0].ownedMember)
+          if m._vals.get("name") == "App"][0]
+pis = list(app_r1._vals.get("packageImport") or [])
+eis = list(app_r1._vals.get("elementImport") or [])
+check("R1 reader carries packageImport (no unmapped entry)",
+      len(pis) == 2
+      and ("p_app", "elementImport") not in rimp.unmapped_features)
+check("R1 reader carries elementImport with importedElement + alias",
+      len(eis) == 1 and eis[0]._vals.get("alias") == "V"
+      and eis[0]._vals.get("importedElement") is not None)
+imp_model = A.transform_xmi(imp_xmi_path)
+outer_pkg2 = imp_model[0]
+app_pkg2 = [p for p in outer_pkg2.ownedElement
+            if p.declaredName == "App"][0]
+lib_pkg2 = [p for p in outer_pkg2.ownedElement
+            if p.declaredName == "Lib"][0]
+
+
+def rel_kinds(ns, kind):
+    """Membership children of a namespace of the given AS kind."""
+    return [c for om in ns.ownedRelationship
+            if isinstance(om, S2.OwningMembership)
+            for c in om.ownedRelatedElement
+            if type(c).__name__ == kind]
+
+
+ni = rel_kinds(app_pkg2, "NamespaceImport")
+check("PackageImport -> NamespaceImport under the importing package",
+      len(ni) == 2 and all(r.importedNamespace is lib_pkg2 for r in ni))
+vis = sorted(str(getattr(r._vals.get("visibility"), "name",
+                        r._vals.get("visibility"))) for r in ni)
+check("visibility mapped (v1 private -> private, absent -> public)",
+      vis == ["private", "public"], str(vis))
+mi = rel_kinds(app_pkg2, "MembershipImport")
+engine_def = [e for e in lib_pkg2.ownedElement
+              if e.declaredName == "Engine"][0]
+check("ElementImport -> MembershipImport: importedMembership is the "
+      "AS OwningMembership of the imported element",
+      len(mi) == 1
+      and isinstance(mi[0]._vals.get("importedMembership"),
+                     S2.OwningMembership)
+      and engine_def in mi[0]._vals["importedMembership"]
+      .ownedRelatedElement,
+      str(mi[0]._vals.get("importedMembership")))
+os.unlink(imp_xmi_path)
+
+# honesty: import whose target is outside the transformed scope
+far = U.Package(name="Far")
+mbr = U.Package(name="Mbr")
+mbr.add("packagedElement", U.Class(name="C"))
+pi_ext = U.PackageImport()
+pi_ext.importedPackage = far
+mbr._vals["packageImport"] = [pi_ext]
+try:
+    A.transform_package(mbr)
+    check("UnmappedFeature raised for out-of-scope import", False)
+except A.UnmappedFeature as e:
+    check("UnmappedFeature raised for out-of-scope import",
+          "external/unordered" in str(e), str(e))
 
 print()
 print("== honesty: unmapped features refuse to guess ==")

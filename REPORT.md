@@ -1790,3 +1790,87 @@ pinned to ptc/2025-04-07 Beta 4 anchors until an explicit re-base.
 - Suites: check 45, check_profiles 60, check_sysml2 26, check_ocl 19 -
   all green. Corpus suites remain environment-blocked (/mnt/TBFox
   mount absent; check_xmi_cameo needs sysmlpy on the path).
+
+# Part 22: wave F - imports (7.7.9.3.12) and recursive namespace population
+
+Wave F closes the ToNamespaceImport/ToMembershipImport/ToImport_Init
+elisions and fixes a foundational transformer limitation that imports
+need: transform_package populated only the TOP level, leaving nested
+package contents untransformed (found by the wave-F XMI probe: the R1
+reader carried Engine under Lib, but the AS Lib was empty).
+
+## R1 reader extension (xmi21.py)
+
+- `elementImport` in the composite table, `importedElement` in
+  REF_SINGLE, `ElementImport` in CONSTRUCTIBLE. `packageImport` /
+  `importedPackage` / `importingNamespace` were already carried (the
+  generated Namespace.packageImport is a plain writable composite end
+  in the CMOF-derived runtime, so the reader's obj.add path works).
+- The elementImport alias + visibility attributes ride the existing
+  attribute-value path (alias is a str feature; visibility enum text).
+
+## Wiring pinned from the normative machine-readable mappings
+
+- PackageImport_Mapping -> NamespaceImport:
+  importedNamespace = Namespace_Mapping.getMapped(from.importedPackage);
+  visibility = Helper.getKerMLVisibilityKind(from.visibility)
+  (public->public, protected->protected, private->private,
+  package->public; a missing v1 visibility is the UML default public).
+- ElementImport_Mapping -> MembershipImport:
+  importedMembership = ElementOwningMembership_Mapping.getMapped(
+  from.importedElement) - i.e. the AS OwningMembership that owns the
+  imported element's definition, so the import aliases the SAME
+  membership (importedElement is derived:
+  importedMembership.memberElement). importedMemberName = from.alias.
+- Ownership: importOwningNamespace must be the Import's
+  owningRelatedElement - the importer gains the import through an
+  OwningMembership.
+
+## Dialect facts pinned
+
+- importOwningNamespace (derived, redefines source) is not settable in
+  the runtime; the OwningMembership path is the only carrier - matches
+  the constraint text.
+- v1 alias -> importedMemberName: the generated AS runtime has no
+  importedMemberName carrier (not in the Beta4 CMOF MembershipImport);
+  elided, documented. The import still resolves the named element.
+- Import ordering: importing namespaces at any level can reference
+  sibling/deeper namespaces, so imports wire in global pass 3 (after
+  every level's pass 1) rather than per-namespace pass 2.
+- Imports from outside the transformed scope raise
+  UnmappedFeature (external/unordered), the standing honesty rule.
+
+## Changes
+
+- src/umlmeta/v1_to_v2_as.py: transform_package restructured into
+  _populate_namespace (pass 1 + 2 per namespace level, recursing into
+  nested packages; generalizations collected on the shared index
+  "_gens" list; requirements-chain pass 3 iterates the discovered
+  namespace pairs); _populate_imports (NamespaceImport/MembershipImport
+  with visibility mapping and tree-wide owning-membership search);
+  _visibility_v1_to_v2 (the Helper mapping); realization table rows
+  ToNamespaceImport/ToMembershipImport/ToImport_Init rewritten wiring;
+  module docstring wave list + elision list updated. transform_xmi
+  unchanged.
+- src/umlmeta/xmi21.py: elementImport/importedElement/ElementImport
+  reader tables.
+- check_v1_to_v2_as.py: wave-F section, 6 checks (reader carries both
+  import forms incl. alias, PackageImport->NamespaceImport identity +
+  visibility private/public mapping, ElementImport->MembershipImport
+  with the imported OwningMembership identity, out-of-scope import
+  honesty).
+
+## Result
+
+- check_v1_to_v2_as.py: 65 passed (59 + 6 wave-F).
+- Full sweep: check 45, check_profiles 60, check_sysml2 26, check_ocl
+  19, check_bdd_boxes 10, check_deployment_boxes 6, textual pipeline
+  check_v1_to_v2 47 (sysmlpy 0.96.4 from ~/proj/sysmlpy/src +
+  pyoslc venv site-packages), check_xmi_vehicle 12 - all green.
+- Corpus suites remain environment-blocked (/mnt/TBFox mount absent;
+  check_derived/check_query/read those corpora).
+- Path note for reproduction: the textual/vehicle suites need
+  PYTHONPATH=/storage16/home/jfox/proj/sysmlpy/src:
+  /home/jfox/proj/pyoslc/.venv/lib/python3.13/site-packages (the
+  sysmlpy venv at ~/proj/sysmlpy no longer carries the package; the
+  .pth in the pyoslc venv points at the source tree).
