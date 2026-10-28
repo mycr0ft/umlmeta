@@ -419,6 +419,35 @@ def transform_property(prop, owner_def, index):
     return usage
 
 
+def _stereo_metadata(el, feature):
+    """7.8.2.3 (the activities metadata families): the
+    Probability/Rate stereotypes on a v1 element carry the
+    corresponding MetadataUsage on its mapped usage - the usage is
+    typed (name-only; the SysMLv1Library MetadataDefinition is
+    external) and the tag value rides a FeatureValue (the .5/.10
+    ReferenceUsage-FeatureValue machinery, redefinition onto the
+    library attribute name-only). Continuous/Discrete markers and the
+    ControlValues library (Table 21's item definitions) are queued."""
+    sters = getattr(el, "_applied_stereotypes", None) or []
+    for _profile, stereo, _app_id in sters:
+        if stereo not in ("Probability", "Rate"):
+            continue
+        tag = (getattr(el, "_stereo_tags", None) or {}).get(stereo, {})
+        mu = S2.MetadataUsage(declaredName="SysMLv1Library::" + stereo)
+        fm = S2.FeatureMembership()
+        ru = S2.ReferenceUsage(
+            declaredName="probability" if stereo == "Probability"
+            else "rate")
+        pv = tag.get("probability" if stereo == "Probability" else "rate")
+        if pv not in (None, ""):
+            fv = S2.FeatureValue()
+            fv.value = S2.LiteralRational(value=float(pv))
+            ru.ownedRelationship.append(fv)
+        fm.ownedRelatedElement.append(ru)
+        mu.ownedRelationship.append(fm)
+        _own_membership(feature, mu)
+
+
 def _attach_feature_extras(prop, usage, index):
     """Shared property→feature plumbing (7.7.4.2.36): subsets/redefines/
     defaultValue. subsetting/redefinition targets resolve by identity
@@ -1353,6 +1382,8 @@ def _populate_behavior_params(behavior, v2def):
             # textual example
             ref.direction = "out" if val == "return" else val
         _attach_multiplicity(p, ref)
+        # 7.8.2.3: the parameter's Probability/Rate metadata
+        _stereo_metadata(p, ref)
         _feature_membership(v2def, ref)
 
 
@@ -1379,6 +1410,7 @@ def transform_package(pkg):
         usage = index.get(id(prop))
         if usage is not None:
             _attach_feature_extras(prop, usage, index)
+            _stereo_metadata(prop, usage)
     index.pop("_prop_uses", None)
 
     # pass 3: relationship machinery per namespace (7.7.13.3.x imports

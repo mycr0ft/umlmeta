@@ -381,6 +381,16 @@ def read_xmi21(path) -> XMI21Model:
         base = xmi.objects.get(base_id)
         if base is not None:
             base._applied_stereotypes = lst
+            # the stereotype's tag values ride the base element too
+            # (7.8.2.3 metadata families read them off the element,
+            # without the XMI21Model)
+            tags = {}
+            for _profile, _stereo, app_id in lst:
+                tg = xmi.app_tags.get(app_id)
+                if tg:
+                    tags[_stereo] = dict(tg)
+            if tags:
+                base._stereo_tags = tags
 
     # ---- derived names for unnamed elements (provenance recorded) ----------
     for i, obj in xmi.objects.items():

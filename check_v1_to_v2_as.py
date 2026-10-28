@@ -1603,6 +1603,53 @@ check("the marker values are LiteralBoolean(true)",
       trues == [True, True], str(trues))
 
 print()
+print("== wave T: probability/rate metadata (7.8.2.3) ==")
+tpkg2 = U.Package(name="ProbaPkg")
+tcls = U.Class(name="Pump")
+tpr = U.Property(name="flow")
+# the reader attaches the applied stereotypes + tag values directly:
+tpr._applied_stereotypes = [("SysML", "Probability", "app1"),
+                            ("SysML", "Rate", "app2")]
+tpr._stereo_tags = {"Probability": {"probability": "0.5"},
+                    "Rate": {"rate": "12"}}
+tcls.ownedAttribute.append(tpr)
+tpr2 = U.Property(name="plain")
+tcls.ownedAttribute.append(tpr2)
+tpkg2.add("packagedElement", tcls)
+tout2 = A.transform_package(tpkg2)
+tcls_def = [e for e in tout2.ownedElement
+            if e.declaredName == "Pump"][0]
+tuses = {}
+for r in tcls_def.ownedRelationship:
+    if type(r).__name__ != "FeatureMembership":
+        continue
+    for x in r.ownedRelatedElement:
+        tuses[x.declaredName] = x
+mus = [m for r in tuses["flow"].ownedRelationship
+       if type(r).__name__ == "OwningMembership"
+       for m in r.ownedRelatedElement
+       if type(m).__name__ == "MetadataUsage"]
+munames = sorted(m.declaredName for m in mus)
+check("Probability/Rate -> MetadataUsages on the mapped property "
+      "(7.8.2.3.1/.8)",
+      len(mus) == 2
+      and munames == ["SysMLv1Library::Probability",
+                      "SysMLv1Library::Rate"], str(munames))
+mvals = [getattr(_fv.value, "value", None)
+         for m in mus
+         for fm3 in m.ownedRelationship
+         for ru3 in fm3.ownedRelatedElement
+         for _fv in ru3.ownedRelationship
+         if type(_fv).__name__ == "FeatureValue"]
+check("the tag values ride FeatureValues (LiteralRational)",
+      sorted(mvals) == [0.5, 12.0], str(mvals))
+check("a plain property carries no metadata",
+      not any(type(r).__name__ == "OwningMembership"
+              and any(type(x).__name__ == "MetadataUsage"
+                      for x in r.ownedRelatedElement)
+              for r in tuses["plain"].ownedRelationship))
+
+print()
 print("== honesty: unmapped features refuse to guess ==")
 orphan = U.Package(name="Orphan")
 orphan.add("packagedElement", U.Continuation(name="CX"))

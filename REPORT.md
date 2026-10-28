@@ -2613,3 +2613,21 @@ forms:
 - check_v1_to_v2_as.py: 127 passed (wave-S block; wave-C and wave-R
   verify oracles moved to the objective-riding RVM read).
 - Full sweep green.
+
+# Part 38: wave T - probability/rate metadata (7.8.2.3)
+
+The stereotype-tag plumbing completes: the XMI reader now attaches the
+stereotype TAG VALUES onto the base element (_stereo_tags, next to
+the existing _applied_stereotypes), and the AS transformer maps the
+Probability/Rate stereotypes (7.8.2.3.1/.3.8) to MetadataUsages
+carried on the mapped property or parameter usage - typed by the
+v1-library MetadataDefinition (name-only; the library is external)
+with the 'probability'/'rate' ReferenceUsage whose FeatureValue is a
+LiteralRational of the tag value. Continuous/Discrete markers and the
+ControlValues library definitions (Table 21) stay queued; no
+invented data where a tag is absent.
+
+## Result
+
+- check_v1_to_v2_as.py: 130 passed (wave-T block).
+- Full sweep green.
