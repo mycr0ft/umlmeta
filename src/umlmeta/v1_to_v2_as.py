@@ -274,9 +274,28 @@ def transform_v1_element(el, index=None):
             return _transform_requirement(el, index)
         if isinstance(el, S.TestCase):
             # TestCase_Mapping (7.8.8.3.27): TestCase →
-            # VerificationCaseDefinition
-            return S2.VerificationCaseDefinition(
-                declaredName=_name(el))
+            # VerificationCaseDefinition; the .3.35 rule set adds the
+            # return verdict (VerdictKind-parameter ->
+            # ReturnParameterMembership, .3.36) and the empty
+            # subject/objective memberships (the factories) - the
+            # objective is later carried by the verify's objective
+            # membership (UniqueMapping: .3.37 wins over the empty)
+            vcd = S2.VerificationCaseDefinition(declaredName=_name(el))
+            for p in list(el.ownedParameter):
+                pt = p._vals.get("type")
+                if isinstance(pt, list):
+                    pt = pt[0] if pt else None
+                if pt is not None and _name(pt) == "VerdictKind":
+                    rpm_v = S2.ReturnParameterMembership()
+                    verdict_ref = S2.ReferenceUsage(
+                        declaredName=_name(p), direction="out")
+                    rpm_v.ownedRelatedElement.append(verdict_ref)
+                    vcd.ownedRelationship.append(rpm_v)
+            sm_e = S2.SubjectMembership()
+            vcd.ownedRelationship.append(sm_e)
+            om_e = S2.ObjectiveMembership()
+            vcd.ownedRelationship.append(om_e)
+            return vcd
         return S2.OccurrenceDefinition(declaredName=_name(el))
     raise UnmappedFeature(type(el).__name__)
 
@@ -1627,6 +1646,20 @@ def _transform_verify(verify, out, index):
         raise UnmappedFeature("Verify without mapped supplier requirement")
     rvm = S2.RequirementVerificationMembership()
     rvm.verifiedRequirement = req
+    # 7.8.8.3.49/.40: the RVM carries the verify's requirements
+    # usage - required by the ReferenceSubsetting to the mapped
+    # requirement, with the usage's own empty subject membership +
+    # the return reference membership
+    r40 = S2.RequirementUsage(declaredName=_name(verify))
+    rs = S2.ReferenceSubsetting()
+    rs.referencedFeature = req
+    r40.ownedRelationship.append(rs)
+    sm0 = S2.SubjectMembership()
+    r40.ownedRelationship.append(sm0)
+    rpm0 = S2.ReturnParameterMembership()
+    rpm0.ownedRelatedElement.append(S2.ReferenceUsage(direction="out"))
+    r40.ownedRelationship.append(rpm0)
+    rvm.ownedRelatedElement.append(r40)
     _own_membership(tc, rvm)
     return rvm
 

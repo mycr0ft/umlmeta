@@ -2555,3 +2555,33 @@ stays a string) - the transformer coerces.
 
 - check_v1_to_v2_as.py: 119 passed (wave-Q block).
 - Full sweep green.
+
+# Part 36: wave R - test-case return/objective + the .49 verify usage
+
+The TestCase/Verify chain completes its formal rule sets:
+
+- 7.8.8.3.35/.36: a VerificationCaseDefinition carries its VerdictKind
+  parameter as the return verdict membership (ReturnParameterMembership
+  with a 'verdict' ReferenceUsage, out) plus the always-present EMPTY
+  subject/objective memberships (the .3.35 factories).
+- 7.8.8.3.49/.40: the RequirementVerificationMembership (wave C's
+  verifiedRequirement) NOW carries the verify's requirements USAGE -
+  RequirementUsage (from the Abstraction, ToUsage_Init) with the
+  ReferenceSubsetting to the mapped requirement (referencedFeature =
+  supplier[0], .3.39), the usage's empty SubjectMembership and the
+  return reference membership (.3.40 rule set).
+- ObjectiveMembership (.3.37/.38) with the objective requirement usage
+  riding the Verify Abstraction: queued - the two factories now
+  cover the shape; the dedup/UniqueMapping choreography of the .37
+  objective (replacing the empty) is a small follow-up.
+
+Runtime facts pinned: v1 elements carry 'name' (the _name helper maps
+to v2 declaredName - never read declaredName off a v1 element); the
+RequirementVerificationMembership carries its usages via
+ownedRelatedElement (readback = the membership's own list, not a
+wrapped membership).
+
+## Result
+
+- check_v1_to_v2_as.py: 124 passed (wave-R block).
+- Full sweep green.

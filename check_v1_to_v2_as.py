@@ -1492,6 +1492,70 @@ if "pi" in q_fv:
           pi_rels.count("ReturnParameterMembership") == 1, str(pi_rels))
 
 print()
+print("== wave R: test-case return/objective + the .40 verify usage "
+      "(7.8.8.3.35-.40) ==")
+rrpkg = U.Package(name="TCpkg")
+rreq = S.Requirement(name="R9"); rreq._vals["id"] = "R-9"
+rtc = S.TestCase(name="T9")
+# the verdict parameter: a v1 test-case (activity) parameter typed
+# VerdictKind (external library type - carried by name + direction)
+rp = U.Parameter(name="verdict")
+rp._vals["direction"] = "return"
+vk = U.Class(name="VerdictKind")
+rp._vals["type"] = [vk]
+rtc.ownedParameter.append(rp)
+rv = S.Verify(name="v9")
+rv.client.append(rtc); rv.supplier.append(rreq)
+rrpkg.packagedElement.extend([rreq, rtc, rv])
+rrout = A.transform_package(rrpkg)
+tc_def = [e for e in rrout.ownedElement
+          if type(e).__name__ == "VerificationCaseDefinition"][0]
+verdict_ms = [r for r in tc_def.ownedRelationship
+              if type(r).__name__ == "ReturnParameterMembership"]
+vref = [x for r in verdict_ms for x in r.ownedRelatedElement]
+check("the VCD's return verdict membership (.3.35/.36)",
+      len(verdict_ms) == 1 and vref
+      and getattr(vref[0], "direction", None) == "out"
+      and vref[0].declaredName == "verdict",
+      str(len(verdict_ms)))
+empties = [r for r in tc_def.ownedRelationship
+           if type(r).__name__ == "SubjectMembership"
+           or type(r).__name__ == "ObjectiveMembership"]
+check("the VCD carries the empty subject + objective memberships "
+      "(.3.35 factories)",
+      len(empties) >= 2
+      and {type(r).__name__ for r in empties}
+      == {"SubjectMembership", "ObjectiveMembership"})
+rvm = None
+req_u = [e for e in rrout.ownedElement
+         if type(e).__name__ == "RequirementUsage"
+         and e.declaredName == "R9"][0]
+# the RVM rides the VCD (index) - find the RequirementVerification-
+# Membership; its ownedRelatedElement carries the .40 usage
+rvms = [r for om in tc_def.ownedRelationship
+        if type(om).__name__ == "OwningMembership"
+        for r in om.ownedRelatedElement
+        if type(r).__name__ == "RequirementVerificationMembership"]
+check("Verify -> RequirementVerificationMembership (.3.49)",
+      len(rvms) == 1
+      and rvms[0].verifiedRequirement.declaredName == "R9")
+if rvms:
+    r40 = [x for x in rvms[0].ownedRelatedElement
+           if type(x).__name__ == "RequirementUsage"]
+    rsub = [y for x in r40 for rr in x.ownedRelationship
+            if type(rr).__name__ == "ReferenceSubsetting"
+            for y in [rr.referencedFeature]]
+    check("the RVM carries the .40 requirements usage subsetting the "
+          "verified requirement",
+          len(r40) == 1 and rsub and rsub[0] is req_u)
+    r40_rels = ([type(rr).__name__ for rr in r40[0].ownedRelationship]
+                if r40 else [])
+    check("the .40 usage carries the empty subject + the return "
+          "reference membership",
+          "SubjectMembership" in r40_rels
+          and "ReturnParameterMembership" in r40_rels, str(r40_rels))
+
+print()
 print("== honesty: unmapped features refuse to guess ==")
 orphan = U.Package(name="Orphan")
 orphan.add("packagedElement", U.Continuation(name="CX"))
