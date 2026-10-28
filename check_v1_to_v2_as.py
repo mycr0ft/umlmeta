@@ -794,6 +794,59 @@ check("parameter [0..3] -> MultiplicityRange (7.7.4.2.24 + multiplicity)",
       and bound_val(mult_range(pref), "upperBound")._vals.get("value") == 3)
 
 print()
+print("== wave H: InformationFlow -> FlowDefinition (7.7.9.x family) ==")
+ifpkg = U.Package(name="IFPkg")
+s_hot = S.Block(name="HotSide"); s_cold = S.Block(name="ColdSide")
+item = U.Signal(name="Cmd")
+ifpkg.packagedElement.extend([s_hot, s_cold, item])
+src_host = S.Block(name="Sender"); dst_host = S.Block(name="Receiver")
+ifpkg.packagedElement.extend([src_host, dst_host])
+conn1 = U.Connector(name="bus1")
+re1 = U.ConnectorEnd(); re1.role = s_hot
+re2 = U.ConnectorEnd(); re2.role = s_cold
+conn1.add("end", re1); conn1.add("end", re2)
+src_host.add("ownedConnector", conn1)
+flow = U.InformationFlow(name="CmdFlow")
+flow.add("informationSource", s_hot)   # end elements: NamedElement kinds
+flow.add("informationTarget", s_cold)
+flow.add("conveyed", item)
+flow.add("realizingConnector", conn1)
+ifpkg.packagedElement.append(flow)
+flow_bare = U.InformationFlow(name="NoReal")
+ifpkg.packagedElement.append(flow_bare)
+fout = A.transform_package(ifpkg)
+fdef = [e for e in fout.ownedElement
+        if type(e).__name__ == "FlowDefinition"][0]
+check("InformationFlow w/ realizingConnector -> FlowDefinition",
+      fdef.declaredName == "CmdFlow")
+fl_ends = [x for om in fdef.ownedRelationship
+           if isinstance(om, S2.EndFeatureMembership)
+           for x in om.ownedRelatedElement]
+hot_as = [e for e in fout.ownedElement if e.declaredName == "HotSide"][0]
+cold_as = [e for e in fout.ownedElement if e.declaredName == "ColdSide"][0]
+check("flow ends: isEnd Features typed by the mapped end elements",
+      len(fl_ends) == 2
+      and all(x._vals.get("isEnd") for x in fl_ends)
+      and [t.type is hot_as for x in fl_ends[:1]
+           for t in x.ownedTyping] == [True]
+      and [t.type is cold_as for x in fl_ends[1:2]
+           for t in x.ownedTyping] == [True],
+      str([(x.declaredName, x._vals.get("isEnd"),
+            [t.type.declaredName for t in x.ownedTyping])
+           for x in fl_ends]))
+conv = [x for om in fdef.ownedRelationship
+        if isinstance(om, S2.FeatureMembership)
+        and not isinstance(om, S2.EndFeatureMembership)
+        for x in om.ownedRelatedElement]
+cmd_item = [e for e in fout.ownedElement if e.declaredName == "Cmd"][0]
+check("conveyed -> carried FeatureMembership member typed by the item",
+      len(conv) == 1
+      and any(t.type is cmd_item for t in conv[0].ownedTyping))
+check("unrealized InformationFlow is not mapped (normative filter)",
+      not any(type(e).__name__ == "FlowDefinition"
+              and e.declaredName == "NoReal" for e in fout.ownedElement))
+
+print()
 print("== honesty: unmapped features refuse to guess ==")
 orphan = U.Package(name="Orphan")
 orphan.add("packagedElement", U.Interaction(name="IX"))

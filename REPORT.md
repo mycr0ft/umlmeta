@@ -1961,3 +1961,53 @@ parameter wiring paths (_populate_behavior_params for
 Activity/OpaqueBehavior; _populate_class's operation loop for
 PerformActionUsage, 7.7.4.2.24) run _attach_multiplicity on the
 ReferenceUsage. check_v1_to_v2_as: 73 passed.
+
+# Part 24: wave H - InformationFlow -> FlowDefinition (7.7.9.x family)
+
+Wave H implements the InformationFlow mapping family from the
+machine-readable mapping classes - the first implementation anywhere in
+the tree (the textual emitter has no InformationFlow branch; its
+realization-table rows were "item flows need Flow machinery").
+
+## Normative wiring (InformationFlow_Mapping family)
+
+- InformationFlow_Mapping.to = FlowDefinition (Systems-Flows), with
+  the FILTER: `realizingConnector->notEmpty() or realization->notEmpty()` -
+  unrealized flows are normatively-not-mapped (no AS artifact, no
+  UnmappedFeature, check-visible).
+- "If the information flow has more than one realizing connector, a
+  FlowDefinition element is created for each of them" (ownedComment) -
+  the realization carries one FlowDefinition per realizing element.
+- InformationFlowEndFeatureMembership/InformationFlowEnd: the flow's
+  informationSource/informationTarget become isEnd Features owned via
+  EndFeatureMembership, typed by the mapped end elements
+  (InformationFlowFeatureTyping.type = ElementMain_Mapping.getMapped
+  (element) -> the SAME AS object, index identity).
+- InformationFlowConveyedFeatureMembership: conveyed Classifiers ->
+  carried FeatureMembership members (InformationItemFlowConveyedItemUsage
+  family: ItemUsage), typed by the conveyed classifier's definition.
+- InformationFlowSubclassification: an association realization ->
+  Subclassification from the FlowDefinition to the realized
+  ConnectionDefinition (wave G provides the association's definition).
+
+## Reader (R1) extension
+
+- CONSTRUCTIBLE += InformationFlow; REF_MULTI += informationSource/
+  informationTarget/conveyed/realization/realizingConnector/
+  realizingActivityEdge/realizingMessage.
+
+## Honest elisions (unchanged, anchored)
+
+- The mapping factories' event-occurrence machinery
+  (InformationFlowEventOccurrenceUsage / ReferenceSubsetting factory
+  pairs) and the ObjectFlowItemFlowEnd family (ToSuccessionItemFlow)
+  remain elided - realized flows carry ends/typing/subclassification
+  but no event-occurrence synthesis.
+
+## Result
+
+- check_v1_to_v2_as.py: 77 passed (73 + 4 wave-H: realized flow ->
+  FlowDefinition, isEnd typed features, conveyed member, unrealized
+  flow not-mapped).
+- Sweep: check 45, profiles 60, sysml2 26, ocl 19, textual 47, vehicle
+  12 - all green.

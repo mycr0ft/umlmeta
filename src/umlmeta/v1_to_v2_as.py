@@ -68,6 +68,15 @@ Wave G: associations and multiplicities — Association/AssociationClass
   '*') carried under the feature/usage (textual parity: implicit
   [1..1] carries no multiplicity).
 
+Wave H: InformationFlow machinery — InformationFlow → FlowDefinition
+  per the normative mapping class, with the normative filter (only
+  flows realized by connectors/associations map; unrealized flows
+  carry no AS artifact): ends → isEnd Features typed by the mapped
+  end elements, conveyed → carried FeatureMembership members, an
+  association realization → Subclassification to the realized
+  ConnectionDefinition; reader tables extended for the InformationFlow
+  end/carrier refs.
+
 One v1 element maps to exactly ONE v2 AS object (kept in the index);
 usage typings reference that object rather than duplicating it.
 
@@ -80,7 +89,8 @@ Honest elisions (documented, no data invented silently):
     range rides a FeatureMembership instead. Multiplicity is wired for
     properties, association ends, and behavior/operation parameters.
   - association end qualifiers/subsettings/defaults: later wave.
-  - interaction machinery, conjugated ports, item flows, function
+  - interaction machinery, conjugated ports, object-flow item ends
+    (ObjectFlowItemFlowEnd/ToSuccessionItemFlow family), function
     synthesis, assignments, use-case actors/objectives: elided (see
     the realization table) or raise UnmappedFeature.
 """
@@ -704,6 +714,8 @@ def transform_package(pkg):
                                                                 S.Trace)))
             elif isinstance(el, S.Allocate):
                 _transform_allocate(el, ns2, index)
+            elif isinstance(el, U.InformationFlow):
+                _transform_informationflow(el, ns2, index)
 
     # pass 3 (cont.): imports wire per namespace once the whole tree is
     # indexed (7.7.9.3.12); membership search walks the full AS tree
@@ -725,7 +737,7 @@ def transform_package(pkg):
 
 _SKIP_PASS1 = (S.Satisfy, S.Verify, S.DeriveReqt, S.Allocate,
                U.Abstraction, U.Dependency, U.Include, U.Extend,
-               U.PackageImport, U.ElementImport)
+               U.PackageImport, U.ElementImport, U.InformationFlow)
 
 
 def _populate_namespace(ns_v1, ns2, index, ns_pairs):
@@ -980,6 +992,76 @@ def _transform_dependency(dep, out, index, annotated=False):
     return dep2
 
 
+def _transform_informationflow(flow, out, index):
+    """InformationFlow_Mapping (7.7.9.x family, per the normative
+    machine-readable mapping class): an InformationFlow is mapped to a
+    FlowDefinition ONLY when it has realizing connectors or an
+    association realization (the mapping's filter — anything else is
+    normatively-not-mapped and carries no AS artifact). One
+    FlowDefinition is created per realizing element. Wiring per the
+    mapping class:
+
+    - informationSource/informationTarget -> InformationFlowEnd
+      FeatureMembership members: isEnd Features typed by the mapped
+      end elements (InformationFlowFeatureTyping.type = the mapped
+      element's AS object);
+    - conveyed Classifiers -> carried FeatureMembership members
+      (InformationFlowConveyedFeatureMembership ->
+      InformationItemFlowConveyedItemUsage family) typed by the
+      conveyed classifier's AS object;
+    - an association realization -> Subclassification from the
+      FlowDefinition to the realized ConnectionDefinition (wave G
+      association machinery provides the definition).
+
+    Realizing-connectors are the flow's own ends in the underlying
+    structure; the event-occurrence machinery of the mapping factories
+    (InformationFlowEventOccurrenceUsage) stays elided, as does the
+    ObjectFlowItemFlowEnd family (ToItemFlow_Init rows)."""
+    reals = [r for r in (flow._vals.get("realization") or [])]
+    conns = [c for c in (flow._vals.get("realizingConnector") or [])]
+    if not reals and not conns:
+        return   # normative filter: unrealized -> not mapped
+    ends = [s for s in (flow._vals.get("informationSource") or [])] \
+        + [t for t in (flow._vals.get("informationTarget") or [])]
+    conveyed = [i for i in (flow._vals.get("conveyed") or [])]
+    carriers = reals or conns   # one FlowDefinition per realizing element
+    for carrier in carriers:
+        fd = S2.FlowDefinition(declaredName=_name(flow))
+        for end_el in ends:
+            etype = index.get(id(end_el)) if end_el is not None else None
+            if etype is None:
+                raise UnmappedFeature(
+                    f"InformationFlow end {_name(end_el)!r} external/"
+                    f"unordered")
+            feat = S2.Feature()
+            feat.isEnd = True
+            _type_feature(feat, etype)
+            em = S2.EndFeatureMembership()
+            em.ownedRelatedElement.append(feat)
+            fd.ownedRelationship.append(em)
+        for item in conveyed:
+            itype = index.get(id(item)) if item is not None else None
+            if itype is None:
+                raise UnmappedFeature(
+                    f"InformationFlow conveyed {type(item).__name__} "
+                    f"{_name(item)!r} external/unordered")
+            iu = S2.ItemUsage(declaredName=_name(item))
+            _type_feature(iu, itype)
+            fm = S2.FeatureMembership()
+            fm.ownedRelatedElement.append(iu)
+            fd.ownedRelationship.append(fm)
+        if reals and isinstance(carrier, U.Association):
+            general = index.get(id(carrier))
+            if general is None:
+                raise UnmappedFeature(
+                    f"InformationFlow realization external/unordered "
+                    f"{_name(carrier)!r}")
+            subc = S2.Subclassification()
+            subc.general = general
+            fd.ownedSpecialization.append(subc)
+        _own_membership(out, fd)
+
+
 def _transform_allocate(al, out, index):
     """Allocate_Mapping (7.8.3.3.9/.10): Allocate → AllocationUsage
     (usage ends) inside an AllocationDefinition; source/target ends."""
@@ -1119,9 +1201,19 @@ def _transform_allocate(al, out, index):
 # ToItemUsage_Init          wiring   Property typed by Signal/
 #                                    InformationItem
 # ToItemFeature_Init        defaults item features ride ItemUsage
-# ToItemFlow_Init           elided   item flows need Flow machinery
-#                                    (later wave)
-# ToSuccessionItemFlow_Init elided   same
+# ToItemFlow_Init            wiring   wave H: InformationFlow ->
+#                                    FlowDefinition per the normative
+#                                    mapping class (filter: only flows
+#                                    with realizingConnector/realization;
+#                                    ends -> isEnd Features typed by the
+#                                    mapped end elements; conveyed ->
+#                                    carried FeatureMembership member;
+#                                    association realization ->
+#                                    Subclassification to the realized
+#                                    ConnectionDefinition); reader tables
+#                                    extended for the InformationFlow ends
+# ToSuccessionItemFlow_Init elided   object-flow item ends (ObjectFlow-
+#                                    ItemFlowEnd family) still later wave
 # ToFlowUsage_Init          wiring   wave B (SuccessionFlowUsage for
 #                                    ObjectFlow)
 # ToAssociation_Init        wiring   wave G: Association/AssociationClass

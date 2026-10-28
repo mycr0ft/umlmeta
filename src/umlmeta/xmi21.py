@@ -68,7 +68,11 @@ REF_SINGLE = {"type", "association", "general", "classifier",
               # source/target, Include addition
               "role", "source", "target", "addition"}
 # multi reference features (may arrive before their targets)
-REF_MULTI = {"memberEnd", "annotatedElement", "client", "supplier"}
+REF_MULTI = {"memberEnd", "annotatedElement", "client", "supplier",
+             # InformationFlow ends/carriers (7.7.9.x family)
+             "informationSource", "informationTarget", "conveyed",
+             "realization", "realizingConnector", "realizingActivityEdge",
+             "realizingMessage"}
 # multiplicity literal features
 LITERAL = {"lowerValue", "upperValue", "defaultValue"}
 
@@ -82,7 +86,7 @@ CONSTRUCTIBLE = {"Model", "Package", "Class", "DataType", "Enumeration",
                  "OpaqueExpression", "Connector", "ConnectorEnd",
                  "Generalization", "InstanceSpecification", "Slot",
                  "InstanceValue", "Dependency", "Interface",
-                 "PackageImport", "ElementImport",
+                 "PackageImport", "ElementImport", "InformationFlow",
                  # SysML v1 profile stereotype bases (synthetic
                  # VehicleExample, check_xmi_vehicle.py): behavior /
                  # requirement metaclasses absent from the
