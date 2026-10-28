@@ -2295,3 +2295,64 @@ it (Pseudostate/FinalState constructible).
   checks).
 - Full sweep green, incl. vehicle round-trip 12 (initial included) and
   cameo 15.
+
+# Part 30: wave K - FullPort -> PartUsage + the PortData metadata machinery
+
+The FullPort family (7.8.7.3.7/.15, CommonFullPort 7.8.7.3.2, metadata
+7.8.7.3.8-.14) - the wave whose textual form already existed as the
+"local PortData stub" and whose AS form was missing entirely (full
+ports fell into the generic Port branch and became PortUsages, a
+Beta-4-era deviation the formal correction surfaced).
+
+## Normative wiring (full machinery 7.8.7.3.8-.14)
+
+- FullPort (typed by an interface block) -> PartUsage typed by the
+  interface's PortDefinition (7.8.7.3.7; the mapping has only
+  inherited rules - the ends/typing/multiplicity/default ride the
+  CommonFullPort (.3.2 -> PropertyCommon) rules: typings, subsettings,
+  default value, multiplicity membership + the metadata owning
+  membership.
+- Metadata chain: the PartUsage gains an OwningMembership (.3.11)
+  owning a MetadataUsage (.3.8, General ToMetadataUsage_Init - the
+  realization-table row already wired elsewhere) whose
+  FeatureMembership (.3.9) member is a ReferenceUsage (.3.12) with a
+  FeatureValue (.3.13) LiteralBoolean(true) and a Redefinition (.3.14)
+  whose redefinedFeature is the library's
+  SysMLv1Library::PortData::isFullPort AttributeUsage. The
+  MetadataUsage typing (.3.10) types by the library's
+  SysMLv1Library::PortData MetadataDefinition.
+- UN_TYPED full ports → the same construction without typing
+  (7.8.7.3.15) - dispatched before the generic untyped-Feature rule,
+  alongside the untyped-port rule (PortUntyped_Mapping 7.7.12.2.37:
+  bare PortUsage; ProxyPort rides the base Port mapping - Table 30
+  still lists no full mapping).
+
+## Honest elisions (documented, check-visible)
+
+- The SysMLv1Library is EXTERNAL (not part of the input model): the
+  MetadataUsage typing (.3.10) and the isFullPort Redefinition (.3.14)
+  have library objects as their targets and are not constructible. The
+  member ReferenceUsage carries the NAME 'isFullPort' - the same
+  name-reference treatment the AS already uses for the
+  DerivationConnections::Derivation connection - and its
+  FeatureValue=true is the informative carrier (matching the textual
+  form `{SysMLv1Library::PortData {isFullPort = true;}}` modulo the
+  qualified name).
+
+## Changes
+
+- src/umlmeta/v1_to_v2_as.py: port-family dispatch moved ahead of the
+  generic untyped-Feature rule (untyped full port -> untyped PartUsage
+  + metadata; untyped port -> bare PortUsage); typed FullPort branch →
+  PartUsage + metadata; _attach_fullport_metadata helper (the
+  OwningMembership->MetadataUsage->FeatureMembership->ReferenceUsage-
+  ->FeatureValue chain).
+- check_v1_to_v2_as.py: wave-K section, 4 checks (typed full port ->
+  typed PartUsage, the metadata chain with the 'isFullPort' value,
+  untyped full port, ProxyPort stays PortUsage).
+
+## Result
+
+- check_v1_to_v2_as.py: 98 passed (94 + 4).
+- Full sweep green (all 19 suites; vehicle 12 incl. the initial-state
+  round trip, cameo 15).

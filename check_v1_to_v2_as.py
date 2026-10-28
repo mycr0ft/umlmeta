@@ -1051,6 +1051,70 @@ check("isConjugated port still plainly typed (ToConjugatedPortTyping "
       any(t.type is ibus for t in port_use.ownedTyping))
 
 print()
+print("== wave K: FullPort -> PartUsage + PortData metadata (7.8.7.3.7-.15) ==")
+kpkg = U.Package(name="FPkg")
+kib = S.InterfaceBlock(name="Pwr")
+kpkg.packagedElement.append(kib)
+khost = S.Block(name="Dev")
+full2 = S.FullPort(name="fp"); full2.type = kib
+khost.add("ownedAttribute", full2)
+full_un = S.FullPort(name="fpu")
+khost.add("ownedAttribute", full_un)
+prxy = S.ProxyPort(name="pp")
+khost.add("ownedAttribute", prxy)
+kpkg.packagedElement.append(khost)
+kout = A.transform_package(kpkg)
+kdev = [e for e in kout.ownedElement if e.declaredName == "Dev"][0]
+fp_u = [e for e in kdev.ownedElement if e.declaredName == "fp"][0]
+kibus = [e for e in kout.ownedElement if e.declaredName == "Pwr"][0]
+check("FullPort -> PartUsage typed by the interface's PortDefinition "
+      "(7.8.7.3.7)",
+      type(fp_u).__name__ == "PartUsage"
+      and any(t.type is kibus for t in fp_u.ownedTyping))
+
+
+def meta_of(usage):
+    """The PortData MetadataUsage chain: OwningMembership ->
+    MetadataUsage -> FeatureMembership -> ReferenceUsage."""
+    for om in usage.ownedRelationship:
+        if not isinstance(om, S2.OwningMembership):
+            continue
+        for el in om.ownedRelatedElement:
+            if type(el).__name__ == "MetadataUsage":
+                return el
+    return None
+
+
+mu2 = meta_of(fp_u)
+refs = [x for om in mu2.ownedRelationship
+        if isinstance(om, S2.FeatureMembership)
+        for x in om.ownedRelatedElement]
+lit2 = [x for om in mu2.ownedRelationship
+        if isinstance(om, S2.FeatureMembership)
+        for x in om.ownedRelatedElement
+        for r in x.ownedRelationship
+        for y in r.ownedRelatedElement]
+check("PortData metadata: MetadataUsage -> ReferenceUsage 'isFullPort'"
+      " -> FeatureValue = true (7.8.7.3.8-.13)",
+      mu2 is not None and len(refs) == 1
+      and refs[0].declaredName == "isFullPort"
+      and ((vals := refs[0].ownedRelationship) and len(vals) == 1
+           and type(vals[0]).__name__ == "FeatureValue"
+           and type(y := vals[0].ownedRelatedElement[0]).__name__
+           == "LiteralBoolean" and y._vals.get("value") is True),
+      str(mu2 and [(type(r).__name__, [t.declaredName for t in r.ownedRelatedElement])
+                   for r in mu2.ownedRelationship]))
+fp_un_u = [e for e in kdev.ownedElement if e.declaredName == "fpu"][0]
+check("untyped FullPort -> untyped PartUsage with the same metadata "
+      "(7.8.7.3.15)",
+      type(fp_un_u).__name__ == "PartUsage"
+      and not fp_un_u.ownedTyping and meta_of(fp_un_u) is not None)
+pp_u = [e for e in kdev.ownedElement if e.declaredName == "pp"][0]
+check("ProxyPort -> base Port mapping -> bare PortUsage (Table 30: no "
+      "target)",
+      type(pp_u).__name__ == "PortUsage" and meta_of(pp_u) is None)
+
+print()
 print("== honesty: unmapped features refuse to guess ==")
 orphan = U.Package(name="Orphan")
 orphan.add("packagedElement", U.Continuation(name="CX"))

@@ -308,6 +308,25 @@ def transform_property(prop, owner_def, index):
     t = prop._vals.get("type")
     composite = prop._vals.get("aggregation") is U.AggregationKind.composite
     if t is None:
+        if isinstance(prop, (S.FullPort, U.Port)):
+            # untyped ports (the port family dispatches before the
+            # generic untyped-Feature rule):
+            #   - a FULL port -> untyped PartUsage + PortData metadata
+            #     (FullPortUntyped_Mapping, 7.8.7.3.15, via the same
+            #     CommonFullPort construction, 7.8.7.3.2);
+            #   - other ports -> bare PortUsage (PortUntyped_Mapping,
+            #     7.7.12.2.37); ProxyPort rides the base Port mapping
+            #     (Table 30 lists no full mapping; SYSML2_-329).
+            if isinstance(prop, S.FullPort):
+                usage = S2.PartUsage(declaredName=nm)
+                _feature_membership(owner_def, usage)
+                _attach_fullport_metadata(usage)
+                index[id(prop)] = usage
+                return usage
+            usage = S2.PortUsage(declaredName=nm)
+            _feature_membership(owner_def, usage)
+            index[id(prop)] = usage
+            return usage
         # normative: untyped Property → Feature (bare usage declaration)
         f = S2.Feature(declaredName=nm)
         _feature_membership(owner_def, f)
@@ -318,6 +337,22 @@ def transform_property(prop, owner_def, index):
         raise UnmappedFeature(
             f"Property {nm!r} typed by external/unordered "
             f"{type(t).__name__} {_as_type_name(t)!r}")
+    if isinstance(prop, S.FullPort):
+        # FullPort_Mapping (7.8.7.3.7 via CommonFullPort 7.8.7.3.2): a
+        # full port maps to a PartUsage carrying the PortData metadata
+        # machinery (7.8.7.3.8-.14). The SysMLv1Library::PortData
+        # definition is EXTERNAL (the library is not part of the input),
+        # so the metadata typing (.3.10) and the isFullPort Redefinition
+        # (.3.14) have library objects as targets and are not
+        # constructible: the member carries the NAME ('isFullPort', the
+        # same name-reference treatment as DeriveReqt's Derivation
+        # connection) and its FeatureValue LiteralBoolean(true) (.3.13).
+        usage = S2.PartUsage(declaredName=nm)
+        _type_feature(usage, tdef)
+        _feature_membership(owner_def, usage)
+        _attach_fullport_metadata(usage)
+        index[id(prop)] = usage
+        return usage
     if isinstance(prop, U.Port):
         # Port_Mapping family (7.7.12.2.36/.37, 7.8.7.3.16): typed by
         # InterfaceBlock → PortUsage typed by the interface's
@@ -558,6 +593,33 @@ def _populate_usecase(uc, v2def, index, pkg):
             am = S2.ActorMembership()
             am.ownedRelatedElement.append(pu)
             v2def.ownedRelationship.append(am)
+
+
+def _attach_fullport_metadata(usage):
+    """FullPort MetadataUsage machinery (7.8.7.3.8-.14; the
+    FullPortMetadataOwningMembership rule of
+    CommonFullPort_Mapping 7.8.7.3.2): the part usage gains an
+    OwningMembership (.3.11) owning a MetadataUsage (.3.8) whose
+    FeatureMembership (.3.9) carries a ReferenceUsage named
+    'isFullPort' (.3.12 - the member name of the external library's
+    SysMLv1Library::PortData::isFullPort, carried by name as with
+    DeriveReqt's Derivation connection) with a FeatureValue (.3.13)
+    LiteralBoolean(true). The library-dependent typing (.3.10) and
+    Redefinition (.3.14) are not constructible without the library
+    object (elided, documented)."""
+    mu = S2.MetadataUsage()
+    ru = S2.ReferenceUsage(declaredName="isFullPort")
+    fv = S2.FeatureValue()
+    lit = S2.LiteralBoolean()
+    lit.value = True
+    fv.ownedRelatedElement.append(lit)
+    ru.ownedRelationship.append(fv)
+    fm = S2.FeatureMembership()
+    fm.ownedRelatedElement.append(ru)
+    mu.ownedRelationship.append(fm)
+    om = S2.OwningMembership()
+    om.ownedRelatedElement.append(mu)
+    usage.ownedRelationship.append(om)
 
 
 def _attach_port_conjugation(iface_v1, pdef, named):

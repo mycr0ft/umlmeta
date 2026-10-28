@@ -1,0 +1,130 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<xmi:XMI xmlns:xmi="http://www.omg.org/spec/XMI/20131001" xmlns:uml="http://www.omg.org/spec/UML/20131001" xmlns:sysml="http://www.omg.org/spec/SysML/20181001/SysML" xmi:version="2.1">
+  <uml:Model xmi:type="uml:Model" xmi:id="_1_model" name="Model">
+    <packagedElement xmi:type="uml:Package" xmi:id="_1" name="VehicleExample">
+      <packageImport xmi:type="uml:PackageImport" xmi:id="_2" importedPackage="_3"/>
+      <packagedElement xmi:type="uml:Package" xmi:id="_3" name="Common"/>
+      <packagedElement xmi:type="uml:Class" xmi:id="_4" name="Wheel"/>
+      <packagedElement xmi:type="uml:Class" xmi:id="_5" name="Vehicle">
+        <ownedAttribute xmi:type="uml:Property" xmi:id="_6" name="wheels" type="_4">
+          <upperValue xmi:type="uml:LiteralUnlimitedNatural" xmi:id="_7" value="4"/>
+          <aggregation>composite</aggregation>
+        </ownedAttribute>
+        <ownedAttribute xmi:type="uml:Property" xmi:id="_8" name="mass" type="_9"/>
+        <ownedAttribute xmi:type="uml:Property" xmi:id="_10" name="paint" type="_11"/>
+        <ownedAttribute xmi:type="uml:Port" xmi:id="_12" name="pwr" type="_13"/>
+        <ownedAttribute xmi:type="uml:Port" xmi:id="_14" name="aux"/>
+        <ownedAttribute xmi:type="uml:Property" xmi:id="_15" name="frontAxle" type="_16">
+          <aggregation>composite</aggregation>
+        </ownedAttribute>
+        <ownedAttribute xmi:type="uml:Property" xmi:id="_17" name="rearAxle" type="_16">
+          <aggregation>composite</aggregation>
+        </ownedAttribute>
+        <ownedAttribute xmi:type="uml:Property" xmi:id="_18" name="rawA" type="_9"/>
+        <ownedAttribute xmi:type="uml:Property" xmi:id="_19" name="rawB" type="_9"/>
+        <ownedAttribute xmi:type="uml:Property" xmi:id="_20" name="legacy" type="_21"/>
+        <ownedConnector xmi:type="uml:Connector" xmi:id="_22" name="axleLink">
+          <end xmi:type="uml:ConnectorEnd" xmi:id="_23" role="_15"/>
+          <end xmi:type="uml:ConnectorEnd" xmi:id="_24" role="_17"/>
+        </ownedConnector>
+        <ownedConnector xmi:type="uml:Connector" xmi:id="_25" name="massBind">
+          <end xmi:type="uml:ConnectorEnd" xmi:id="_26" role="_18"/>
+          <end xmi:type="uml:ConnectorEnd" xmi:id="_27" role="_19"/>
+        </ownedConnector>
+        <ownedOperation xmi:type="uml:Operation" xmi:id="_28" name="totalMass">
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="_29" name="extra" type="_9">
+            <direction>in</direction>
+          </ownedParameter>
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="_30" name="result">
+            <direction>return</direction>
+          </ownedParameter>
+        </ownedOperation>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="_16" name="Axle"/>
+      <packagedElement xmi:type="uml:DataType" xmi:id="_9" name="Kilogram"/>
+      <packagedElement xmi:type="uml:Enumeration" xmi:id="_11" name="VehicleColor">
+        <ownedLiteral xmi:type="uml:EnumerationLiteral" xmi:id="_31" name="red"/>
+        <ownedLiteral xmi:type="uml:EnumerationLiteral" xmi:id="_32" name="green"/>
+        <ownedLiteral xmi:type="uml:EnumerationLiteral" xmi:id="_33" name="blue"/>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="_13" name="PowerIf"/>
+      <packagedElement xmi:type="uml:Class" xmi:id="_21" name="LegacyPart"/>
+      <packagedElement xmi:type="uml:Signal" xmi:id="_34" name="MoveCommand"/>
+      <packagedElement xmi:type="uml:Actor" xmi:id="_35" name="Operator"/>
+      <packagedElement xmi:type="uml:StateMachine" xmi:id="_36" name="OpMode">
+        <region xmi:type="uml:Region" xmi:id="_37" name="r1">
+          <subvertex xmi:type="uml:Pseudostate" xmi:id="_38" name="p0">
+            <kind>initial</kind>
+          </subvertex>
+          <subvertex xmi:type="uml:State" xmi:id="_39" name="on"/>
+          <subvertex xmi:type="uml:State" xmi:id="_40" name="off"/>
+          <transition xmi:type="uml:Transition" xmi:id="_41" name="t1" source="_39" target="_40"/>
+          <transition xmi:type="uml:Transition" xmi:id="_42" name="t_boot" source="_38" target="_39"/>
+        </region>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Activity" xmi:id="_43" name="Generate">
+        <ownedParameter xmi:type="uml:Parameter" xmi:id="_44" name="demand">
+          <direction>in</direction>
+        </ownedParameter>
+      </packagedElement>
+      <packagedElement xmi:type="uml:UseCase" xmi:id="_45" name="OperateVehicle">
+        <include xmi:type="uml:Include" xmi:id="_46" addition="_47"/>
+      </packagedElement>
+      <packagedElement xmi:type="uml:UseCase" xmi:id="_47" name="StartEngine"/>
+      <packagedElement xmi:type="uml:Class" xmi:id="_48" name="Car">
+        <ownedAttribute xmi:type="uml:Property" xmi:id="_49" name="spareWheel" type="_4"/>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="_50" name="CarIsVehicle"/>
+      <packagedElement xmi:type="uml:Class" xmi:id="_51" name="DerivedReq"/>
+      <packagedElement xmi:type="uml:Association" xmi:id="_52" name="WheelToAxle">
+        <memberEnd xmi:idref="_53"/>
+        <memberEnd xmi:idref="_54"/>
+        <ownedEnd xmi:type="uml:Property" xmi:id="_53" name="wheelEnd" type="_4" association="_52"/>
+        <ownedEnd xmi:type="uml:Property" xmi:id="_54" name="axleEnd" type="_16" association="_52"/>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Activity" xmi:id="_55" name="CheckMass"/>
+      <packagedElement xmi:type="uml:Abstraction" xmi:id="_56" name="verifyCar">
+        <client xmi:idref="_55"/>
+        <supplier xmi:idref="_50"/>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Abstraction" xmi:id="_57" name="derives">
+        <client xmi:idref="_51"/>
+        <supplier xmi:idref="_50"/>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Abstraction" xmi:id="_58" name="refineTag">
+        <client xmi:idref="_5"/>
+        <supplier xmi:idref="_50"/>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Dependency" xmi:id="_59" name="refinesVeh">
+        <client xmi:idref="_5"/>
+        <supplier xmi:idref="_50"/>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Dependency" xmi:id="_60" name="usesLegacy">
+        <client xmi:idref="_5"/>
+        <supplier xmi:idref="_21"/>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Abstraction" xmi:id="_61" name="allocWheel">
+        <client xmi:idref="_6"/>
+        <supplier xmi:idref="_49"/>
+      </packagedElement>
+      <packagedElement xmi:type="uml:PackageImport" xmi:id="_2" importedPackage="_3" importingNamespace="_1"/>
+    </packagedElement>
+    <profileApplication xmi:type="uml:ProfileApplication">
+      <appliedProfile href="http://www.omg.org/spec/SysML/20181001/SysML.xmi#SysML"/>
+    </profileApplication>
+  </uml:Model>
+  <sysml:Allocate xmi:id="app-Allocate-allocWheel" base_Abstraction="_61"/>
+  <sysml:BindingConnector xmi:id="app-BindingConnector-massBind" base_Connector="_25"/>
+  <sysml:Block xmi:id="app-Block-Axle" base_Class="_16"/>
+  <sysml:Block xmi:id="app-Block-Car" base_Class="_48"/>
+  <sysml:Block xmi:id="app-Block-Vehicle" base_Class="_5"/>
+  <sysml:Block xmi:id="app-Block-Wheel" base_Class="_4"/>
+  <sysml:DeriveReqt xmi:id="app-DeriveReqt-derives" base_Abstraction="_57"/>
+  <sysml:InterfaceBlock xmi:id="app-InterfaceBlock-PowerIf" base_Class="_13"/>
+  <sysml:Refine xmi:id="app-Refine-refineTag" base_Abstraction="_58"/>
+  <sysml:Requirement xmi:id="app-Requirement-CarIsVehicle" base_Class="_50" id="R-1" text="A car shall be a specialization of vehicle."/>
+  <sysml:Requirement xmi:id="app-Requirement-DerivedReq" base_Class="_51"/>
+  <sysml:TestCase xmi:id="app-TestCase-CheckMass" base_Activity="_55"/>
+  <sysml:ValueType xmi:id="app-ValueType-Kilogram" base_DataType="_9"/>
+  <sysml:Verify xmi:id="app-Verify-verifyCar" base_Abstraction="_56"/>
+</xmi:XMI>
