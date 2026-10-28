@@ -2830,3 +2830,21 @@ The CommonAction invocations complete:
 
 - check_v1_to_v2_as.py: 151 passed (wave-X block).
 - Full sweep green (21 suites).
+
+# Part 46: wave Y - send-object + the link-action empties
+
+- 7.7.2.3.3.23: SendObjectAction subclasses the SSA mapping (the
+  .23's 'General Mappings SendSignalAction_Mapping' rule) - the send
+  machinery dispatches it; the sent item = the request pin's type
+  (the 'item def SysMLv1Object' form), the item/target both typed.
+- The 7.7.2.3.4 link family (ClearAssociation .1, CreateLink .2,
+  CreateLinkObject .3, DestroyLink .4, ReadLink .5,
+  ReadLinkObjectEnd .6, ReadLinkObjectEndQualifier .7) and the
+  .3.39/.40 start-behavior forms - EVERY one 'not defined yet' /
+  'not supported' by the formal - carry as EMPTY ActionUsages keeping
+  the activity's connections (the common normative form).
+
+## Result
+
+- check_v1_to_v2_as.py: 153 passed (wave-Y block).
+- Full sweep green.

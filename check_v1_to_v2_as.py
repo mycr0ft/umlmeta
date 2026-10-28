@@ -2059,6 +2059,60 @@ check("BroadcastSignalAction -> an empty ActionUsage (.3.3.1 'not "
                                        "FeatureMembership")])
 
 print()
+print("== wave Y: send-object + the link-action family "
+      "(7.7.2.3.3.23, 7.7.2.3.4, .3.39/.40) ==")
+ypkg = U.Package(name="ObjSendPkg")
+yobj = U.Class(name="Payload")
+yact = U.Activity(name="ShipIt")
+yreq = U.InputPin(name="reqPin")
+yreq.type = yobj
+ysnd = U.SendObjectAction(name="sendObj")
+ysnd._vals["request"] = [yreq]
+ytgt2 = U.InputPin(name="tgtPin2")
+ytgt2.type = yobj
+ysnd._vals["target"] = [ytgt2]
+yclr = U.ClearAssociationAction(name="clr")
+ycla = U.CreateLinkAction(name="mkl")
+ysrb = U.StartObjectBehaviorAction(name="sob")
+for wn in (ysnd, yclr, ycla, ysrb):
+    yact.node.append(wn)
+ypkg.packagedElement.extend([yobj, yact])
+yout = A.transform_package(ypkg)
+y_def = [e for e in yout.ownedElement
+         if type(e).__name__ == "ActionDefinition"][0]
+y_uses = {}
+for r in y_def.ownedRelationship:
+    if type(r).__name__ not in ("FeatureMembership", "OwningMembership"):
+        continue
+    for x in r.ownedRelatedElement:
+        y_uses[x.declaredName] = x
+osa = y_uses.get("sendObj")
+y_sau = [x for r in osa.ownedRelationship
+         if type(r).__name__ == "FeatureMembership"
+         for x in r.ownedRelatedElement
+         if type(x).__name__ == "SendActionUsage"]
+y_itemt = [getattr(getattr(ft, "type", None), "declaredName", None)
+           for x in y_sau
+           for r in x.ownedRelationship
+           if type(r).__name__ == "ParameterMembership"
+           for r3 in r.ownedRelatedElement
+           for ft in r3.ownedTyping]
+check("SendObjectAction subclasses the send machinery; the item is "
+      "typed by the request pin's type (.23)",
+      len(y_sau) == 1
+      and y_itemt == ["Payload", "Payload"], str(y_itemt))
+y_empty = [x for nm3 in ("clr", "mkl", "sob")
+           for x in [y_uses.get(nm3)]
+           if x is not None
+           and type(x).__name__ == "ActionUsage"
+           and not [r for r in x.ownedRelationship
+                    if type(r).__name__ in ("ParameterMembership",
+                                            "FeatureMembership")]]
+check("the link-family/start-behavior forms -> empty ActionUsages "
+      "(7.7.2.3.4.1, .3.40)",
+      len(y_empty) == 3, str(len(y_empty)))
+
+print()
 print("== honesty: unmapped features refuse to guess ==")
 orphan = U.Package(name="Orphan")
 orphan.add("packagedElement", U.Continuation(name="CX"))

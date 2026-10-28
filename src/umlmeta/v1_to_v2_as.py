@@ -1303,7 +1303,16 @@ def _send_signal_action(n, v2def, index):
     ssu = S2.ActionUsage(declaredName=_name(n))
     _own_membership(v2def, ssu)
     index[id(n)] = ssu
-    sig = n._vals.get("signal")
+    if isinstance(n, U.SendObjectAction):
+        # 7.7.2.3.3.23: SendObjectAction subclasses the SSA mapping -
+        # the sent item = the request pin's type ('item def'
+        # SysMLv1Object)
+        sig = n._vals.get("request")
+        if isinstance(sig, list):
+            sig = sig[0] if sig else None
+        sig = sig._vals.get("type") if sig is not None else None
+    else:
+        sig = n._vals.get("signal")
     if isinstance(sig, list):
         sig = sig[0] if sig else None
     tgt = n._vals.get("target")
@@ -1637,7 +1646,7 @@ def _populate_activity(act, v2def, index):
             continue
         elif isinstance(n, (U.AcceptEventAction, U.AcceptCallAction)):
             _accept_action(n, v2def, index)
-        elif isinstance(n, U.SendSignalAction):
+        elif isinstance(n, (U.SendSignalAction, U.SendObjectAction)):
             _send_signal_action(n, v2def, index)
         elif isinstance(n, U.CallBehaviorAction):
             # 7.7.2.3.3.2/.3: ActionUsage typed by the mapped behavior;
@@ -1662,10 +1671,19 @@ def _populate_activity(act, v2def, index):
             bau = S2.ActionUsage(declaredName=_name(n))
             _own_membership(v2def, bau)
             index[id(n)] = bau
-        elif isinstance(n, (U.ReplyAction, U.UnmarshallAction)):
-            # 7.7.2.3.1.24/.25: empty ActionUsages (ReplyAction rides
-            # AcceptCallAction's no-mapping; UnmarshallAction is 'not
-            # specified yet' - both keep the connections)
+        elif isinstance(n, (U.ClearAssociationAction,
+                            U.CreateLinkAction, U.CreateLinkObjectAction,
+                            U.DestroyLinkAction, U.ReadLinkAction,
+                            U.ReadLinkObjectEndAction,
+                            U.ReadLinkObjectEndQualifierAction,
+                            U.StartClassifierBehaviorAction,
+                            U.StartObjectBehaviorAction,
+                            U.ReplyAction, U.UnmarshallAction)):
+            # 7.7.2.3.1.24/.25 (Reply rides AcceptCallAction's
+            # no-mapping; Unmarshall 'not specified yet') and the
+            # 7.7.2.3.4 link family + .3.39/.40 start-behavior forms -
+            # ALL 'not defined yet'/'not supported': empty
+            # ActionUsages keeping the connections
             au2 = S2.ActionUsage(declaredName=_name(n))
             _own_membership(v2def, au2)
             index[id(n)] = au2
