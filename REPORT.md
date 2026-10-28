@@ -2036,3 +2036,49 @@ ToUseCaseActorMembership_Init moved elided -> wiring; module docstring
 elision list updated. Remaining elided: objectives (v1 has none),
 assignments, function synthesis, object-flow item ends, interaction
 machinery, conjugated ports, end qualifiers/subsettings/defaults.
+
+# Part 26: corpus home restored to local storage; generator repairs
+
+The /mnt/TBFox "corpus mount" was Jon's tablet's SD card, manually
+mounted (never in fstab) and long-since unplugged - every corpus suite
+(dodaf/mdzip/query/xmi-cmof-emof write/derived) had been
+environment-blocked. Fixed permanently:
+
+- The OMG corpora were pulled from the card to
+  /storage16/home/jfox/TBFox (DoDAFLibrary.xmi, uml_xmi/ incl.
+  BPMN20/BPMNDI/DC/DI CMOF + UAF/UAF13 + Measurements, mdzip_corpus/
+  with the 12-file stress set + _revisions, surfacebackup_512GB/uml_xmi/
+  metamodel feeds), and /mnt/TBFox is now a symlink to that local home.
+  The card lives in the tablet again; scripts/tbfox_sync.sh (in-repo)
+  re-pulls if ever needed.
+- The two OMG 20250201 AS feeds were re-fetched to ~/umlmeta/
+  (SysML.xmi 1.1 MB, KerML.xmi 0.96 MB) alongside SysMLv1Tov2.xmi.
+
+## Generator repairs (found while verifying regeneration idempotence)
+
+- generate.py and generate_sysml2.py carried a committed syntax fault
+  (stray indented write line after dest.mkdir - present since the
+  rename commit; no suite parses the generators, so it went unnoticed).
+  Fixed; both now regenerate their modules byte-identically from the
+  real feeds (uml25.py: no diff at all).
+- generate_bpmn.py emitted an absolute pre-rename import
+  (`from umlmeta.uml25 import`) while the committed module carries the
+  package-relative form; fixed to `from .uml25` - regeneration now
+  byte-identical (was producing a spurious 1-line diff).
+- generate_profiles.py read the generated metaclasses from the
+  pre-rename gen/ path and imported a non-existent `_sysml` attribute;
+  fixed to src/umlmeta/uml25.py + `import umlmeta.sysml as _sysml`
+  (the cross-profile base namespace is the module). All four profile
+  modules regenerate byte-identical; only profile_stats.json's recorded
+  module paths (gen/ -> src/umlmeta/) changed.
+- generate_sysml2.py regenerated from the actual OMG file names;
+  sysml2.py differs only in the docstring source-name line (175
+  classes / 428 attributes unchanged).
+
+## Result - first full corpus-suite sweep since the mount vanished
+
+check 45, profiles 60, sysml2 26, ocl 19, dodaf 32, derived 42, query
+19, xmi_write 48, cmof_write 20, emof_write 18, mdzip 14, mdzip_diff
+14, mdzip_import 26, xmi_cameo 15, v1_to_v2_as 78, bdd 10, deployment
+6, textual pipeline 47, vehicle 12 - ALL GREEN, corpus suites
+unblocked.

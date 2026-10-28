@@ -2,14 +2,14 @@
   "modules": [
     {
       "profile": "StandardProfile",
-      "module": "gen/standard_profile.py",
+      "module": "src/umlmeta/standard_profile.py",
       "stereotypes": 33,
       "enums": [],
       "lines": 233
     },
     {
       "profile": "SysML",
-      "module": "gen/sysml.py",
+      "module": "src/umlmeta/sysml.py",
       "stereotypes": 56,
       "enums": [
         "ControlValueKind",
@@ -21,7 +21,7 @@
     },
     {
       "profile": "UAF",
-      "module": "gen/uaf.py",
+      "module": "src/umlmeta/uaf.py",
       "stereotypes": 256,
       "enums": [
         "ActualMeasurementKind",
@@ -49,7 +49,7 @@
     },
     {
       "profile": "UAF",
-      "module": "gen/uaf13.py",
+      "module": "src/umlmeta/uaf13.py",
       "stereotypes": 272,
       "enums": [
         "ActualMeasurementKind",

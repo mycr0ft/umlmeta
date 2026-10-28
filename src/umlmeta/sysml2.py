@@ -1,6 +1,6 @@
 """SysML v2 abstract syntax + KerML base, generated from the OMG XMIs.
 
-Sources: SysML2.xmi (SysML v2 AS, ptc/25-02-15) + kerml.xmi (KerML).
+Sources: SysML.xmi (SysML v2 AS, ptc/25-02-15) + KerML.xmi (KerML).
 Pure-stdlib Python. Do not edit by hand; regenerate with
 generate_sysml2.py.
 

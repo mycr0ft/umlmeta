@@ -907,7 +907,7 @@ def main(argv):
     code = "\n".join(o) + "\n"
     dest = HERE / "src" / "umlmeta"
     dest.mkdir(exist_ok=True, parents=True)
-        (dest / "sysml2.py").write_text(code)
+    (dest / "sysml2.py").write_text(code)
     stats = {
         "source_sysml": str(sysml_path),
         "source_kerml": str(kerml_path),

@@ -713,7 +713,7 @@ def gen():
     code = "\n".join(o) + "\n"
     dest = HERE / "src" / "umlmeta"
     dest.mkdir(exist_ok=True, parents=True)
-        (dest / "uml25.py").write_text(code)
+    (dest / "uml25.py").write_text(code)
 
     stats = dict(
         source=str(src), classes=len(classes), attributes=n_attrs,

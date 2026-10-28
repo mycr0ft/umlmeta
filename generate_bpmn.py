@@ -261,7 +261,7 @@ def emit_module(classes, assocs, warns, meta):
     w("")
     w("import enum as _enum")
     w("")
-    w("from umlmeta.uml25 import _Ref  # noqa: F401  (descriptor machinery)")
+    w("from .uml25 import _Ref  # noqa: F401  (descriptor machinery)")
     w("")
     w("")
     w("class _MOFBase:")

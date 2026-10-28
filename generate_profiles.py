@@ -21,10 +21,11 @@ from pathlib import Path
 from lxml import etree
 
 HERE = Path(__file__).resolve().parent
-UML = HERE / "gen" / "uml25.py"
+UML = HERE / "src" / "umlmeta" / "uml25.py"
 
 import sys
 sys.path.insert(0, str(HERE))
+sys.path.insert(0, str(HERE / "src"))
 from umlmeta import uml25 as U  # noqa: E402
 
 PROFILES = [
@@ -368,7 +369,7 @@ def emit_module(d, metaclasses, warns):
                 "UAF": "uaf"}[d["profile"]]
     if d.get("_mod_override"):
         mod_name = d["_mod_override"]
-    from umlmeta.sysml import _sysml
+    import umlmeta.sysml as _sysml   # cross-profile base namespace
     from itertools import permutations
     created = {}
 

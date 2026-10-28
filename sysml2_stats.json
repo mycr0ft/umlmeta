@@ -1,6 +1,6 @@
 {
- "source_sysml": "/tmp/SysML2.xmi",
- "source_kerml": "/tmp/kerml.xmi",
+ "source_sysml": "/home/jfox/umlmeta/SysML.xmi",
+ "source_kerml": "/home/jfox/umlmeta/KerML.xmi",
  "classes": 175,
  "attributes": 428,
  "operations": 103,
