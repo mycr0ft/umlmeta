@@ -3088,3 +3088,80 @@ TransitionUsage).
 - The textual pipeline does not emit edge weight metadata yet (its
   notation scope); noted, not silently dropped: the AS is the conformance
   artifact.
+
+# Part 52: M1 - stable identities, provenance and the AS graph hash
+
+The pathway (docs/v1-v2-linkage-pathway.md) splits the dual-model work into
+M1-M5; this part lands M1. Measured starting point, before any change: a
+transformed element had `elementId = None`, `transform_package` built its
+conformance index keyed on `id(v1 element)` and discarded it, and there was
+no way to say which v2 element came from which v1 element or whether the v2
+side had changed.
+
+## The identity scheme (adopted from sysmlpy)
+
+sysmlpy shipped stable identities for idempotent interchange
+(`docs/stable-identities.md`, `interchange.py`: `STABLE_NAMESPACE`,
+`_StableIdAssigner`, `stable_ids()`, `--reconcile-with`). umlmeta reuses the
+recipe in its own namespace - behaviour agreement is the contract:
+
+- key = the element's declared qualified-name path joined with `|` + the
+  SysML v2 metaclass name; a same-name sibling group appends an occurrence
+  index `|#<n>`;
+- id = `v1v2:` + uuid5(LINK_NAMESPACE, key);
+- anonymous elements (memberships, expressions, pins) hash their nearest
+  declared ancestor's id + the relationship kind/index they ride + metaclass;
+- relationships are Elements too: a membership gets its own id before its
+  members are visited (otherwise membership identity would be invisible to
+  the hash and to any later diff);
+- `adopt=True` keeps an elementId already present (a prior export, or one a
+  v2 tool assigned) - the L3 / reconcile hook, same contract as sysmlpy's
+  `--reconcile-with` fixed point.
+
+Deliberately not keyed on the v1 `xmi:id`: docs/semantic-content-hash.md
+records Cameo delta-snapshots and TeamworkCloud check-ins re-minting ids (47
+id eras in one corpus file). The xmi id rides the provenance record as a
+per-snapshot cache.
+
+## umlmeta.link
+
+- `assign_element_ids(root, adopt=False)` -> `{elementId: element}`; sets
+  `elementId` in place. Derivation never depends on prior ids, so adopt=False
+  is always a clean re-derivation.
+- `provenance(root, ids=None)` -> records
+  `{v1_kind, v1_name, v1_path, v1_xmi_id, v1_hash, v2_kind, v2_element_id,
+  mapping}` in v1 containment order. It joins the v1 tree through the
+  transformer's retained index (`_v1_index`) and root (`_v1_root`) instead of
+  re-deriving the mapping; `v1_hash` is a 12-hex content signature over the
+  v1 element's scalar features - the repair key when a name changes (M3).
+  `mapping` is reserved for the mapping-class name (M2).
+- `graph_hash(root, ids=None)` -> sha256 over a canonical line per element:
+  metaclass, elementId, declaredName, sorted scalar features, and references
+  resolved to the target's elementId. Multi-valued features compare as
+  sorted sets (tool-internal ordering is not content - the mdzip_diff
+  philosophy).
+
+## Transformer change
+
+`transform_package` retains `out._v1_index` and `out._v1_root` before
+returning. No mapping behaviour changes; the index was already the
+conformance-critical identity, it just was not reachable from the result.
+
+## Result
+
+- check_v1_to_v2_as.py: 210 passed (+15: the M1 link section). Evidence
+  pinned there: every reachable element has a unique `v1v2:` id; a
+  re-transform of the same snapshot agrees key-for-key (L1); a sibling
+  inserted BEFORE keeps untouched ids (L2); same-name siblings stay distinct;
+  provenance records carry kind/path/xmi id/content signature and the XMI leg
+  carries real `xmi:id`s; the graph hash is stable across re-transforms and
+  changes on a rename or an added element; adopt=True keeps a prior id and
+  adopt=False re-derives.
+- Full sweep green.
+- README gains the `umlmeta.link` row; docs/v1-v2-linkage-pathway.md marks
+  M1 shipped and notes that the sidecar document (pathway §4) is emitted by
+  M3.
+
+Next: M2 - persistence of the v2 side (AS -> textual emitter in the package,
+then AS -> SysML v2 JSON interchange in sysmlpy's document shape), which is
+what makes the identity durable outside a Python process.

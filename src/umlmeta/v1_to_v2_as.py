@@ -2276,6 +2276,11 @@ def transform_package(pkg):
         subc = S2.Subclassification()
         subc.general = general
         sub_def.ownedSpecialization.append(subc)
+    # the linkage layer (docs/v1-v2-linkage-pathway.md, M1) reads the
+    # conformance index and the v1 root rather than re-deriving them:
+    # provenance needs {id(v1 element): v2 element} and the v1 tree.
+    out._v1_index = index
+    out._v1_root = pkg
     return out
 
 

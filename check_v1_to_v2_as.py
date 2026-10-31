@@ -2737,6 +2737,140 @@ except A.UnmappedFeature as e:
           "external/unnamed" in str(e), str(e))
 
 print()
+print("== M1 link: stable identities + provenance ==")
+# docs/v1-v2-linkage-pathway.md M1: elementId derivation (uuid5 over the
+# declared path + type, sysmlpy's recipe in the umlmeta link namespace),
+# determinism (L1), edit locality (L2), same-name sibling uniqueness,
+# provenance records and the AS graph hash.
+from umlmeta import link as L  # noqa: E402
+
+
+def _link_model(pkg_name="LinkPkg", extra_before=None):
+    """A small v1 model for the identity checks. `extra_before` inserts a
+    sibling BEFORE Alpha (the L2 edit class: unrelated insertion)."""
+    p = U.Package(name=pkg_name)
+    if extra_before:
+        p.add("packagedElement", S.Block(name=extra_before))
+    alpha = S.Block(name="Alpha")
+    p.add("packagedElement", alpha)
+    beta = S.Block(name="Beta")
+    prop = U.Property(name="count")
+    beta.add("ownedAttribute", prop)
+    p.add("packagedElement", beta)
+    return p
+
+
+l1 = A.transform_package(_link_model())
+l_ids = L.assign_element_ids(l1)
+check("M1: every reachable AS element gets an elementId",
+      len(l_ids) > 5 and all(v is not None for v in l_ids),
+      f"{len(l_ids)} ids")
+check("M1: elementIds are unique across the graph",
+      len(l_ids) == len(set(l_ids)))
+check("M1: elementId carries the umlmeta link prefix",
+      all(v.startswith("v1v2:") for v in l_ids))
+alpha_id = [k for k, v in l_ids.items()
+            if v._vals.get("declaredName") == "Alpha"][0]
+beta_id = [k for k, v in l_ids.items()
+           if v._vals.get("declaredName") == "Beta"][0]
+
+# L1: re-transform the same snapshot -> identical identities
+l1b = A.transform_package(_link_model())
+l_ids_b = L.assign_element_ids(l1b)
+check("M1 (L1): a re-transform of the same snapshot agrees key-for-key",
+      set(l_ids) == set(l_ids_b), f"{len(l_ids)} vs {len(l_ids_b)}")
+
+# L2: an insertion elsewhere leaves untouched identities unchanged
+l2 = A.transform_package(_link_model(extra_before="Aardvark"))
+l2_ids = L.assign_element_ids(l2)
+check("M1 (L2): a sibling inserted BEFORE keeps untouched ids "
+      "(Alpha + Beta stable)",
+      alpha_id in l2_ids and beta_id in l2_ids
+      and l2_ids[alpha_id]._vals.get("declaredName") == "Alpha",
+      f"{len(l2_ids)} ids")
+
+# same-name siblings: unique, occurrence-disambiguated
+duppkg = U.Package(name="DupPkg")
+duppkg.add("packagedElement", S.Block(name="Dup"))
+duppkg.add("packagedElement", S.Block(name="Dup"))
+dup_ids = L.assign_element_ids(A.transform_package(duppkg))
+dup_named = [k for k, v in dup_ids.items()
+             if v._vals.get("declaredName") == "Dup"]
+check("M1: same-name siblings get distinct ids (occurrence tie-breaker)",
+      len(dup_named) == 2, str(dup_named))
+
+# provenance + graph hash
+prov = L.provenance(l1, ids=l_ids)
+rec_beta = [r for r in prov if r["v1_name"] == "Beta"]
+check("M1: provenance record per mapped element (kind/path/id)",
+      len(prov) == 4
+      and sorted(r["v1_name"] for r in prov if r["v1_name"]) == ["Alpha",
+                                                               "Beta",
+                                                               "LinkPkg",
+                                                               "count"]
+      and len(rec_beta) == 1
+      and rec_beta[0]["v1_kind"] == "Block"
+      and rec_beta[0]["v1_path"].endswith("::Beta")
+      and rec_beta[0]["v2_kind"] == "PartDefinition"
+      and rec_beta[0]["v2_element_id"] == beta_id,
+      str(rec_beta))
+check("M1: provenance records carry a v1 content signature",
+      all(len(r["v1_hash"]) == 12 for r in prov))
+check("M1: provenance carries the v1 path with the v1 name visible",
+      rec_beta[0]["v1_path"] == "LinkPkg::Beta", rec_beta[0]["v1_path"])
+
+h1 = L.graph_hash(l1)
+h1b = L.graph_hash(l1b)
+h2 = L.graph_hash(A.transform_package(_link_model(extra_before="Aardvark")))
+h3 = L.graph_hash(A.transform_package(_link_model(pkg_name="Renamed")))
+check("M1: graph hash is stable across re-transforms (L0/L1)",
+      h1 == h1b, f"{h1[:16]} vs {h1b[:16]}")
+check("M1: graph hash changes on a content change (rename)",
+      h1 != h3)
+check("M1: graph hash changes when the model gains an element",
+      h1 != h2)
+
+# adoption (the L3 hook: ids from a prior export survive re-derivation)
+l1b_obj = l_ids_b[beta_id]
+l1b_obj._vals["elementId"] = "v1v2:from-previous-export"
+adopted = L.assign_element_ids(l1b, adopt=True)
+check("M1 (L3 hook): adopt=True keeps an id carried by a prior export",
+      "v1v2:from-previous-export" in adopted
+      and l1b_obj._vals.get("elementId") == "v1v2:from-previous-export")
+rederived = L.assign_element_ids(l1b, adopt=False)
+check("M1: adopt=False re-derives (derivation never depends on prior ids)",
+      beta_id in rederived
+      and l1b_obj._vals.get("elementId") == beta_id)
+
+# the XMI leg: v1 xmi ids ride the provenance records
+LXMI = """<?xml version="1.0" encoding="UTF-8"?>
+<xmi:XMI xmi:version="2.1" xmlns:uml="http://schema.omg.org/spec/UML/2.0"
+         xmlns:xmi="http://schema.omg.org/spec/XMI/2.1">
+  <uml:Package xmi:id="lp" xmi:type="uml:Package">
+    <name>LinkXMI</name>
+    <packagedElement xmi:type="uml:Class" xmi:id="c_engine">
+      <name>Engine</name>
+    </packagedElement>
+  </uml:Package>
+</xmi:XMI>
+"""
+with tempfile.NamedTemporaryFile("w", suffix=".xmi", delete=False) as fp:
+    fp.write(LXMI)
+    lxmi_path = fp.name
+try:
+    lxp = A.transform_xmi(lxmi_path)[0]
+    lx_ids = L.assign_element_ids(lxp)
+    lx_prov = L.provenance(lxp, ids=lx_ids)
+    lx_eng = [r for r in lx_prov if r["v1_name"] == "Engine"]
+    check("M1: XMI leg - provenance carries the v1 xmi:id as a cache",
+          len(lx_eng) == 1 and lx_eng[0]["v1_xmi_id"] == "c_engine",
+          str(lx_eng))
+    check("M1: the transformed root's index survives on the package",
+          getattr(lxp, "_v1_index", None) is not None)
+finally:
+    Path(lxmi_path).unlink()
+
+print()
 print(f"RESULT: {len(PASS)} passed, {len(FAIL)} failed")
 if FAIL:
     print("FAILURES:", FAIL)

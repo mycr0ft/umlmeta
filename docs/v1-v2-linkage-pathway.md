@@ -1,6 +1,6 @@
 # Maintaining a v1 ↔ v2 link through a prolonged transition
 
-**Status:** pathway + M1 in progress · umlmeta 0.2.x · Jon R. Fox
+**Status:** pathway published; M1 (identity + provenance) shipped · umlmeta 0.2.x · Jon R. Fox
 
 The SysML v1 → v2 transformation clause (SysML v2.0 Part 2, formal/26-03-03)
 defines a **one-shot** mapping: read a v1 model, emit a v2 model. umlmeta's
@@ -24,8 +24,8 @@ silently if identity is left to serialization artifacts.
 | v1 XMI reader (R1) | structural + activity internals + interactions + guards/effects/weight |
 | v1 XMI writer | implemented (`xmi_write.py`, canonical parity gate) |
 | **v2 serialization** | **absent** — the only AS→text renderer is `render_as()` inside `check_v1_to_v2_as.py` |
-| **v2 `elementId`** | **never populated** — a transformed element has `elementId = None` |
-| **v1→v2 provenance** | **absent** — `transform_package` builds the identity index (`v1_to_v2_as.py:2228`) and discards it |
+| v2 `elementId` | **M1** — deterministic `v1v2:` uuid5 ids over the declared path + type (`umlmeta.link`) |
+| v1→v2 provenance | **M1** — `umlmeta.link.provenance()` over the transform's retained index (`_v1_index`/`_v1_root`), with the v1 xmi id as a cache and a v1 content signature |
 | reverse (v2 → v1) | absent |
 | pair diff / merge / sync | absent (`mdzip_diff` covers v1 snapshots only) |
 | elision ledger | prose (module docstring, realization table, REPORT) — no per-model record |
@@ -136,7 +136,7 @@ path changes (M3): a renamed element re-links by hash, not by name.
 
 Each milestone lands as its own wave (TDD, full sweep green, REPORT part).
 
-### M1 — identity and provenance *(in progress)*
+### M1 — identity and provenance *(shipped)*
 - `umlmeta.link`: `assign_element_ids()`, `provenance()`, `graph_hash()`,
   the namespace/prefix above, and adoption (`adopt=True`) for L3 hand-off.
 - `transform_package` retains its identity index on the returned package so
@@ -146,8 +146,10 @@ Each milestone lands as its own wave (TDD, full sweep green, REPORT part).
   leaves its id unchanged (L2); same-name siblings stay distinct; the graph
   hash is stable under re-transform and changes on content change;
   provenance carries `v1_kind`/`v1_path`/`v1_xmi_id`/`v1_hash`.
-- **Exit test:** in `check_v1_to_v2_as.py` (link section), including the XMI
-  leg so v1 xmi ids are carried end to end.
+- **Exit test:** shipped in `check_v1_to_v2_as.py` (M1 link section, 15
+  checks, including the XMI leg so v1 xmi ids are carried end to end).
+- **Note:** the sidecar document (§4) is emitted by M3 — M1 ships the
+  identity, the provenance record set and the graph hash it will carry.
 
 ### M2 — persistence of the v2 side
 - Promote an AS → SysML v2 **textual** emitter into the package (the oracle
