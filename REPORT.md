@@ -3522,3 +3522,33 @@ hold (caught by the CLI gate).
   gates).
 - Full sweep green (723 checks).
 - Pathway: **complete** - M1, M2, M3, M3b, M4, M5 shipped.
+
+# Part 59: the repeated-update runbook, and the index-rebind bug it found
+
+`docs/v1v2-sync-scheme.md` is the operating document for the pair: the four
+artifacts, the identity and the two content keys, the per-cycle
+transform/sync/review/re-baseline loop, the ten-way classification table, a
+worked three-week cycle with real output, the conflict and rename protocols,
+what elisions and library references demand of a reviewer, the invariants the
+suite actually enforces, and the failure-mode table.
+
+Writing it found a real defect. `link.provenance()` walks the v1 tree and asks
+the retained index for each element's v2 object, then looks that object up in
+the graph by identity. A merge substitutes preserved old objects for fresh ones
+and transplants old-only content, so after a sync the index named objects the
+merged graph no longer held - and `sidecar(merged)` silently dropped every
+substituted element's record (4 of 7 in the demo model). Re-baselining the
+sidecar after a sync is the one step the loop cannot skip, so the tool was
+quietly degrading the link at exactly the moment it mattered.
+
+`sync._rebind_index()` points the index at the objects the merged graph
+actually holds (by `elementId`, which survives substitution), and an oracle now
+requires a sidecar re-baselined from a merged graph to carry as many records as
+the one from a fresh transform.
+
+Also verified while writing (and now asserted in the document as behaviour, not
+hope): a clean sync writes byte-identical JSON, so a no-change cycle is a
+no-op git diff; and two transforms of the same snapshot are byte-identical.
+
+- check_v1_to_v2_as.py: 258 passed (+1).
+- Full sweep green (724 checks).

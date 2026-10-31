@@ -322,6 +322,13 @@ linkage design.
 
 ---
 
+## 7b. Operating document
+
+The as-built scheme — the loop to run, the classifications it produces, the
+conflict protocol, the elision/library checks and the failure modes — is
+`docs/v1v2-sync-scheme.md`. This file stays the design record (levels,
+milestones, decisions); that one is the runbook.
+
 ## 8. References
 
 - OMG SysML v2.0 Part 2: SysML v1 to SysML v2 Transformation, formal/26-03-03

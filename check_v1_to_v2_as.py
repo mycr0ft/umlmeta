@@ -3030,6 +3030,13 @@ check("M3: a clean sync is a no-op (fixed point, zero conflicts)",
       and L.graph_hash(_r0.root) == _side["v2_graph_hash"],
       f"conflicts={len(_r0.conflicts)} report={_r0.report}")
 
+# re-baselining: the sidecar of a MERGED graph must be as complete as the
+# one of a fresh transform (substitution + transplant rebind the index)
+_sc_rebase = L.sidecar(_r0.root)
+check("M3: a sidecar re-baselined from a merged graph keeps every record",
+      len(_sc_rebase["records"]) == len(_side["records"]),
+      f"{len(_sc_rebase['records'])} vs {len(_side['records'])}")
+
 # 2. v1-only edit: the property's type changes -> the fresh mapping wins
 _r1 = SY.merge(_mk_sync_v1(power_type="Kgm"), _side, _as_a)
 _pw = _as_named(_r1.root, "power")[0]

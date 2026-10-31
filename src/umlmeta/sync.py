@@ -269,7 +269,29 @@ def merge(v1_new, sidecar_doc, existing_root):
     if keep:
         _transplant(merged, existing_root, keep, new_ids)
     L.assign_element_ids(merged, adopt=True)
+    _rebind_index(merged)
     return MergeResult(merged, conflicts, report)
+
+
+def _rebind_index(root):
+    """Point the transform index at the objects the MERGED graph actually holds.
+
+    A merge substitutes preserved (old) objects for the fresh ones and
+    transplants old-only content, so ``root._v1_index`` otherwise names objects
+    that are no longer reachable - and ``link.provenance()`` then silently
+    drops their records. Re-baselining a sidecar after a sync depends on this
+    being right.
+    """
+    idx = getattr(root, "_v1_index", None)
+    if not idx:
+        return
+    by_id = {eid: el for el, _p, eid in L._walk(root)}
+    for key, v2 in list(idx.items()):
+        if not isinstance(key, int) or not hasattr(v2, "_vals"):
+            continue
+        hit = by_id.get(v2._vals.get("elementId"))
+        if hit is not None:
+            idx[key] = hit
 
 
 def _adopt_renames(sidecar_doc, new_root, new_ids):
