@@ -31,6 +31,25 @@ Dialect features handled (all distinct from the UML 2.5 metamodel XMI):
     in `app_tags`).
   - Both XMI attribute namespaces are accepted: the 2.1 schema.omg URI
     and the 20131001 omg.org URI (the corpora carry one or the other).
+  - Activity internals are carried (without them the whole 7.7.3.3.x /
+    7.7.2.3.x mapping family is unreachable from a file): Activity
+    node/edge/variable, the action pins (input/output/value), the
+    ControlFlow/ObjectFlow ends, and the guard/effect of a transition or
+    edge. A `<guard xmi:type="uml:Constraint">` child is dereferenced to
+    its `specification` when the runtime's feature is not
+    Constraint-typed (ActivityEdge.guard is ValueSpecification-typed in
+    the generated runtime); the pair is recorded in `guard_derefs`. An
+    edge end resolved from `<source>`/`<target>` fires the runtime's
+    association hook, so the node's `incoming`/`outgoing` end features
+    appear exactly as a programmatic model wires them (the fork/join
+    end-transfer machinery reads them) - only for the HOOK_SINGLE ends,
+    because hooking every reference reorders an Association's serialized
+    memberEnd list and breaks the canonical XMI parity gate.
+  - A reference child is only treated as a reference when it carries
+    xmi:idref/href: a feature name can be composite on one metaclass and
+    a reference on another (Activity.variable vs
+    WriteVariableAction.variable), and single-valued composites
+    (guard/effect/value/specification) cannot go through add().
 
 Objects are instances of the generated umlmeta.uml25 metaclasses, so the
 v1->v2 emitter works on the result unchanged.
@@ -56,7 +75,17 @@ COMPOSITE = {"packagedElement", "nestedClassifier", "ownedAttribute",
              "lifeline", "message", "fragment", "operand",
              # SysML v1 profile bases (synthetic VehicleExample,
              # check_xmi_vehicle.py): Connector ends, UseCase includes
-             "end", "include"}
+             "end", "include",
+             # activity internals (the 7.7.3.3.x / 7.7.2.3.x mapping
+             # families are only reachable when these arrive): nodes,
+             # edges, activity variables, the action pins, the edge/
+             # transition guard + effect, a trigger's owned event
+             # expression
+             "node", "edge", "variable", "input", "output", "value",
+             "guard", "effect", "trigger", "expr",
+             # the pin/edge value specifications and multiplicity bounds
+             # of a node-level element
+             "parameter", "specification"}
 # single-value string features
 STRING = {"name", "body", "visibility", "language", "URI"}
 # single reference features
@@ -73,15 +102,28 @@ REF_SINGLE = {"type", "association", "general", "classifier",
               # source/target, Include addition
               "role", "source", "target", "addition",
               # trigger events / the event expressions
-              "event", "changeExpression", "when", "signal"}
+              "event", "changeExpression", "when", "signal",
+              # action invocations + the variable actions' variable
+              # (7.7.2.3.3.x, 7.7.2.3.9) and an activity parameter
+              # node's parameter (7.7.3.3.15)
+              "operation", "behavior", "request", "variable", "parameter",
+              "expr"}
 # multi reference features (may arrive before their targets)
 REF_MULTI = {"memberEnd", "annotatedElement", "client", "supplier",
              # state-machine transition triggers (7.7.11.2.26)
              "trigger",
+             # node/edge ends (7.7.3.3.2/.13/.44) and a trigger's ports
+             # (7.7.2.3.1.17/.19)
+             "incoming", "outgoing", "port",
              # InformationFlow ends/carriers (7.7.9.x family)
              "informationSource", "informationTarget", "conveyed",
              "realization", "realizingConnector", "realizingActivityEdge",
              "realizingMessage"}
+# single references whose runtime setter must fire the association hooks
+# (an ActivityEdge end wires the node's incoming/outgoing end features).
+# Kept to the edge ends: hooking every reference reorders serialized
+# association memberEnd lists (canonical-parity regression).
+HOOK_SINGLE = {"source", "target"}
 # multiplicity literal features
 LITERAL = {"lowerValue", "upperValue", "defaultValue"}
 
@@ -115,7 +157,24 @@ CONSTRUCTIBLE = {"Model", "Package", "Class", "DataType", "Enumeration",
                  "BroadcastSignalAction",
                  "AcceptEventAction", "AcceptCallAction", "SignalEvent",
                  "CallEvent",
-                 "Activity", "UseCase", "Include"}
+                 "Activity", "UseCase", "Include",
+                 # activity internals (7.7.3.3.x / 7.7.2.3.x): node
+                 # kinds, pins, edge kinds, variables + the link/start
+                 # action family, and the guard/effect carriers
+                 "OpaqueAction", "CallBehaviorAction",
+                 "SendObjectAction", "StartClassifierBehaviorAction",
+                 "StartObjectBehaviorAction", "InputPin", "OutputPin",
+                 "ValuePin", "ControlFlow", "ObjectFlow", "DecisionNode",
+                 "MergeNode", "ForkNode", "JoinNode", "InitialNode",
+                 "FinalNode", "ActivityFinalNode", "FlowFinalNode",
+                 "CentralBufferNode", "DataStoreNode",
+                 "ActivityParameterNode", "ClearAssociationAction",
+                 "CreateLinkAction", "CreateLinkObjectAction",
+                 "DestroyLinkAction", "ReadLinkAction",
+                 "ReadLinkObjectEndAction",
+                 "ReadLinkObjectEndQualifierAction", "Constraint",
+                 "LiteralBoolean", "TimeExpression", "TimeEvent",
+                 "OpaqueBehavior"}
 
 # metaclasses for which a missing name is derived from the xmi:id tail
 # (recorded in derived_names, never silently invented)
@@ -146,6 +205,10 @@ class XMI21Model:
         self.nsmap = {}          # root prefix -> namespace URI (for writers)
         self.app_metas = {}      # app xmi:id -> base_<Metaclass> feature name
         self.app_tags = {}       # app xmi:id -> {tag name: string value}
+        # (owner id, guard id) where a UML Constraint-form <guard> was
+        # dereferenced to its specification (the runtime's
+        # ActivityEdge.guard is ValueSpecification-typed)
+        self.guard_derefs = []
 
 
 XMI_NS_20131001 = "http://www.omg.org/spec/XMI/20131001"
@@ -260,27 +323,61 @@ def read_xmi21(path) -> XMI21Model:
                 continue
             idref = _xget(c, "idref")
             href = c.get("href")
-            if feat in REF_SINGLE:
-                if idref is not None or href is not None:
-                    xmi.pending.append((obj, feat, idref or href, True))
+            if idref is not None or href is not None:
+                # a reference child is unambiguous: single vs multi per
+                # the table (a feature name may be BOTH - Activity.variable
+                # is composite while WriteVariableAction.variable is a
+                # reference - so the arity comes from the owning
+                # descriptor when the tables disagree)
+                dref = obj._props.get(feat)
+                single = True
+                if feat in REF_SINGLE:
+                    single = True
+                elif feat in REF_MULTI:
+                    single = False
+                elif feat in COMPOSITE and dref is not None:
+                    single = not dref.multi
+                elif feat in COMPOSITE:
+                    continue      # never a reference: drop silently is
+                    #               wrong, but COMPOSITE-only features
+                    #               carrying an idref are not seen
                 else:
                     xmi.unmapped_features.append((xid(el), feat))
-                continue
-            if feat in REF_MULTI:
-                if idref is not None:
-                    xmi.pending.append((obj, feat, idref, False))
-                else:
-                    xmi.unmapped_features.append((xid(el), feat))
+                    continue
+                xmi.pending.append((obj, feat, idref or href, single))
                 continue
             if feat in COMPOSITE:
                 child = construct(c)
                 if child is None:
                     continue
+                d = obj._props.get(feat)
+                walk(c, child)          # the Constraint's specification
+                #                         arrives with the child's walk
+                # the runtime's ActivityEdge.guard is ValueSpecification-
+                # typed while a UML file writes the normative
+                # Constraint form: carry the specification (recorded)
+                dt = d.t if d is not None else None
+                # the descriptor carries the type as the metaclass NAME
+                # (a str) for element-valued features
+                dt_cls = U.metaclass(dt) if isinstance(dt, str) else dt
+                if feat == "guard" and isinstance(child, U.Constraint) \
+                        and isinstance(dt_cls, type) \
+                        and not issubclass(dt_cls, U.Constraint):
+                    spec = child._vals.get("specification")
+                    spec = spec[0] if isinstance(spec, list) else spec
+                    if spec is not None:
+                        xmi.guard_derefs.append((xid(el), xid(c)))
+                        child = spec
                 try:
-                    obj.add(feat, child)
+                    if d is not None and not d.multi:
+                        obj._vals[feat] = child       # single composite
+                    else:
+                        obj.add(feat, child)
                 except (AttributeError, TypeError) as ex:
                     xmi.unmapped_features.append((xid(el), feat + "=" + str(ex)[:60]))
-                walk(c, child)
+                continue
+            if feat in REF_SINGLE or feat in REF_MULTI:
+                xmi.unmapped_features.append((xid(el), feat))
                 continue
             if feat == "profileApplication":
                 xmi.profiles.extend(h for g in c
@@ -344,9 +441,28 @@ def read_xmi21(path) -> XMI21Model:
                 (getattr(obj, "_xmi_id", "?"), feat, ref))
             continue
         if single:
+            d = obj._props.get(feat)
+            if feat in HOOK_SINGLE and d is not None and not d.multi \
+                    and not d.derived and not d.readonly and not d.union:
+                try:
+                    # the descriptor setter fires the runtime hooks, so an
+                    # edge end wires the node's incoming/outgoing (the
+                    # 7.7.3.3.2/.13/.44 ends the fork/join end-transfer
+                    # machinery reads). Deliberately NOT every single
+                    # reference: the association-memberEnd hook reorders
+                    # an Association's serialized memberEnd list (the
+                    # canonical XMI parity gate).
+                    setattr(obj, feat, target)
+                    continue
+                except (AttributeError, TypeError, ValueError):
+                    pass
             obj._vals[feat] = target
         else:
-            obj._vals[feat] = (obj._vals.get(feat) or []) + [target]
+            cur = obj._vals.get(feat)
+            cur = list(cur) if isinstance(cur, list) else []
+            if target not in cur:
+                cur.append(target)
+            obj._vals[feat] = cur
 
     # ---- stereotype applications (top-level, non-metamodel elements) -------
     for e in root:

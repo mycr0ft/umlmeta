@@ -2940,3 +2940,84 @@ executions -> 'action ...;', fragments/operands -> nested
 - check_v1_to_v2.py (textual): 51 passed (2 new: the emitted
   interaction parses + holds its message).
 - check_v1_to_v2_as.py: 161 passed; full sweep green.
+
+# Part 50: wave AC - the R1 activity route + the transition owned-element
+# route
+
+## The gap this closes
+
+R3's activity family (waves B and V-AB - send/accept/call/variable-action/
+control-node mappings, the larger half of the AS oracles) was only
+reachable from programmatically built `uml25` models. The R1 reader
+carried structure, state-machine regions/transitions and interactions,
+but had no entry in its feature tables for `Activity.node`/`edge`/
+`variable`, the action pins, or a guard/effect - so a real v1 file's
+activity internals landed in `unmapped_features` (honest, but the whole
+family was unreachable end-to-end). Pre-fix probe:
+
+    unmapped_features: [('t1', 'guard'), ('t1', 'effect'),
+                        ('act1', 'variable'), ('act1', 'node'),
+                        ('act1', 'edge')]
+
+## R1 (xmi21.py)
+
+- COMPOSITE gains node, edge, variable, input, output, value, guard,
+  effect, trigger, expr, parameter and specification. `specification`
+  was a dead REF_SINGLE entry before (a `<specification xmi:type=...>`
+  child was recorded unmapped), so a guard's Constraint form could never
+  carry its expression.
+- REF_SINGLE gains operation, behavior, request, variable, parameter and
+  expr - the features the R3 rules read on Call/Broadcast/send/variable/
+  parameter-node elements. REF_MULTI gains incoming, outgoing and port.
+- CONSTRUCTIBLE gains the node kinds (OpaqueAction, Decision/Merge/Fork/
+  Join, Initial/Final/ActivityFinal/FlowFinal, CentralBuffer/DataStore,
+  ActivityParameterNode), the pins (Input/Output/Value), ControlFlow/
+  ObjectFlow, the link + start-behavior action family, Constraint,
+  LiteralBoolean, TimeExpression, TimeEvent and OpaqueBehavior.
+- Branch order: a reference child is only a reference when it carries
+  xmi:idref/href. A feature name can be composite on one metaclass and a
+  reference on another (Activity.variable vs
+  WriteVariableAction.variable), and single-valued composites (guard/
+  effect/value/specification) cannot go through `add()` (it assumes a
+  list) - they assign to `_vals` directly.
+- Edge ends: pending single resolution for `source`/`target` goes through
+  the runtime descriptor setter so the association hook wires the node's
+  `incoming`/`outgoing` - exactly the end features the fork/join
+  end-transfer machinery (7.7.3.3.37/.41) reads, and until now only
+  hand-wired in the oracles. The hook path is deliberately allowlisted
+  (HOOK_SINGLE): hooking every reference reorders an Association's
+  serialized `memberEnd` list and trips the canonical XMI parity gate
+  (check_xmi_write caught it on the first attempt).
+- Guard bridge: a UML file writes `<guard xmi:type="uml:Constraint">
+  <specification .../></guard>`, while the generated runtime types
+  `ActivityEdge.guard` as ValueSpecification. The reader dereferences the
+  Constraint to its specification when the feature is not
+  Constraint-typed and records the pair in `model.guard_derefs`;
+  Transition.guard (Constraint-typed) stays the Constraint.
+
+## R3 (v1_to_v2_as.py)
+
+- `_guard_spec` resolves both guard forms to the expression the 7.7.3.3.20
+  rules map; `_guard_member` builds the guard member set
+  (TransitionFeatureMembership kind=guard + the .17 AsValue chain), with
+  the .18 CalculationUsage rider for owners that do not carry it on an
+  inner succession.
+- A state-machine Transition now carries its `ownedElement` set the way
+  the formal's Transition_Mapping says: the guard through the guard
+  member, the effect through the element mapping (OpaqueBehavior ->
+  ActionDefinition, ActivityAsDefinition) under an OwningMembership with
+  its OABody. Before this, a guarded or effect-carrying transition from a
+  file was simply dropped.
+- Class-of-bug fixed in passing: the namespace pass pushed
+  `U.OpaqueBehavior` through `_populate_activity` (an AttributeError
+  waiting for the first package-level OpaqueBehavior - a Behavior has no
+  node/edge/variable features). It now rides
+  `_populate_behavior_params` + OABody.
+
+## Result
+
+- check_v1_to_v2_as.py: 183 passed (+22: the new R1 leg - 21 checks for
+  the file->R1->R3 activity/guard/effect shapes and the OpaqueBehavior
+  case).
+- Full sweep green: 45/60/26/19/42/19/18/20/48/14/26 + 32/51/15/12 +
+  183/10/6 (mdzip corpus probe skipped - corpora not fetched).

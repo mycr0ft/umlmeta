@@ -117,6 +117,17 @@ Honest elisions (documented, no data invented silently):
     absent from the generated runtime; the guard's CalculationUsage
     rides a deviation FeatureMembership (itemized Part 32).
   - association end qualifiers/subsettings/defaults: later wave.
+  - a state-machine Transition's guard/effect ride the formal's generic
+    `ownedElement` route (Transition_Mapping carries
+    `(from.ownedElement - from.ownedComment)` through the
+    ElementOwningMembership family): the guard as the same guard member
+    the guarded activity edges carry (TransitionFeatureMembership
+    kind=guard + the .18 CalculationUsage rider, wave AC), the effect
+    through the element mapping (OpaqueBehavior -> ActionDefinition)
+    under an OwningMembership. Both are read from XMI by wave AC's reader
+    extension; only the OpaqueExpression guard member form maps (the
+    literal guard forms stay queued with the other expression-form
+    variants).
   - conjugated-port typing (ToConjugatedPortTyping is a stub
     initializer with no triggering mapping rule - the port carries
     isConjugated but types plainly), transition-from-initial message
@@ -1004,6 +1015,28 @@ def _populate_statemachine(sm, v2def, index):
                 for tg in list(tr._vals.get("trigger") or ()):
                     tu.ownedRelationship.append(
                         _trigger_carrier(tg, tg._vals.get("event"), index))
+                # The formal's Transition_Mapping carries the transition's
+                # `ownedElement - ownedComment` through the generic
+                # ElementOwningMembership route: the guard Constraint and
+                # the effect Behavior. The guard realizes as the guard
+                # member the guarded activity edges carry (the .20 rule
+                # family; TransitionFeatureMembership kind=guard + the
+                # .18 CalculationUsage rider - the same textual shape the
+                # validated emitter writes as 'if {...}.result'); the
+                # effect maps through the element mapping
+                # (ActivityAsDefinition for an OpaqueBehavior) and rides
+                # an OwningMembership (the route's carrier).
+                if tr._vals.get("guard") is not None:
+                    _guard_member(tu, tr._vals.get("guard"), index,
+                                  rider=True)
+                ef = tr._vals.get("effect")
+                ef = ef[0] if isinstance(ef, list) else ef
+                if ef is not None:
+                    v2ef = transform_v1_element(ef, index)
+                    index[id(ef)] = v2ef
+                    _populate_behavior_params(ef, v2ef)
+                    _opaque_body_repr(v2ef, ef)
+                    _own_membership(tu, v2ef)
                 _own_membership(v2def, tu)
                 index[id(tr)] = tu
 
@@ -1199,6 +1232,7 @@ def _guarded_edge_transition(e, src_obj, tgt_obj, src_node,
     guard = guard_el[0] if isinstance(guard_el, list) else guard_el
     if guard is None:
         return None
+    guard = _guard_spec(guard)
     if not isinstance(guard, U.OpaqueExpression):
         raise UnmappedFeature(
             f"edge {_name(e)!r} guard {type(guard).__name__} - only "
@@ -1236,6 +1270,51 @@ def _guarded_edge_transition(e, src_obj, tgt_obj, src_node,
     se.ownedRelationship.append(fm_g)
     tu.ownedRelationship.append(se)
     return tu
+
+
+def _guard_spec(guard):
+    """The expression a v1 guard carries. A UML file writes the guard as
+    the normative `Constraint` owning its expression via `specification`
+    (Transition.guard is Constraint-typed in the runtime; the reader
+    dereferences the ActivityEdge form already - its runtime feature is
+    ValueSpecification-typed). Both forms resolve to the expression the
+    7.7.3.3.20 / 7.7.14.3.18 rules map."""
+    g = guard[0] if isinstance(guard, list) else guard
+    if isinstance(g, U.Constraint):
+        spec = g._vals.get("specification")
+        return spec[0] if isinstance(spec, list) else spec
+    return g
+
+
+def _guard_member(owner, guard, index, rider=False):
+    """The guard member set: a TransitionFeatureMembership(kind=guard)
+    carrying the .17 AsValue FeatureChainExpression (in/out parameter
+    memberships), and - when `rider` - the .18-tail guard rider (the
+    guard's CalculationUsage under a FeatureMembership: the
+    ElementFeatureMembership deviation family). The guarded-activity-edge
+    path rides the calc on its inner succession instead, so it passes
+    rider=False."""
+    spec = _guard_spec(guard)
+    if not isinstance(spec, U.OpaqueExpression):
+        raise UnmappedFeature(
+            f"guard {type(spec).__name__} - only the OpaqueExpression "
+            "guard member forms map")
+    fce = S2.FeatureChainExpression()
+    prm = S2.ParameterMembership()
+    prm.ownedRelatedElement.append(S2.ReferenceUsage(direction="in"))
+    fce.ownedRelationship.append(prm)
+    rpm = S2.ReturnParameterMembership()
+    rpm.ownedRelatedElement.append(S2.ReferenceUsage(direction="out"))
+    fce.ownedRelationship.append(rpm)
+    tfm = S2.TransitionFeatureMembership()
+    tfm.kind = S2.TransitionFeatureKind.guard
+    tfm.ownedRelatedElement.append(fce)
+    owner.ownedRelationship.append(tfm)
+    if rider:
+        fm_g = S2.FeatureMembership()
+        fm_g.ownedRelatedElement.append(_opaque_expr_calc(spec, index))
+        owner.ownedRelationship.append(fm_g)
+    return tfm
 
 
 def _trigger_carrier(tg, ev, index):
@@ -2135,9 +2214,15 @@ def _populate_namespace(ns_v1, ns2, index, ns_pairs):
         if isinstance(el, (U.StateMachine, U.Activity, U.OpaqueBehavior)):
             if isinstance(el, U.StateMachine):
                 _populate_statemachine(el, v2, index)
-            else:
+            elif isinstance(el, U.Activity):
                 _populate_activity(el, v2, index)
                 _populate_behavior_params(el, v2)
+            else:
+                # an OpaqueBehavior is a Behavior, NOT an Activity: it has
+                # no node/edge/variable features - its body rides as OABody
+                # (ActivityAsDefinition + 7.7.2.3.2.3)
+                _populate_behavior_params(el, v2)
+                _opaque_body_repr(v2, el)
         elif isinstance(el, U.Interface):
             # Interface attributes/operations ride the generic classifier
             # machinery (7.7.10.2.14 example: 'attribute <prop>;')
@@ -2733,7 +2818,11 @@ def _transform_allocate(al, out, index):
 #                                    this tree (later AS wave)
 # ToBindingConnectorAsUsage_Init wiring Connector wiring (7.8.4.3.2)
 # ToBehavior_Init           wiring   Activity/OpaqueBehavior →
-#                                    ActionDefinition (wave B)
+#                                    ActionDefinition (wave B; wave AC: an
+#                                    OpaqueBehavior is a Behavior, not an
+#                                    Activity - its population pass
+#                                    carries parameters + OABody, never
+#                                    Activity internals)
 # ToFunction_Init           absent   no Function synthesis exists in
 #                                    formal 2.0 Part 2 (7.7.14 audited)
 # ToStep_Init               wiring   action usages (wave B)
@@ -2749,7 +2838,13 @@ def _transform_allocate(al, out, index):
 #                                    State 7.7.11.2.12, FinalState
 #                                    7.7.11.2.7) + initial -> ActionUsage
 #                                    entry subaction (7.7.11.2.8/.9)
-# ToTransitionUsage_Init    wiring   wave B (7.7.11.2.18)
+# ToTransitionUsage_Init    wiring   wave B (7.7.11.2.18) + wave AC:
+#                                    the transition's owned guard/effect
+#                                    (the Transition_Mapping's
+#                                    ownedElement route: the guard member
+#                                    + the .18 calc rider, the effect's
+#                                    mapped definition under an
+#                                    OwningMembership)
 # ToStateSubactionMembership_Init wiring wave B state internals
 # ToRequirementUsage_Init   wiring   wave C (7.8.8.3.17)
 # ToMetadataUsage_Init      wiring   MetadataUsage constructions for

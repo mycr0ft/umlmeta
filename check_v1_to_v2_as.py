@@ -152,6 +152,259 @@ finally:
     Path(xmi_path).unlink()
 
 
+# == 1b. R1 leg: activity internals + guards from XMI ======================
+# The activity mapping family (7.7.3.3.x, waves B/V-AB) is only reachable
+# end-to-end when the R1 reader carries Activity.node/edge/variable, the
+# action pins, the edge guards and the transition guard/effect. This leg
+# builds every one of those from a v1 XMI file (UML-20090901 dialect, the
+# shape a Cameo export writes) and asserts the AS the transformer builds.
+print("== R1 leg: activity internals + guards from XMI ==")
+XMI_NODES = """<?xml version="1.0" encoding="UTF-8"?>
+<xmi:XMI xmi:version="2.1" xmlns:uml="http://schema.omg.org/spec/UML/2.0"
+         xmlns:xmi="http://schema.omg.org/spec/XMI/2.1">
+  <uml:Package xmi:id="p2" xmi:type="uml:Package">
+    <name>FromXMI2</name>
+    <packagedElement xmi:type="uml:PrimitiveType" xmi:id="dt_int">
+      <name>Integer</name>
+    </packagedElement>
+    <packagedElement xmi:type="uml:DataType" xmi:id="dt_msg">
+      <name>Msg</name>
+    </packagedElement>
+    <packagedElement xmi:type="uml:Activity" xmi:id="act2">
+      <name>Split</name>
+      <variable xmi:type="uml:Variable" xmi:id="v_n">
+        <name>n</name>
+        <type xmi:idref="dt_int"/>
+      </variable>
+      <node xmi:type="uml:InitialNode" xmi:id="n_init"><name>start</name></node>
+      <node xmi:type="uml:OpaqueAction" xmi:id="n_emit">
+        <name>emit</name>
+        <output xmi:type="uml:OutputPin" xmi:id="pin_res">
+          <name>res</name>
+          <type xmi:idref="dt_msg"/>
+        </output>
+      </node>
+      <node xmi:type="uml:OpaqueAction" xmi:id="n_use">
+        <name>use</name>
+        <input xmi:type="uml:InputPin" xmi:id="pin_req">
+          <name>req</name>
+          <type xmi:idref="dt_msg"/>
+        </input>
+      </node>
+      <node xmi:type="uml:ForkNode" xmi:id="n_fork"><name>forkB</name></node>
+      <node xmi:type="uml:ActivityFinalNode" xmi:id="n_fin"><name>fin</name></node>
+      <edge xmi:type="uml:ControlFlow" xmi:id="e_start">
+        <name>e_start</name>
+        <source xmi:idref="n_init"/><target xmi:idref="n_emit"/>
+      </edge>
+      <edge xmi:type="uml:ControlFlow" xmi:id="e_guard">
+        <name>e_guard</name>
+        <source xmi:idref="n_emit"/><target xmi:idref="n_use"/>
+        <guard xmi:type="uml:Constraint" xmi:id="g_cf">
+          <specification xmi:type="uml:OpaqueExpression" xmi:id="g_cf_s">
+            <language>SysMLv1</language><body>x &gt; 3</body>
+          </specification>
+        </guard>
+      </edge>
+      <edge xmi:type="uml:ObjectFlow" xmi:id="e_of1">
+        <name>e_of1</name>
+        <source xmi:idref="pin_res"/><target xmi:idref="n_fork"/>
+      </edge>
+      <edge xmi:type="uml:ObjectFlow" xmi:id="e_of2">
+        <name>e_of2</name>
+        <source xmi:idref="n_fork"/><target xmi:idref="pin_req"/>
+      </edge>
+      <edge xmi:type="uml:ControlFlow" xmi:id="e_end">
+        <name>e_end</name>
+        <source xmi:idref="n_fork"/><target xmi:idref="n_fin"/>
+      </edge>
+    </packagedElement>
+    <packagedElement xmi:type="uml:StateMachine" xmi:id="sm2">
+      <name>GuardMachine</name>
+      <region xmi:type="uml:Region" xmi:id="r2">
+        <subvertex xmi:type="uml:State" xmi:id="s_a"><name>A</name></subvertex>
+        <subvertex xmi:type="uml:State" xmi:id="s_b"><name>B</name></subvertex>
+        <transition xmi:type="uml:Transition" xmi:id="t_ab">
+          <name>t_ab</name>
+          <source xmi:idref="s_a"/><target xmi:idref="s_b"/>
+          <guard xmi:type="uml:Constraint" xmi:id="g_tr">
+            <specification xmi:type="uml:OpaqueExpression" xmi:id="g_tr_s">
+              <language>SysMLv1</language><body>n &lt; 10</body>
+            </specification>
+          </guard>
+          <effect xmi:type="uml:OpaqueBehavior" xmi:id="ef1">
+            <name>act</name>
+          </effect>
+        </transition>
+      </region>
+    </packagedElement>
+    <packagedElement xmi:type="uml:OpaqueBehavior" xmi:id="ob1">
+      <name>log</name>
+      <language>SysMLv1</language>
+      <body>write the log</body>
+    </packagedElement>
+  </uml:Package>
+</xmi:XMI>
+"""
+with tempfile.NamedTemporaryFile("w", suffix=".xmi", delete=False) as fp:
+    fp.write(XMI_NODES)
+    nodes_path = fp.name
+try:
+    rd = xmi21.read_xmi21(nodes_path)
+    check("R1 reader: no unmapped metaclass tags", not rd.unmapped,
+          str(rd.unmapped[:3]))
+    check("R1 reader: no unmapped features (node/edge/variable/pins/guard/"
+          "effect)", not rd.unmapped_features, str(rd.unmapped_features[:6]))
+    r_act = [e for e in rd.roots[0].packagedElement
+             if isinstance(e, U.Activity)][0]
+    check("R1 reader: Activity.node constructed",
+          [type(n).__name__ for n in r_act.node]
+          == ["InitialNode", "OpaqueAction", "OpaqueAction", "ForkNode",
+              "ActivityFinalNode"],
+          str([type(n).__name__ for n in r_act.node]))
+    check("R1 reader: Activity.edge constructed",
+          [type(e).__name__ for e in r_act.edge]
+          == ["ControlFlow", "ControlFlow", "ObjectFlow", "ObjectFlow",
+              "ControlFlow"])
+    check("R1 reader: Activity.variable constructed + typed",
+          [type(v).__name__ for v in r_act.variable] == ["Variable"]
+          and getattr(r_act.variable[0], "type", None) is not None)
+    r_emit = [n for n in r_act.node if getattr(n, "name", None) == "emit"][0]
+    r_pins = list(r_emit._vals.get("_input") or ()) + \
+        list(r_emit._vals.get("_output") or ())
+    check("R1 reader: action pins + their types",
+          [type(p).__name__ for p in r_pins] == ["OutputPin"]
+          and getattr(r_pins[0], "type", None) is not None)
+    r_fork = [n for n in r_act.node if type(n).__name__ == "ForkNode"][0]
+    check("R1 reader: edge ends back-wire node incoming/outgoing",
+          [type(f).__name__ for f in (r_fork._vals.get("incoming") or [])]
+          == ["ObjectFlow"]
+          and [type(f).__name__ for f in (r_fork._vals.get("outgoing") or [])]
+          == ["ObjectFlow", "ControlFlow"],
+          f"{r_fork._vals.get('incoming')} / {r_fork._vals.get('outgoing')}")
+    r_guard_flow = [e for e in r_act.edge
+                    if getattr(e, "name", None) == "e_guard"][0]
+    r_g = r_guard_flow._vals.get("guard")
+    r_g = r_g[0] if isinstance(r_g, list) else r_g
+    check("R1 reader: <guard> Constraint dereferences to its specification "
+          "(the runtime's ActivityEdge.guard is ValueSpecification-typed)",
+          isinstance(r_g, U.OpaqueExpression)
+          and "x > 3" in str(r_g._vals.get("body")), type(r_g).__name__)
+    r_sm = [e for e in rd.roots[0].packagedElement
+            if isinstance(e, U.StateMachine)][0]
+    r_tr = [t for t in r_sm.region[0].ownedMember
+            if isinstance(t, U.Transition)][0]
+    r_tg = r_tr._vals.get("guard")
+    r_tg = r_tg[0] if isinstance(r_tg, list) else r_tg
+    check("R1 reader: Transition.guard + .effect constructed",
+          isinstance(r_tg, U.Constraint)
+          and isinstance(r_tg._vals.get("specification"), U.OpaqueExpression)
+          and isinstance(r_tr._vals.get("effect"), U.OpaqueBehavior),
+          type(r_tg).__name__)
+
+    # ---- the same file through R3 -------------------------------------
+    nodepkgs = A.transform_xmi(nodes_path)
+    check("R1->R3: transform_xmi returns the package", len(nodepkgs) == 1)
+    npkg = nodepkgs[0]
+    ndef = find(npkg, "Split", S2.ActionDefinition)
+    check("XMI Activity -> ActionDefinition", len(ndef) == 1)
+    ndef = ndef[0]
+    check("XMI Activity.variable -> PRIVATE AttributeUsage (7.7.3.3.65/.68)",
+          any(type(r).__name__ == "FeatureMembership"
+              and str(r.visibility) == "VisibilityKind.private"
+              and any(type(x).__name__ == "AttributeUsage"
+                      and x.declaredName == "n" for x in
+                      r.ownedRelatedElement)
+              for r in ndef.ownedRelationship))
+    n_uses = {}
+    for r in ndef.ownedRelationship:
+        if type(r).__name__ not in ("FeatureMembership", "OwningMembership"):
+            continue
+        for x in r.ownedRelatedElement:
+            n_uses[x.declaredName] = x
+    emit_use = n_uses.get("emit")
+    emit_pins = [x for r in emit_use.ownedRelationship
+                 if type(r).__name__ == "FeatureMembership"
+                 for x in r.ownedRelatedElement
+                 if type(x).__name__ == "ReferenceUsage"]
+    check("XMI action pins -> ReferenceUsages w/ direction (7.7.2.3.2.5)",
+          len(emit_pins) == 1 and str(emit_pins[0].direction) == "out"
+          and emit_pins[0].declaredName == "res", str(emit_pins))
+    fk_use = n_uses.get("forkB")
+    fk_ins = [x for r in fk_use.ownedRelationship
+              if type(r).__name__ == "OwningMembership"
+              for x in r.ownedRelatedElement
+              if type(x).__name__ == "ReferenceUsage"
+              and (x.declaredName or "").startswith("inputObject")]
+    fk_outs = [x for r in fk_use.ownedRelationship
+               if type(r).__name__ == "OwningMembership"
+               for x in r.ownedRelatedElement
+               if type(x).__name__ == "ReferenceUsage"
+               and (x.declaredName or "").startswith("outputObject")]
+    check("XMI ForkNode + object-flow end-transfer params "
+          "(7.7.3.3.37/.41) - no hand-wiring",
+          len(fk_ins) == 1 and len(fk_outs) == 1
+          and fk_ins[0].declaredName == "inputObject1",
+          f"{[x.declaredName for x in fk_ins]}/"
+          f"{[x.declaredName for x in fk_outs]}")
+    check("XMI fork end-transfer param typed by the flow's payload (.38)",
+          any(getattr(getattr(ft, "type", None), "declaredName", None)
+              == "Msg" for ft in fk_ins[0].ownedTyping))
+    check("XMI ActivityFinalNode -> TerminateActionUsage (7.7.3.3.16)",
+          any(type(x).__name__ == "TerminateActionUsage"
+              for r in ndef.ownedRelationship
+              if type(r).__name__ in ("FeatureMembership", "OwningMembership")
+              for x in r.ownedRelatedElement))
+    n_tu = [x for r in ndef.ownedRelationship
+            if type(r).__name__ in ("FeatureMembership", "OwningMembership")
+            for x in r.ownedRelatedElement
+            if type(x).__name__ == "TransitionUsage"
+            and x.declaredName == "e_guard"]
+    check("XMI guarded ControlFlow -> TransitionUsage w/ guard calc "
+          "(7.7.3.3.20) from the Constraint-form guard",
+          len(n_tu) == 1
+          and any(str(t.kind) == "TransitionFeatureKind.guard"
+                  for t in n_tu[0].ownedRelationship
+                  if type(t).__name__ == "TransitionFeatureMembership"),
+          str(n_tu))
+    # the state machine's transition: the formal's Transition_Mapping
+    # carries ownedElement (the guard Constraint + the effect Behavior)
+    smdef = find(npkg, "GuardMachine", S2.StateDefinition)
+    check("XMI StateMachine -> StateDefinition", len(smdef) == 1)
+    smdef = smdef[0]
+    t_use = [x for r in smdef.ownedRelationship
+             if type(r).__name__ in ("FeatureMembership", "OwningMembership")
+             for x in r.ownedRelatedElement
+             if type(x).__name__ == "TransitionUsage"]
+    check("XMI transition -> TransitionUsage", len(t_use) == 1)
+    t_use = t_use[0]
+    check("XMI Transition.guard -> the guard member + calc "
+          "(ElementOwningMembership route)",
+          any(str(t.kind) == "TransitionFeatureKind.guard"
+              for t in t_use.ownedRelationship
+              if type(t).__name__ == "TransitionFeatureMembership"))
+    check("XMI Transition.effect -> its mapped definition owned by the "
+          "transition",
+          any(type(r).__name__ in ("OwningMembership", "ElementOwningMembership")
+              and any(x.declaredName == "act"
+                      and type(x).__name__ == "ActionDefinition"
+                      for x in r.ownedRelatedElement)
+              for r in t_use.ownedRelationship),
+          str([type(r).__name__ for r in t_use.ownedRelationship]))
+    logdef = find(npkg, "log", S2.ActionDefinition)
+    log_body = [x for r in (logdef[0].ownedRelationship if logdef else ())
+                for x in r.ownedRelatedElement
+                if type(x).__name__ == "TextualRepresentation"]
+    check("XMI package-level OpaqueBehavior -> ActionDefinition + OABody "
+          "(a Behavior has no Activity internals)",
+          len(logdef) == 1
+          and any("write the log" in str(t._vals.get("body"))
+                  for t in log_body),
+          str(log_body))
+finally:
+    Path(nodes_path).unlink()
+
+
 # == 2. R3 wave-A mappings over a stereotype-carrying v1 model =============
 print("== R3 wave-A mappings ==")
 V = U.Package(name="Vehicle")
