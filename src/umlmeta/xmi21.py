@@ -34,8 +34,10 @@ Dialect features handled (all distinct from the UML 2.5 metamodel XMI):
   - Activity internals are carried (without them the whole 7.7.3.3.x /
     7.7.2.3.x mapping family is unreachable from a file): Activity
     node/edge/variable, the action pins (input/output/value), the
-    ControlFlow/ObjectFlow ends, and the guard/effect of a transition or
-    edge. A `<guard xmi:type="uml:Constraint">` child is dereferenced to
+    ControlFlow/ObjectFlow ends, the guard/effect of a transition or
+    edge, and an edge's `weight` (a value specification the
+    ActivityEdgeMetadata family maps as metadata - LITERAL kinds plus a
+    walked expression form). A `<guard xmi:type="uml:Constraint">` child is dereferenced to
     its `specification` when the runtime's feature is not
     Constraint-typed (ActivityEdge.guard is ValueSpecification-typed in
     the generated runtime); the pair is recorded in `guard_derefs`. An
@@ -126,6 +128,14 @@ REF_MULTI = {"memberEnd", "annotatedElement", "client", "supplier",
 HOOK_SINGLE = {"source", "target"}
 # multiplicity literal features
 LITERAL = {"lowerValue", "upperValue", "defaultValue"}
+# value-specification features that carry a literal OR an expression child
+# (an ActivityEdge's weight has no SysML v2 target of its own - the
+# ActivityEdgeMetadata family maps it as metadata - but it must be READ
+# for that mapping to see it)
+VALUE_SPEC = LITERAL | {"weight"}
+# the literal metaclasses whose value arrives as a <value> child/attribute
+LITERAL_CLASSES = ("LiteralString", "LiteralInteger", "LiteralUnlimitedNatural",
+                   "LiteralBoolean", "LiteralReal", "LiteralNull")
 
 # metaclass names constructible in umlmeta.uml25 (instances, not abstract)
 CONSTRUCTIBLE = {"Model", "Package", "Class", "DataType", "Enumeration",
@@ -259,6 +269,39 @@ def read_xmi21(path) -> XMI21Model:
                 pass
         return obj
 
+    def set_literal_value(lit, c):
+        """Read a literal's <value> child (or the P10 `value` attribute)
+        into the runtime element, per the literal kind."""
+        v = next((g for g in c
+                  if etree.QName(g).localname == "value"), None)
+        text = v.text.strip() if v is not None and v.text \
+            and v.text.strip() else None
+        if text is None:
+            av = c.get("value")       # P10: value as attribute
+            text = av.strip() if av and av.strip() else None
+        if isinstance(lit, U.LiteralString):
+            if text is not None:
+                lit._vals["value"] = text
+        elif isinstance(lit, U.LiteralInteger):
+            if text is not None:
+                lit._vals["value"] = int(text)
+        elif isinstance(lit, U.LiteralReal):
+            if text is not None:
+                lit._vals["value"] = float(text)
+        elif isinstance(lit, U.LiteralBoolean):
+            if text is not None:
+                lit._vals["value"] = text.lower() in ("true", "1")
+        elif isinstance(lit, U.LiteralUnlimitedNatural):
+            if text == "*":
+                lit._vals["value"] = U.UnlimitedNatural("*")
+            elif text is not None:
+                lit._vals["value"] = U.UnlimitedNatural(int(text))
+            else:
+                # EMF serialization omits <value> when it equals the
+                # feature default: 0 for UnlimitedNatural (so an
+                # empty <lowerValue/> = 0, i.e. [0..*] with '*').
+                lit._vals["value"] = U.UnlimitedNatural(0)
+
     def walk(el, obj):
         # XMI 2.5.1-era EMF dialect (P10): primitive-valued features and
         # single idrefs can arrive as unprefixed attributes (name=,
@@ -281,34 +324,16 @@ def read_xmi21(path) -> XMI21Model:
                 if c.text is not None and c.text.strip():
                     obj._vals[feat] = c.text.strip()
                 continue
-            if feat in LITERAL:
-                lit = construct(c)
-                if lit is None:
+            if feat in VALUE_SPEC:
+                vs = construct(c)
+                if vs is None:
                     continue
-                obj._vals[feat] = lit
-                v = next((g for g in c
-                          if etree.QName(g).localname == "value"), None)
-                text = v.text.strip() if v is not None and v.text \
-                    and v.text.strip() else None
-                if text is None:
-                    av = c.get("value")   # P10: value as attribute
-                    text = av.strip() if av and av.strip() else None
-                if isinstance(lit, U.LiteralString):
-                    if text is not None:
-                        lit._vals["value"] = text
-                elif isinstance(lit, U.LiteralInteger):
-                    if text is not None:
-                        lit._vals["value"] = int(text)
-                elif isinstance(lit, U.LiteralUnlimitedNatural):
-                    if text == "*":
-                        lit._vals["value"] = U.UnlimitedNatural("*")
-                    elif text is not None:
-                        lit._vals["value"] = U.UnlimitedNatural(int(text))
-                    else:
-                        # EMF serialization omits <value> when it equals the
-                        # feature default: 0 for UnlimitedNatural (so an
-                        # empty <lowerValue/> = 0, i.e. [0..*] with '*').
-                        lit._vals["value"] = U.UnlimitedNatural(0)
+                obj._vals[feat] = vs
+                set_literal_value(vs, c)
+                if type(vs).__name__ not in LITERAL_CLASSES:
+                    # an opaque/expression form carries language/body (or
+                    # an inner expr) in its own children
+                    walk(c, vs)
                 continue
             d = obj._props.get(feat)
             if c.text is not None and c.text.strip() \

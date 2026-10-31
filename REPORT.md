@@ -3021,3 +3021,70 @@ family was unreachable end-to-end). Pre-fix probe:
   case).
 - Full sweep green: 45/60/26/19/42/19/18/20/48/14/26 + 32/51/15/12 +
   183/10/6 (mdzip corpus probe skipped - corpora not fetched).
+
+# Part 51: wave AD - the edge weight machinery (ActivityEdgeMetadata)
+
+`ActivityEdge.weight` is the one v1 property the mapping's own comment
+calls out as having "no direct target in SysML v2" - it maps as
+*metadata*. The family is seven mapping classes (machine-readable, the
+Activities package):
+
+- ActivityEdgeMetadata_Mapping: a MetadataUsage with declaredName
+  'weight' (generalized from ToMetadataUsage_Init), ownedRelationship =
+  {FeatureTyping, FeatureMembership}.
+- ActivityEdgeMetadataFeatureTyping_Mapping: type =
+  MetadataDefinition.allInstances()->any(qualifiedName =
+  'SysMLv1Library::ActivityEdgeData').
+- ActivityEdgeMetadataFeatureMembership_Mapping: owns the
+  ActivityEdgeMetadataReferenceUsage_Mapping object.
+- ActivityEdgeMetadataReferenceUsage_Mapping (a ToReferenceUsage_Init;
+  no name rule -> unnamed): ownedRelationship = {Redefinition,
+  FeatureValue}.
+- ActivityEdgeMetadataRedefinition_Mapping: referencedFeature =
+  AttributeUsage.allInstances()->any(qualifiedName =
+  'SysMLv1Library::ActivityEdgeData::weight').
+- ActivityEdgeMetadataFeatureValue_Mapping: value = from.weight.
+- ActivityEdgeMetadataOwningMembership_Mapping: an OwningMembership
+  (ToOwningMembership_Init) whose ownedMemberElement is the metadata
+  usage.
+
+Carried by exactly three rule clauses - each adds
+`ActivityEdgeMetadataOwningMembership_Mapping.getMapped(from)` to the
+mapped edge element's ownedRelationship when `from.weight` is defined:
+ControlFlowSuccessionAsUsage (unguarded control flow -> the
+SuccessionAsUsage), ObjectFlow (-> the SuccessionFlowUsage, guarded or
+not) and ControlFlowTransitionUsage (guarded control flow -> the
+TransitionUsage).
+
+## Changes
+
+- v1_to_v2_as.py: `_edge_weight(e, owner, index)` builds the carrier
+  (MetadataUsage + FeatureTyping + FeatureMembership/ReferenceUsage +
+  Redefinition + FeatureValue) and rides an OwningMembership on the
+  mapped edge element; `_library_ref` caches the library references as
+  singletons on the index (the machine text's
+  MetadataDefinition.allInstances()->any(...) is one object, not one per
+  edge). Called from the three clauses above. A weight whose
+  specification has no literal mapping raises UnmappedFeature (the
+  opaque/expression weight forms queue with the other expression
+  variants).
+- The same three clauses also add the Probability/Rate metadata
+  (ProbabilityOwningMembership/RateOwningMembership,
+  `_stereo_metadata`): an edge's Probability/Continuous/Discrete
+  stereotype was silently dropped before - now it rides the edge
+  element like it already did for properties and parameters.
+- xmi21.py: ActivityEdge.weight is READ (VALUE_SPEC = LITERAL +
+  {weight}), via a shared `set_literal_value` that also covers
+  LiteralReal/LiteralBoolean; a non-literal value specification still
+  walks its own children (language/body for the opaque form) instead of
+  dropping them.
+
+## Result
+
+- check_v1_to_v2_as.py: 194 passed (+11: the wave-AD block, the edge
+  Probability check, and the XMI weight leg - reader + end-to-end
+  metadata with FeatureValue = 3).
+- Full sweep green (mdzip corpus probe skipped - corpora not fetched).
+- The textual pipeline does not emit edge weight metadata yet (its
+  notation scope); noted, not silently dropped: the AS is the conformance
+  artifact.

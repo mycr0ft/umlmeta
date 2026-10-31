@@ -102,6 +102,27 @@ Wave H: InformationFlow machinery — InformationFlow → FlowDefinition
   ConnectionDefinition; reader tables extended for the InformationFlow
   end/carrier refs.
 
+Wave AC: the transition owned-element route - Transition.guard and
+  Transition.effect (the formal's Transition_Mapping carries
+  `from.ownedElement - from.ownedComment` through the generic
+  ElementOwningMembership family): the guard as the guard member the
+  guarded activity edges carry (TransitionFeatureMembership kind=guard
+  + the .18 CalculationUsage rider), the effect through the element
+  mapping under an OwningMembership; both guard forms (the runtime's
+  ValueSpecification-typed ActivityEdge.guard and the Constraint-form
+  Transition.guard) resolve through _guard_spec.
+
+Wave AD: the ActivityEdgeMetadata machinery - ActivityEdge.weight has
+  no direct SysML v2 target, so the mapped edge element
+  (ControlFlowSuccessionAsUsage, ObjectFlow, ControlFlowTransitionUsage)
+  carries an OwningMembership -> MetadataUsage 'weight' typed (name-only;
+  SysMLv1Library is external) by SysMLv1Library::ActivityEdgeData, whose
+  FeatureMembership's ReferenceUsage redefines ActivityEdgeData::weight
+  and carries the weight specification as its FeatureValue. The same
+  three rule clauses add the Probability/Rate metadata, so an edge's
+  stereotype now rides its edge element (it was dropped). A weight with
+  no literal mapping raises - never a guessed value.
+
 One v1 element maps to exactly ONE v2 AS object (kept in the index);
 usage typings reference that object rather than duplicating it.
 
@@ -428,6 +449,80 @@ def transform_property(prop, owner_def, index):
     _feature_membership(owner_def, usage)
     index[id(prop)] = usage
     return usage
+
+
+def _library_ref(index, name, cls):
+    """A name-only carry of a SysMLv1Library element (the library is
+    external - the waves T/T2 convention). The library definitions are
+    SINGLETONS per transform (MetadataDefinition.allInstances() ->
+    any(qualifiedName = ...) in the machine text), so they are cached on
+    the index under a string-tuple key that no id() can collide with."""
+    key = ("lib", name)
+    hit = index.get(key)
+    if hit is None:
+        hit = cls(declaredName=name)
+        index[key] = hit
+    return hit
+
+
+def _edge_weight(e, owner, index):
+    """The ActivityEdgeMetadata machinery: "Adds metadata to the
+    transformation target elements of UML4SysML::ControlFlow and
+    UML::ObjectFlow to map the UML4SysML::ActivityEdge::weight property
+    which has no direct target in SysML v2" (the mapping class's own
+    comment).
+
+    The three mapping classes that carry it - ControlFlowSuccessionAsUsage
+    (unguarded control flow), ObjectFlow (object flow, guarded or not) and
+    ControlFlowTransitionUsage (guarded control flow) - each add
+    ActivityEdgeMetadataOwningMembership_Mapping.getMapped(from) to the
+    mapped edge element's ownedRelationship. The carrier:
+
+      OwningMembership -> MetadataUsage 'weight'
+        (ActivityEdgeMetadata_Mapping: declaredName 'weight', generalized
+         from ToMetadataUsage_Init)
+        FeatureTyping -> SysMLv1Library::ActivityEdgeData
+          (ActivityEdgeMetadataFeatureTyping_Mapping: a MetadataDefinition,
+           library-external -> name-only)
+        FeatureMembership -> ReferenceUsage (unnamed per
+          ToReferenceUsage_Init)
+          Redefinition -> SysMLv1Library::ActivityEdgeData::weight
+            (ActivityEdgeMetadataRedefinition_Mapping: redefinedFeature = the
+             library AttributeUsage, name-only)
+          FeatureValue = from.weight
+            (ActivityEdgeMetadataFeatureValue_Mapping)
+
+    `owner` is the mapped edge element (SuccessionAsUsage /
+    SuccessionFlowUsage / TransitionUsage). A weight whose specification
+    has no literal mapping raises - never a guessed value."""
+    wt = e._vals.get("weight")
+    if isinstance(wt, list):         # raw single-store unwraps
+        wt = wt[0] if wt else None
+    if wt is None:
+        return None
+    val = _map_value_spec(wt, index)
+    if val is None:
+        raise UnmappedFeature(
+            f"edge {_name(e)!r} weight {type(wt).__name__} - only the "
+            "literal value specifications map (itemized: the opaque/"
+            "expression weight forms queue with the expression variants)")
+    mu = S2.MetadataUsage(declaredName="weight")
+    _type_feature(mu, _library_ref(index, "SysMLv1Library::ActivityEdgeData",
+                                   S2.MetadataDefinition))
+    ru = S2.ReferenceUsage()
+    rd = S2.Redefinition()
+    rd.redefinedFeature = _library_ref(
+        index, "SysMLv1Library::ActivityEdgeData::weight",
+        S2.AttributeUsage)
+    ru.ownedRelationship.append(rd)
+    fv = S2.FeatureValue()
+    fv.value = val
+    ru.ownedRelationship.append(fv)
+    fm = S2.FeatureMembership()
+    fm.ownedRelatedElement.append(ru)
+    mu.ownedRelationship.append(fm)
+    _own_membership(owner, mu)
+    return mu
 
 
 def _stereo_metadata(el, feature):
@@ -2060,6 +2155,9 @@ def _populate_activity(act, v2def, index):
                 se.ownedRelationship.append(pfm)
             _own_membership(v2def, se)
             index[id(e)] = se
+            # ObjectFlow_Mapping: a weight rides the mapped flow
+            _edge_weight(e, se, index)
+            _stereo_metadata(e, se)
             # a guarded object flow ALSO carries the full .50 guard
             # transition; its internal succession's target end subsets
             # the mapped flow (7.7.3.3.51-.53)
@@ -2078,6 +2176,9 @@ def _populate_activity(act, v2def, index):
             _edge_end(se, tgt, tgt_obj, False, S2.Feature, False)
             _own_membership(v2def, se)
             index[id(e)] = se
+            # ControlFlowSuccessionAsUsage_Mapping: the weight metadata
+            _edge_weight(e, se, index)
+            _stereo_metadata(e, se)
             continue
         # ControlFlowTransitionUsage_Mapping (7.7.3.3.20): a guarded
         # control flow maps to a TransitionUsage (the filter routes
@@ -2087,6 +2188,10 @@ def _populate_activity(act, v2def, index):
         tu2 = _guarded_edge_transition(e, src_obj, tgt_obj, src,
                                        tgt_obj, index)
         _own_membership(v2def, tu2)
+        # ControlFlowTransitionUsage_Mapping: the weight metadata + the
+        # Probability/Rate specializations ride the transition
+        _edge_weight(e, tu2, index)
+        _stereo_metadata(e, tu2)
         index[id(e)] = tu2
 
 
@@ -2849,7 +2954,22 @@ def _transform_allocate(al, out, index):
 # ToRequirementUsage_Init   wiring   wave C (7.8.8.3.17)
 # ToMetadataUsage_Init      wiring   MetadataUsage constructions for
 #                                    the v1-library metadata stubs
-#                                    (PortData/RefineData/TraceData)
+#                                    (PortData/RefineData/TraceData) and,
+#                                    wave AD, the ActivityEdgeMetadata
+#                                    family: the mapping classes are not
+#                                    To* inits but they compose this one
+#                                    (ActivityEdgeMetadata_Mapping
+#                                    declaredName 'weight';
+#                                    ...FeatureTyping ->
+#                                    SysMLv1Library::ActivityEdgeData,
+#                                    ...FeatureMembership -> the
+#                                    unnamed ReferenceUsage,
+#                                    ...Redefinition ->
+#                                    ActivityEdgeData::weight,
+#                                    ...FeatureValue = from.weight,
+#                                    ...OwningMembership onto the mapped
+#                                    edge element; library references are
+#                                    singletons cached on the index)
 # ToTextualRepresentation_Init defaults (textual forms are the
 #                                    other pipeline's output; AS wave
 #                                    carries no TextualRepresentation)

@@ -213,6 +213,9 @@ XMI_NODES = """<?xml version="1.0" encoding="UTF-8"?>
       <edge xmi:type="uml:ObjectFlow" xmi:id="e_of2">
         <name>e_of2</name>
         <source xmi:idref="n_fork"/><target xmi:idref="pin_req"/>
+        <weight xmi:type="uml:LiteralInteger" xmi:id="w_of2">
+          <value>3</value>
+        </weight>
       </edge>
       <edge xmi:type="uml:ControlFlow" xmi:id="e_end">
         <name>e_end</name>
@@ -360,6 +363,31 @@ try:
             for x in r.ownedRelatedElement
             if type(x).__name__ == "TransitionUsage"
             and x.declaredName == "e_guard"]
+    r_of2 = [e for e in r_act.edge if getattr(e, "name", None) == "e_of2"][0]
+    r_w = r_of2._vals.get("weight")
+    r_w = r_w[0] if isinstance(r_w, list) else r_w
+    check("R1 reader: ActivityEdge.weight read as its value specification",
+          type(r_w).__name__ == "LiteralInteger"
+          and r_w._vals.get("value") == 3, str(r_w))
+    of2_flow = [x for r in ndef.ownedRelationship
+                if type(r).__name__ in ("FeatureMembership", "OwningMembership")
+                for x in r.ownedRelatedElement
+                if type(x).__name__ == "SuccessionFlowUsage"
+                and x.declaredName == "e_of2"]
+    of2_w = [x for r in (of2_flow[0].ownedRelationship if of2_flow else ())
+             if type(r).__name__ == "OwningMembership"
+             for x in r.ownedRelatedElement
+             if type(x).__name__ == "MetadataUsage"
+             and x.declaredName == "weight"]
+    check("XMI weight -> the metadata carrier end to end "
+          "(ActivityEdgeMetadata, weight FeatureValue = 3)",
+          len(of2_flow) == 1 and len(of2_w) == 1
+          and any(type(g).__name__ == "FeatureValue"
+                  and g._vals.get("value")._vals.get("value") == 3
+                  for fm in of2_w[0].ownedRelationship
+                  for ru in getattr(fm, "ownedRelatedElement", ())
+                  for g in getattr(ru, "ownedRelationship", ())),
+          str(of2_w))
     check("XMI guarded ControlFlow -> TransitionUsage w/ guard calc "
           "(7.7.3.3.20) from the Constraint-form guard",
           len(n_tu) == 1
@@ -2534,6 +2562,146 @@ check("ActivityFinalNode -> TerminateActionUsage (7.7.3.3.16)",
       len(aterm) == 1)
 check("CentralBufferNode -> an empty ActionUsage (7.7.3.3.17)",
       type(a_uses.get("buf")).__name__ == "ActionUsage")
+
+print()
+print("== wave AD: edge weight metadata (ActivityEdgeMetadata) ==")
+# The three mapping classes that carry it: ControlFlowSuccessionAsUsage
+# (unguarded control flow), ObjectFlow (unguarded object flow) and
+# ControlFlowTransitionUsage (guarded control flow). The mapped edge
+# element carries an OwningMembership -> MetadataUsage 'weight' typed by
+# the (external) SysMLv1Library::ActivityEdgeData, whose FeatureMembership
+# holds a ReferenceUsage redefining ActivityEdgeData::weight and whose
+# FeatureValue is the v1 weight specification.
+wpkg = U.Package(name="WeightPkg")
+wmsg = U.DataType(name="Msg")
+wact = U.Activity(name="Weighted")
+w1 = U.OpaqueAction(name="a1")
+w2 = U.OpaqueAction(name="a2")
+wpin_s = U.OutputPin(name="out1"); wpin_s.type = wmsg
+wpin_t = U.InputPin(name="in1"); wpin_t.type = wmsg
+w1.add("output", wpin_s)
+w2.add("input", wpin_t)
+wact.node.append(w1)
+wact.node.append(w2)
+
+def _lit(v):
+    li = U.LiteralInteger()
+    li._vals["value"] = v
+    return li
+
+wcf = U.ControlFlow(name="cf")
+wcf.source = w1; wcf.target = w2
+wcf._vals["weight"] = _lit(2)
+wof = U.ObjectFlow(name="of")
+wof.source = wpin_s; wof.target = wpin_t
+wof._vals["weight"] = _lit(4)
+wguard = U.OpaqueExpression()
+wguard._vals["language"] = "English"
+wguard._vals["body"] = "carry on"
+wcfg = U.ControlFlow(name="cfg")
+wcfg.source = w2; wcfg.target = w1
+wcfg._vals["guard"] = wguard
+wcfg._vals["weight"] = _lit(5)
+wbare = U.ControlFlow(name="bare")
+wbare.source = w1; wbare.target = w2
+for _e in (wcf, wof, wcfg, wbare):
+    wact.edge.append(_e)
+wpkg.packagedElement.extend([wmsg, wact])
+wout = A.transform_package(wpkg)
+wdef = [e for e in wout.ownedElement
+        if e.declaredName == "Weighted"][0]
+
+def _edge_uses(defn, kind):
+    return {x.declaredName: x for r in defn.ownedRelationship
+            if type(r).__name__ in ("FeatureMembership", "OwningMembership")
+            for x in r.ownedRelatedElement
+            if type(x).__name__ == kind}
+
+def _weights(edge_use):
+    """(MetadataUsage, ReferenceUsage) pairs carried by an edge element."""
+    out = []
+    for r in edge_use.ownedRelationship:
+        if type(r).__name__ != "OwningMembership":
+            continue
+        for mu in r.ownedRelatedElement:
+            if type(mu).__name__ != "MetadataUsage":
+                continue
+            for fm in mu.ownedRelationship:
+                for ru in getattr(fm, "ownedRelatedElement", ()):
+                    out.append((mu, ru))
+    return out
+
+successions = _edge_uses(wdef, "SuccessionAsUsage")
+flows = _edge_uses(wdef, "SuccessionFlowUsage")
+trans = _edge_uses(wdef, "TransitionUsage")
+mu_cf, ru_cf = (_weights(successions["cf"]) or [(None, None)])[0]
+check("weighted ControlFlow -> OwningMembership -> MetadataUsage 'weight' "
+      "(ActivityEdgeMetadata_Mapping)",
+      type(mu_cf).__name__ == "MetadataUsage"
+      and mu_cf.declaredName == "weight", str(mu_cf))
+check("the weight metadata is TYPED by the library ActivityEdgeData "
+      "(ActivityEdgeMetadataFeatureTyping_Mapping)",
+      any(getattr(getattr(ft, "type", None), "declaredName", None)
+          == "SysMLv1Library::ActivityEdgeData"
+          and type(getattr(ft, "type", None)).__name__ == "MetadataDefinition"
+          for ft in (mu_cf.ownedTyping if mu_cf is not None else ())))
+check("the weight FeatureValue carries the v1 specification "
+      "(ActivityEdgeMetadataFeatureValue_Mapping)",
+      ru_cf is not None
+      and any(type(r).__name__ == "FeatureValue"
+              and type(r._vals.get("value")).__name__ == "LiteralInteger"
+              and r._vals.get("value")._vals.get("value") == 2
+              for r in ru_cf.ownedRelationship))
+check("the weight ReferenceUsage redefines ActivityEdgeData::weight "
+      "(ActivityEdgeMetadataRedefinition_Mapping)",
+      any(type(r).__name__ == "Redefinition"
+          and getattr(r._vals.get("redefinedFeature"), "declaredName", None)
+          == "SysMLv1Library::ActivityEdgeData::weight"
+          for r in (ru_cf.ownedRelationship if ru_cf is not None else ())))
+mu_of = _weights(flows["of"])
+check("weighted ObjectFlow -> the same metadata on the SuccessionFlowUsage",
+      len(mu_of) == 1 and mu_of[0][0].declaredName == "weight", str(mu_of))
+mu_g = _weights(trans["cfg"])
+check("weighted guarded ControlFlow -> the same metadata on the "
+      "TransitionUsage (ControlFlowTransitionUsage_Mapping)",
+      len(mu_g) == 1 and mu_g[0][0].declaredName == "weight", str(mu_g))
+check("an edge without a weight carries no metadata (never invented)",
+      _weights(successions["bare"]) == [])
+# the same three rule clauses also add the Probability/Rate metadata: an
+# edge carrying the stereotype maps it onto its edge element
+wcf._applied_stereotypes = [("SysML", "Probability", "ap1")]
+wcf._stereo_tags = {"Probability": {"probability": "0.25"}}
+wout2 = A.transform_package(wpkg)
+wdef2 = [e for e in wout2.ownedElement
+         if e.declaredName == "Weighted"][0]
+suc2 = _edge_uses(wdef2, "SuccessionAsUsage")
+prob = [x for r in suc2["cf"].ownedRelationship
+        if type(r).__name__ == "OwningMembership"
+        for x in r.ownedRelatedElement
+        if type(x).__name__ == "MetadataUsage"
+        and "Probability" in (x.declaredName or "")]
+check("an edge's Probability stereotype -> MetadataUsage on the edge "
+      "(ProbabilityOwningMembership_Mapping)",
+      len(prob) == 1, str(prob))
+
+# honesty: a weight with no literal mapping refuses to guess
+wbad = U.Package(name="WeightBad")
+wact2 = U.Activity(name="Bad")
+b1 = U.OpaqueAction(name="x")
+b2 = U.OpaqueAction(name="y")
+wact2.node.extend([b1, b2])
+bcf = U.ControlFlow(name="bcf")
+bcf.source = b1; bcf.target = b2
+bcf._vals["weight"] = U.OpaqueExpression()
+bact2 = wact2
+wbad.packagedElement.extend([wact2])
+wact2.edge.append(bcf)
+try:
+    A.transform_package(wbad)
+    check("UnmappedFeature raised for a non-literal weight", False)
+except A.UnmappedFeature as e:
+    check("UnmappedFeature raised for a non-literal weight",
+          "weight" in str(e), str(e))
 
 print()
 print("== honesty: unmapped features refuse to guess ==")
