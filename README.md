@@ -28,6 +28,9 @@ stdlib, and every semantic in them is traceable to an OMG document.
 
 **481 checks, all green.** `REPORT.md` is the detailed build journal: dialect facts,
 mapping tables with spec anchors, calibration evidence, and honest elisions.
+`docs/v1-v2-linkage-pathway.md` is the plan for the layer above the mapping:
+maintaining a v1 ↔ v2 link (stable identity, provenance, persistence, sync,
+elision ledger) through a prolonged transition period.
 
 ## Quick start
 
