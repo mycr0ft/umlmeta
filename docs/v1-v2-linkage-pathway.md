@@ -1,6 +1,7 @@
 # Maintaining a v1 ↔ v2 link through a prolonged transition
 
-**Status:** pathway published; M1 (identity + provenance) shipped · umlmeta 0.2.x · Jon R. Fox
+**Status:** pathway published; M1 (identity + provenance) and M2a (AS → text) shipped ·
+umlmeta 0.2.x · Jon R. Fox
 
 The SysML v1 → v2 transformation clause (SysML v2.0 Part 2, formal/26-03-03)
 defines a **one-shot** mapping: read a v1 model, emit a v2 model. umlmeta's
@@ -23,7 +24,8 @@ silently if identity is left to serialization artifacts.
 | v1 → v2 textual notation | implemented, 51 oracles green (lags the AS: no probability/rate, variable actions, Reply/Unmarshall, TerminateActionUsage, imports) |
 | v1 XMI reader (R1) | structural + activity internals + interactions + guards/effects/weight |
 | v1 XMI writer | implemented (`xmi_write.py`, canonical parity gate) |
-| **v2 serialization** | **absent** — the only AS→text renderer is `render_as()` inside `check_v1_to_v2_as.py` |
+| v2 serialization (text) | **M2a** — `umlmeta.v2_text` renders the AS in the calibrated notation; byte-identical to the v1→text pipeline on the parity model, sysmlpy-validated |
+| v2 serialization (JSON) | **M2b** — not started (sysmlpy interchange document shape) |
 | v2 `elementId` | **M1** — deterministic `v1v2:` uuid5 ids over the declared path + type (`umlmeta.link`) |
 | v1→v2 provenance | **M1** — `umlmeta.link.provenance()` over the transform's retained index (`_v1_index`/`_v1_root`), with the v1 xmi id as a cache and a v1 content signature |
 | reverse (v2 → v1) | absent |
@@ -151,7 +153,7 @@ Each milestone lands as its own wave (TDD, full sweep green, REPORT part).
 - **Note:** the sidecar document (§4) is emitted by M3 — M1 ships the
   identity, the provenance record set and the graph hash it will carry.
 
-### M2 — persistence of the v2 side
+### M2 — persistence of the v2 side *(M2a shipped, M2b open)*
 - Promote an AS → SysML v2 **textual** emitter into the package (the oracle
   renderer is the starting point), with a round-trip oracle: emit → sysmlpy
   parse → re-transform comparison.
@@ -160,6 +162,16 @@ Each milestone lands as its own wave (TDD, full sweep green, REPORT part).
 - **Acceptance:** write → read → write is a fixed point (L0/L1 on the v2
   side); the writer is the single source of truth (the direct v1→text
   pipeline stays as a notation oracle, not a competing output).
+- **M2a shipped:** `umlmeta.v2_text` (`emit_package`/`emit_model`) renders
+  the AS with the calibrated pipeline's own vocabulary; the suite gates
+  byte-identity against `v1_to_v2.emit_v2` on the parity model, emit-twice
+  fixed point, a sysmlpy parse gate, an AS-vs-parsed inventory match, and a
+  coverage oracle that fails on any newly unsupported AS metaclass. The M2
+  decision taken: **one notation** — the emitter mirrors the calibrated
+  forms rather than inventing AS-flavoured ones.
+- **M2b open:** SysML v2 JSON interchange in sysmlpy's document shape, so
+  the v2 model can be handed to other tools and ids can be reconciled with
+  sysmlpy's `stable_ids` (M4).
 
 ### M3 — diff, sync, incremental transform
 - Pair diff using `mdzip_diff`-style records on both sides; classify each

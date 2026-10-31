@@ -2737,6 +2737,106 @@ except A.UnmappedFeature as e:
           "external/unnamed" in str(e), str(e))
 
 print()
+print("== M2 (single form notation): the AS is the writer ==")
+# docs/v1-v2-linkage-pathway.md M2. The emitter renders the AS graph with
+# the same notation the calibrated v1->text pipeline emits, so there is one
+# notation for the pipeline and the gap between the two is measurable.
+from umlmeta import v2_text as T  # noqa: E402
+
+as_text = T.emit_package(as_pkg)
+print("---- AS->text (v2_text) ----")
+print(as_text)
+check("M2: the AS renders byte-identically to the calibrated pipeline "
+      "(single form notation)",
+      as_text == MT.emit_v2(V),
+      "differs" if as_text != MT.emit_v2(V) else "identical")
+check("M2: the emitted text is a fixed point (emit twice, same bytes)",
+      T.emit_package(as_pkg) == as_text)
+
+# calibration: the emitted text must parse in sysmlpy (the authoritative
+# v2 reader). The AS suite runs with sysmlpy on PYTHONPATH in the sweep;
+# when it is absent the gate is an explicit skip, not a silent pass.
+try:
+    import sysmlpy  # noqa: F401
+    _have_sysmlpy = True
+except Exception:
+    _have_sysmlpy = False
+if _have_sysmlpy:
+    try:
+        parsed = MT.validate_with_sysmlpy(as_text)
+        check("M2: sysmlpy parses the AS-emitted text",
+              bool(parsed), str(parsed)[:120])
+        # round-trip signal without a full AS reader: the declaration
+        # inventory sysmlpy found must be the inventory the AS holds
+        _want = {}
+        _map = {"PartDefinition": "part",
+                "AttributeDefinition": "attribute",
+                "EnumerationDefinition": "enumeration",
+                "ConstraintDefinition": "constraint"}
+        _stack = [as_pkg]
+        while _stack:
+            _el = _stack.pop()
+            _k = _map.get(type(_el).__name__)
+            if _k:
+                _want[_k] = _want.get(_k, 0) + 1
+            for _r in getattr(_el, "ownedRelationship", ()):
+                _stack.extend(c for c in getattr(_r, "ownedRelatedElement", ())
+                              if hasattr(c, "_props"))
+        check("M2: the parsed inventory matches the AS (write->read signal)",
+              all(parsed.get(k, 0) == v for k, v in _want.items()),
+              f"parsed {parsed} vs AS {_want}")
+    except Exception as ex:
+        check("M2: sysmlpy parses the AS-emitted text", False,
+              f"{type(ex).__name__}: {str(ex)[:160]}")
+else:
+    print("  SKIP  M2: sysmlpy parse gate (sysmlpy not on PYTHONPATH)")
+
+# coverage ledger: every family model the suite builds must either emit or
+# name the AS metaclass that is not covered yet. A new unsupported kind
+# fails this check - coverage can only grow.
+PENDING_EMISSION = set()          # measured; shrink only
+_fam = U.Package(name="FamCoverage")
+_fact = U.Activity(name="Flow")
+_fa1 = U.OpaqueAction(name="load")
+_fdt = U.DataType(name="Msg")
+_fpin = U.OutputPin(name="res"); _fpin.type = _fdt
+_fa1.add("output", _fpin)
+_fact.node.append(_fa1)
+_fsm = U.StateMachine(name="Mode")
+_region = U.Region(name="main")
+_fsm.region.append(_region)
+_fs1 = U.State(name="Idle")
+_fs2 = U.State(name="Run")
+_region.subvertex.append(_fs1)
+_region.subvertex.append(_fs2)
+_ftr = U.Transition(name="toRun")
+_ftr.source = _fs1
+_ftr.target = _fs2
+_region.transition.append(_ftr)
+_freq = S.Requirement(name="Fast"); _freq.id = "R1"
+_fblk = S.Block(name="Engine")
+_fsat = S.Satisfy(name="sat1")
+_fsat.client.append(_fblk); _fsat.supplier.append(_freq)
+_fam.packagedElement.extend([_fact, _fsm, _freq, _fblk, _fsat, _fdt])
+_fam_as = A.transform_package(_fam)
+_unsupported = set()
+_fam_text = None
+try:
+    _fam_text = T.emit_package(_fam_as)
+except T.UnsupportedEmission as ex:
+    _unsupported.add(str(ex))
+check("M2: family coverage is measured (no silent drop; new kinds fail)",
+      _unsupported <= PENDING_EMISSION,
+      f"unsupported: {sorted(_unsupported)} / pending: {sorted(PENDING_EMISSION)}")
+if _fam_text is not None and _have_sysmlpy:
+    try:
+        MT.validate_with_sysmlpy(_fam_text)
+        check("M2: sysmlpy parses the family emission", True)
+    except Exception as ex:
+        check("M2: sysmlpy parses the family emission", False,
+              f"{type(ex).__name__}: {str(ex)[:160]}")
+
+print()
 print("== M1 link: stable identities + provenance ==")
 # docs/v1-v2-linkage-pathway.md M1: elementId derivation (uuid5 over the
 # declared path + type, sysmlpy's recipe in the umlmeta link namespace),

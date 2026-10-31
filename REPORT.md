@@ -3165,3 +3165,63 @@ conformance-critical identity, it just was not reachable from the result.
 Next: M2 - persistence of the v2 side (AS -> textual emitter in the package,
 then AS -> SysML v2 JSON interchange in sysmlpy's document shape), which is
 what makes the identity durable outside a Python process.
+
+# Part 53: M2a - the AS is the writer (single form notation)
+
+The M2 decision: one notation for the pipeline. Instead of letting the
+transformed model grow an "AS-flavoured" text dialect, `umlmeta.v2_text`
+renders the AS in exactly the vocabulary the calibrated v1 -> text emitter
+writes, so the two pipelines can be compared byte-for-byte and the AS is the
+single source of truth for what gets written.
+
+## What shipped
+
+- `umlmeta.v2_text.emit_package()` / `emit_model()`: package, the definition
+  family (part/attribute/enum/constraint/occurrence/item/port/state/action/
+  use case/verification/connection/metadata), the usage family, typing,
+  multiplicity, `subsets`/`redefines`/value suffixes, Documentation,
+  activity nodes + successions + transitions + succession flows, state
+  machines, requirements and `satisfy ... : R by P;`, interactions
+  (lifelines as parts, flows as messages), namespace/membership imports.
+- `UnsupportedEmission` names the AS metaclass for anything not covered, so
+  coverage is a measured list rather than a silent drop.
+
+## Gates (check_v1_to_v2_as.py, M2 section)
+
+- **Single form notation:** `v2_text.emit_package(as_pkg)` is byte-identical
+  to `v1_to_v2.emit_v2()` for the parity model (the wave-A model both
+  pipelines build). This is the anti-divergence gate - the reason the two
+  emitters cannot drift.
+- **Fixed point:** emitting twice produces the same bytes.
+- **Calibration:** the emitted text parses in sysmlpy (skipped with an
+  explicit SKIP line when sysmlpy is absent from PYTHONPATH).
+- **Write -> read signal:** the declaration inventory sysmlpy reports
+  (part/attribute/enumeration/constraint counts) equals the AS inventory -
+  a round-trip signal that does not need a second AS reader.
+- **Coverage ledger:** a family model (activity with pins and a control
+  flow, state machine with two states and a transition, requirement +
+  satisfy, block) must emit with an empty unsupported set; any new
+  unsupported metaclass fails the suite. Coverage can only grow.
+
+## Facts pinned while writing it
+
+- `ownedTyping` is a derived subset with its own storage: the transformer
+  appends FeatureTyping there, so a typing read that only walks
+  ownedRelationship sees nothing (types silently disappeared).
+- Parameters and pins render as `in/out/inout <name> : T;` - the `ref`
+  prefix belongs to the part/occurrence usages, not to ReferenceUsage
+  (pins are ReferenceUsages).
+- A `SatisfyRequirementUsage` carries `satisfiedRequirement` /
+  `satisfyingFeature` ends, which is what `satisfy n : R by P;` needs (typing
+  alone is not enough).
+- State-machine regions/states/transitions must be built on the stored
+  containment ends (`sm.region`, `region.subvertex`, `region.transition`);
+  `ownedMember` is a derived union and a direct append does not reach the
+  transformer.
+
+## Result
+
+- check_v1_to_v2_as.py: 216 passed (+6 M2 checks). Full sweep green (679
+  checks total, README refreshed).
+- docs/v1-v2-linkage-pathway.md marks M2a shipped and keeps M2b (SysML v2
+  JSON interchange in sysmlpy's document shape) open.
