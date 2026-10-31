@@ -232,6 +232,47 @@ def _xget(e, name):
     return v
 
 
+def read_xmi21_files(paths) -> XMI21Model:
+    """Read several XMI files as ONE scope, resolving cross-file hrefs.
+
+    A v1 project is rarely one file and its elements reference each other
+    across files with `href="other.xmi#id"`. Read alone, every such reference
+    is a synthetic external marker (and the transformation correctly refuses
+    it as out of scope); read as a scope, the fragment resolves against the
+    other files' objects and the reference is ordinary.
+    """
+    models = [read_xmi21(p) for p in paths]
+    if len(models) == 1:
+        return models[0]
+    scope = XMI21Model()
+    for m in models:
+        scope.objects.update(m.objects)
+        scope.roots.extend(m.roots)
+        scope.unmapped.extend(m.unmapped)
+        scope.unmapped_features.extend(m.unmapped_features)
+        scope.profiles.extend(m.profiles)
+        scope.derived_names.extend(m.derived_names)
+        scope.nsmap.update(m.nsmap)
+    for m in models:
+        for owner_id, feat, href in m.hrefs:
+            frag = href.split("#")[-1]
+            target = scope.objects.get(frag)
+            owner = m.objects.get(owner_id)
+            if target is None or owner is None:
+                scope.hrefs.append((owner_id, feat, href))
+                continue
+            d = owner._props.get(feat)
+            cur = owner._vals.get(feat)
+            if d is not None and d.multi:
+                vals = list(cur) if isinstance(cur, list) else []
+                if target not in vals:
+                    vals.append(target)
+                owner._vals[feat] = vals
+            else:
+                owner._vals[feat] = target
+    return scope
+
+
 def read_xmi21(path) -> XMI21Model:
     root = etree.parse(str(path)).getroot()
     xmi = XMI21Model()
@@ -425,7 +466,11 @@ def read_xmi21(path) -> XMI21Model:
 
     # ---- resolve pending references -----------------------------------------
     for obj, feat, ref, single in xmi.pending:
-        if ref.startswith("http"):
+        if ref.startswith("http") or ("#" in ref and not ref.startswith("#")):
+            # a CROSS-FILE reference: absolute (http...) or relative
+            # ("core.xmi#id"). Read alone it is a synthetic external marker;
+            # read as a scope (read_xmi21_files) it resolves to the real
+            # element in the other file.
             xmi.hrefs.append((obj._xmi_id if hasattr(obj, "_xmi_id") else "?",
                               feat, ref))
             if single:

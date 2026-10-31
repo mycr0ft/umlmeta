@@ -1,7 +1,7 @@
 # Maintaining a v1 ↔ v2 link through a prolonged transition
 
-**Status:** pathway published; M1, M2, M3, M3b and M4 (elision ledger, side channel,
-identity adoption) shipped · umlmeta 0.2.x · Jon R. Fox
+**Status:** pathway complete — M1, M2, M3, M3b, M4 and M5 shipped · umlmeta 0.2.x ·
+Jon R. Fox
 
 The SysML v1 → v2 transformation clause (SysML v2.0 Part 2, formal/26-03-03)
 defines a **one-shot** mapping: read a v1 model, emit a v2 model. umlmeta's
@@ -255,7 +255,7 @@ Each milestone lands as its own wave (TDD, full sweep green, REPORT part).
   `--reconcile-with` contract), and `assign_element_ids(adopt=True)` never
   re-derives over an adopted id.
 
-### M5 — scope and library resolvability
+### M5 — scope and library resolvability *(shipped)*
 - Cross-file v1 load scope (today a property typed outside the transformed
   tree raises "external/unordered"); a project's v1 model is rarely one file.
 - A SysMLv1Library stub package so name-only references resolve in the v2
@@ -263,6 +263,15 @@ Each milestone lands as its own wave (TDD, full sweep green, REPORT part).
   allocation sources, variable-action library types) — a v2 tool must be
   able to load the result.
 - CLI (`umlmeta transform|link|diff|sync`) so the loop is scriptable.
+- **Shipped:** `transform_packages()` shares ONE identity index across roots,
+  `xmi21.read_xmi21_files()` reads several files as one scope and resolves
+  relative `file.xmi#id` hrefs across them (single-file scope still refuses,
+  correctly, as out of scope), `transform_xmi_files()` is the multi-file R1→R3
+  entry point. `umlmeta.v2_library` collects every `SysMLv1Library::` carry
+  (contained or merely referenced), builds a resolvable stub package and types
+  the metadata usages against it (`unresolved()` is the gate). `umlmeta.cli`
+  ships `transform | link | diff | sync` with 0/1/2 exit codes, and
+  `pyproject.toml` registers the `umlmeta` console script.
 
 ---
 

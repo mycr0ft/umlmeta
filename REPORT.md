@@ -3457,3 +3457,68 @@ an adopted id instead of re-deriving, so a reconciled model is a fixed point.
 - Full sweep green (711 checks).
 - Pathway: M4 shipped, with the acceptance line ("zero silent losses")
   backed by the family-set oracle.
+
+# Part 58: M5 - scope, library resolvability and the CLI
+
+The last milestone closes the three practical limits the pathway listed:
+single-file scope, unresolvable library references, and nothing to script.
+
+## Cross-file scope
+
+`transform_packages(pkgs, side_channel=False)` is the real entry point;
+`transform_package()` is now a thin wrapper over it. The identity index is
+created ONCE and shared by every root, so a reference to an element in
+another root is ordinary content rather than an "external/unordered"
+refusal - the refusal was never about the element, it was about the scope.
+`_as_root` and `_owning_membership_of` accept a list of roots for the same
+reason, and every root carries the shared `_v1_index` plus its own
+`_v1_root`, so `link.provenance()` still reports the right tree per root.
+
+On the reader side, `read_xmi21_files(paths)` reads several files as one
+scope: every file is read normally, then each recorded href is resolved
+against the union of all objects. A **relative** `file.xmi#id` reference is
+a cross-file reference too - the old "starts with http" test silently treated
+it as a dangling in-document idref, so the reference vanished (the property
+came out untyped) instead of being refused. `transform_xmi_files()` is the
+multi-file R1 -> R3 entry point and `transform_xmi()` delegates to it.
+
+## Library resolvability
+
+`umlmeta.v2_library` closes the "name-only carry" gap: `stub_package()`
+collects every `SysMLv1Library::` name reachable from the graph - through
+containment AND through references, because the transformer builds those
+carriers standalone (`_library_ref` creates a MetadataDefinition that only a
+FeatureTyping points at) - and builds one `SysMLv1Library` package with a
+definition per referenced name and a feature per nested name. `resolve()`
+then types the metadata usages against those definitions, and
+`unresolved()` is the gate: after resolution nothing in the model names a
+library element it cannot reach.
+
+The stub records the elements it renamed on itself (`stub._library_elems`):
+renaming happens first (a usage carrying `SysMLv1Library::RateData` becomes
+`RateData`), so a second prefix scan would find nothing - the first cut of
+`resolve()` did exactly that and silently typed nothing.
+
+## CLI
+
+`umlmeta transform | link | diff | sync` (registered in `pyproject.toml`):
+transform writes the v2 model JSON, optionally the textual notation and the
+sidecar; link refreshes identities and the graph hash; diff prints the
+element-level change set and exits non-zero on differences; sync runs the
+three-way merge, writes the merged model and reports conflicts on stderr
+with exit code 1.
+
+`link` on a saved JSON model has no v1 provenance, so a sidecar rebuilt from
+it has no records - the verb now carries an existing sidecar's records and
+elision ledger through instead of destroying the link the file exists to
+hold (caught by the CLI gate).
+
+## Result
+
+- check_v1_to_v2_as.py: 260 passed (+12 M5 checks: single-file refusal vs
+  multi-file resolution, two roots in one scope, library stub definitions +
+  typing + `unresolved()` empty, and the four CLI verbs including the
+  "link keeps the records" and "clean sync is a no-drift merged model"
+  gates).
+- Full sweep green (723 checks).
+- Pathway: **complete** - M1, M2, M3, M3b, M4, M5 shipped.

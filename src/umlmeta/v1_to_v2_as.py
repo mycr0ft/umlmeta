@@ -2314,13 +2314,27 @@ def _populate_behavior_params(behavior, v2def):
 
 
 def transform_package(pkg, side_channel=False):
-    """MainMapping (§7.2.2.4): transform a v1 Package (and contents)
-    into a v2 AS Package. Returns the v2 root Package.
+    """MainMapping (§7.2.2.4): transform one v1 root Package.
+
+    Thin wrapper over :func:`transform_packages` - the real entry point when a
+    v1 model spans several files/packages (the index must be SHARED, or every
+    cross-package reference looks external and raises).
 
     ``side_channel=True`` carries each deliberately elided v1 element into
     the v2 model as a ``v1Elided`` MetadataUsage (path + kind + content
     hash) owned by the nearest mapped element, so a linked pair keeps the
     content the mapping has no target for.
+    """
+    return transform_packages([pkg], side_channel=side_channel)[0]
+
+
+def transform_packages(pkgs, side_channel=False):
+    """Transform several v1 root packages against ONE identity index.
+
+    This is the cross-file scope: a project's v1 model is rarely one file, and
+    a reference to an element in another root is not "external" - it is simply
+    outside the single-root scope. Sharing the index makes those references
+    resolve exactly like in-root ones.
 
     pass 1: one AS definition per v1 member, recursively (the index is
     the conformance-critical identity: every reference resolves to it);
@@ -2329,12 +2343,16 @@ def transform_package(pkg, side_channel=False):
     pass 3: relationship ends (requirements chain, generalizations)
     resolved against the index by identity.
     """
-    out = S2.Package(declaredName=_name(pkg) or "Package")
     index = {}   # id(v1 element) -> v2 AS object
     index["_side_channel"] = bool(side_channel)
     ns_pairs = []   # (v1 namespace, AS namespace) in discovery order
-
-    _populate_namespace(pkg, out, index, ns_pairs)
+    outs = []
+    pairs = []
+    for pkg in pkgs:
+        out = S2.Package(declaredName=_name(pkg) or "Package")
+        pairs.append((pkg, out))
+        outs.append(out)
+        _populate_namespace(pkg, out, index, ns_pairs)
 
     # pass 2.5: feature extras (subsets/redefines/values, 7.7.4.2.36)
     # after ALL owners populated so cross-block targets resolve
@@ -2369,7 +2387,7 @@ def transform_package(pkg, side_channel=False):
 
     # pass 3 (cont.): imports wire per namespace once the whole tree is
     # indexed (7.7.9.3.12); membership search walks the full AS tree
-    index["_as_root"] = out
+    index["_as_root"] = outs if len(outs) > 1 else outs[0]
     for ns_v1, ns2 in ns_pairs:
         _populate_imports(ns_v1, ns2, index)
 
@@ -2385,12 +2403,15 @@ def transform_package(pkg, side_channel=False):
     # the linkage layer (docs/v1-v2-linkage-pathway.md, M1) reads the
     # conformance index and the v1 root rather than re-deriving them:
     # provenance needs {id(v1 element): v2 element} and the v1 tree.
-    out._v1_index = index
-    out._v1_root = pkg
-    # M4: the elision ledger rides the result (link.sidecar() turns it into
-    # the per-model `elisions` block)
-    out._v1_elisions = index.pop("_elisions", [])
-    return out
+    elisions = index.pop("_elisions", [])
+    for pkg, out in pairs:
+        out._v1_index = index
+        out._v1_root = pkg
+        # M4: the elision ledger rides the result (link.sidecar() turns it
+        # into the per-model `elisions` block). The ledger is scope-wide, so
+        # every root carries it.
+        out._v1_elisions = elisions
+    return outs
 
 
 _SKIP_PASS1 = (S.Satisfy, S.Verify, S.DeriveReqt, S.Allocate,
@@ -2541,6 +2562,12 @@ def _populate_imports(ns_v1, ns2, index):
 
 
 def _owning_membership_of(root, target):
+    if isinstance(root, (list, tuple)):
+        for r in root:
+            hit = _owning_membership_of(r, target)
+            if hit is not None:
+                return hit
+        return None
     """The OwningMembership owning *target*, found by walking the
     namespace tree under *root* (BFS over namespace-owned
     relationships)."""
@@ -3105,16 +3132,18 @@ def _transform_allocate(al, out, index):
 # R3 conformance: read a v1 XMI (R1 artifact) -> AS transform (R3) -> v2 AS
 # --------------------------------------------------------------------------
 
-def transform_xmi(path):
-    """R1→R2→R3 pipeline entry: read a SysML v1 XMI 2.1 file into
-    umlmeta.uml25 objects (R1), transform every root Package (R3), and
-    return the list of umlmeta.sysml2 Packages (R2 artifacts)."""
+def transform_xmi_files(paths, side_channel=False):
+    """R1→R2→R3 pipeline entry for a multi-file v1 model (M5 cross-file).
+
+    Reads every file as ONE scope (`xmi21.read_xmi21_files` resolves
+    cross-file hrefs) and transforms all roots against a shared identity
+    index, so a reference to an element in another file is ordinary content
+    rather than an "external/unordered" refusal.
+    """
     from . import xmi21
-    model = xmi21.read_xmi21(path)
-    out = []
-    for root in model.roots:
-        if isinstance(root, U.Package):
-            out.append(transform_package(root))
+    model = xmi21.read_xmi21_files(paths)
+    roots = [r for r in model.roots if isinstance(r, U.Package)]
+    out = transform_packages(roots, side_channel=side_channel)
     if out:
         # M4: the reader's own gaps (unconstructible metaclasses, unread
         # features) ride the first root so the sidecar can report them -
@@ -3124,3 +3153,10 @@ def transform_xmi(path):
             "unmapped_features": [list(x) for x in model.unmapped_features],
         }
     return out
+
+
+def transform_xmi(path, side_channel=False):
+    """R1→R2→R3 pipeline entry: read a SysML v1 XMI 2.1 file into
+    umlmeta.uml25 objects (R1), transform every root Package (R3), and
+    return the list of umlmeta.sysml2 Packages (R2 artifacts)."""
+    return transform_xmi_files([path], side_channel=side_channel)

@@ -3362,6 +3362,153 @@ finally:
     Path(lxmi_path).unlink()
 
 print()
+print("== M5: cross-file scope, library resolvability, the CLI ==")
+import json  # noqa: E402
+from umlmeta import v2_library as LIB  # noqa: E402
+from umlmeta import v2_json as J  # noqa: E402
+from umlmeta import cli as CLI  # noqa: E402
+
+# --- cross-file scope: two files, one identity space ---------------------
+A_XMI = """<?xml version="1.0" encoding="UTF-8"?>
+<xmi:XMI xmi:version="2.1" xmlns:uml="http://schema.omg.org/spec/UML/2.0"
+         xmlns:xmi="http://schema.omg.org/spec/XMI/2.1">
+  <uml:Package xmi:id="pa" xmi:type="uml:Package">
+    <name>Core</name>
+    <packagedElement xmi:type="uml:DataType" xmi:id="dt_torque">
+      <name>Torque</name>
+    </packagedElement>
+  </uml:Package>
+</xmi:XMI>
+"""
+B_XMI = """<?xml version="1.0" encoding="UTF-8"?>
+<xmi:XMI xmi:version="2.1" xmlns:uml="http://schema.omg.org/spec/UML/2.0"
+         xmlns:xmi="http://schema.omg.org/spec/XMI/2.1">
+  <uml:Package xmi:id="pb" xmi:type="uml:Package">
+    <name>Vehicle</name>
+    <packagedElement xmi:type="uml:Class" xmi:id="c_engine">
+      <name>Engine</name>
+      <ownedAttribute xmi:type="uml:Property" xmi:id="a_torque">
+        <name>torque</name>
+        <type href="core.xmi#dt_torque"/>
+      </ownedAttribute>
+    </packagedElement>
+  </uml:Package>
+</xmi:XMI>
+"""
+_dir = tempfile.mkdtemp()
+_pa = Path(_dir) / "core.xmi"
+_pb = Path(_dir) / "vehicle.xmi"
+try:
+    _pa.write_text(A_XMI)
+    _pb.write_text(B_XMI)
+    _single_raised = False
+    try:
+        A.transform_xmi(str(_pb))
+    except A.UnmappedFeature:
+        _single_raised = True
+    check("M5: a cross-file type is refused in single-file scope (the "
+          "scope really is the limit)", _single_raised)
+    _scope = A.transform_xmi_files([str(_pa), str(_pb)])
+    check("M5: a multi-file scope transforms both roots",
+          len(_scope) == 2, f"{len(_scope)} roots")
+    _torque = _as_named(_scope[0], "Torque") + _as_named(_scope[1], "Torque")
+    _usage = _as_named(_scope[1], "torque")
+    _ty = (_usage[0].ownedTyping[0]._vals.get("type")
+           if _usage and _usage[0].ownedTyping else None)
+    check("M5: the cross-file reference resolves through the shared index",
+          len(_torque) == 1 and _ty is _torque[0],
+          f"{len(_torque)} defs / typed={_ty is not None}")
+finally:
+    for _f in (_pa, _pb):
+        _f.unlink()
+    Path(_dir).rmdir()
+
+# --- library resolvability ----------------------------------------------
+_lpkg = U.Package(name="LibPkg")
+_lblk = S.Block(name="Pump")
+_lprop = U.Property(name="flow")
+_lprop.type = _lblk
+_lprop._applied_stereotypes = [("SysML", "Probability", "ap1")]
+_lprop._stereo_tags = {"Probability": {"probability": "0.5"}}
+_lblk.add("ownedAttribute", _lprop)
+_lpkg.packagedElement.append(_lblk)
+_las = A.transform_package(_lpkg)
+_ids_lib = _L.assign_element_ids(_las)
+_stub = LIB.stub_package([_las])
+_defs = {d._vals.get("declaredName") for d in LIB._stub_defs(_stub)}
+check("M5: the library stub holds a definition per referenced library name",
+      "Probability" in _defs and _stub._vals.get("declaredName")
+      == "SysMLv1Library", str(sorted(_defs)))
+LIB.resolve([_las], _stub)
+_usage_lib = [el for el, _p, _i in _L._walk(_las)
+              if el._vals.get("declaredName") == "Probability"
+              and type(el).__name__ == "MetadataUsage"]
+check("M5: a library metadata usage is TYPED by the stub (resolvable)",
+      _usage_lib and any(getattr(getattr(ft, "type", None), "declaredName",
+                                 None) == "Probability"
+                         for ft in _usage_lib[0].ownedTyping),
+      str(_usage_lib))
+check("M5: no library name is left unresolvable in the model",
+      LIB.unresolved([_las], _stub) == [],
+      str(LIB.unresolved([_las], _stub)))
+
+# --- the CLI: transform -> link -> diff -> sync -------------------------
+_cli_dir = tempfile.mkdtemp()
+_cx = Path(_cli_dir) / "model.xmi"
+_cy = Path(_cli_dir) / "model.v2.json"
+_cs = Path(_cli_dir) / "model.v1v2link.json"
+_ct = Path(_cli_dir) / "model.sysml"
+_cx.write_text("""<?xml version="1.0" encoding="UTF-8"?>
+<xmi:XMI xmi:version="2.1" xmlns:uml="http://schema.omg.org/spec/UML/2.0"
+         xmlns:xmi="http://schema.omg.org/spec/XMI/2.1">
+  <uml:Package xmi:id="pc" xmi:type="uml:Package">
+    <name>Cli</name>
+    <packagedElement xmi:type="uml:DataType" xmi:id="dt_x"><name>X</name></packagedElement>
+    <packagedElement xmi:type="uml:Class" xmi:id="c_y">
+      <name>Y</name>
+      <ownedAttribute xmi:type="uml:Property" xmi:id="a_x">
+        <name>xval</name><type xmi:idref="dt_x"/>
+      </ownedAttribute>
+    </packagedElement>
+  </uml:Package>
+</xmi:XMI>
+""")
+try:
+    _rc = CLI.main(["transform", str(_cx), "-o", str(_cy),
+                    "--sidecar", str(_cs), "--text", str(_ct)])
+    check("M5 CLI: transform writes the model, the sidecar and the notation",
+          _rc == 0 and _cy.exists() and _cs.exists() and _ct.exists())
+    _side_cli = json.loads(_cs.read_text())
+    check("M5 CLI: the sidecar has records and the graph hash",
+          _side_cli["records"] and _side_cli["v2_graph_hash"],
+          f"{len(_side_cli['records'])} records")
+    _rc = CLI.main(["link", str(_cy), "--sidecar", str(_cs)])
+    _side_after = json.loads(_cs.read_text())
+    check("M5 CLI: link refreshes identities + hash and KEEPS the records",
+          _rc == 0
+          and len(_side_after.get("records") or ())
+          == len(_side_cli["records"]),
+          f"{len(_side_after.get('records') or ())} records kept")
+    _rc = CLI.main(["diff", str(_cy), str(_cy)])
+    check("M5 CLI: diff of a model against itself reports no changes",
+          _rc == 0)
+    _cy2 = Path(_cli_dir) / "merged.json"
+    _rc = CLI.main(["sync", "--v1", str(_cx), "--sidecar", str(_cs),
+                    "--model", str(_cy), "-o", str(_cy2)])
+    check("M5 CLI: a clean sync exits 0 and writes the merged model",
+          _rc == 0 and _cy2.exists())
+    _merged = json.loads(_cy2.read_text())
+    _back = J.from_json_text(_cy2.read_text())
+    check("M5 CLI: the merged model is the linked graph (no drift)",
+          _L.graph_hash(_back) == _L.sidecar(_back)["v2_graph_hash"],
+          _merged.get("@id"))
+finally:
+    for _f in (_cx, _cy, _cs, _ct, Path(_cli_dir) / "merged.json"):
+        if _f.exists():
+            _f.unlink()
+    Path(_cli_dir).rmdir()
+
+print()
 print(f"RESULT: {len(PASS)} passed, {len(FAIL)} failed")
 if FAIL:
     print("FAILURES:", FAIL)
