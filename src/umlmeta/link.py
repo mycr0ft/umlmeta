@@ -302,7 +302,8 @@ def sidecar(root, ids=None, generated=None):
         "link_namespace": "https://github.com/mycr0ft/umlmeta/v1v2-link/stable-ids",
         "v2_graph_hash": graph_hash(root, ids=ids),
         "records": records,
-        "elisions": [],
+        "elisions": list(getattr(root, "_v1_elisions", ()) or ()),
+        "reader_gaps": getattr(root, "_v1_reader_gaps", None),
     }
 
 
@@ -328,6 +329,31 @@ def read_sidecar(path):
         raise ValueError(f"not a {SIDECAR_FORMAT} sidecar: "
                          f"{doc.get('format')!r}")
     return doc
+
+
+def adopt_ids(root, mapping):
+    """Adopt element identities from an external authority, keyed by path.
+
+    ``mapping`` is ``{declared path: elementId}`` - exactly what a
+    reconciliation with sysmlpy's ``stable_ids`` (or any tool that owns the
+    v2 identity space) produces once its qualified names are resolved. The
+    adoption mirrors ``--reconcile-with``: an element the mapping names keeps
+    that id for good, and a later ``assign_element_ids(root, adopt=True)``
+    never re-derives over it. Returns ``(adopted, missing)``.
+    """
+    adopted, missing = 0, []
+    for el, parts, _eid in _walk(root):
+        name = el._vals.get("declaredName")
+        if not isinstance(name, str) or not name:
+            continue          # an external authority keys on qualified names
+        path = PATH_SEP.join(parts)
+        eid = mapping.get(path)
+        if eid is None:
+            missing.append(path)
+            continue
+        el._vals["elementId"] = eid
+        adopted += 1
+    return adopted, missing
 
 
 def records_by_id(doc):

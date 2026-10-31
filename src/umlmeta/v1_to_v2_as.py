@@ -176,6 +176,75 @@ def _name(el):
     return n if isinstance(n, str) and n else None
 
 
+# --------------------------------------------------------------------------
+# elision ledger (M4): every v1 element the mapping deliberately does not
+# carry is recorded, never silently dropped. The side channel (opt-in) puts
+# the same record into the v2 model as metadata, so a linked pair keeps the
+# content even where the transformation has no target for it.
+# --------------------------------------------------------------------------
+
+_TABLE11 = ("Continuation", "Gate", "OccurrenceSpecification",
+            "MessageOccurrenceSpecification",
+            "ExecutionOccurrenceSpecification",
+            "DestructionOccurrenceSpecification", "GeneralOrdering")
+
+
+def _v1_path_of(el):
+    """Best-effort v1 qualified path (the runtime's _owner chain)."""
+    parts = []
+    cur = el
+    seen = set()
+    while cur is not None and id(cur) not in seen:
+        seen.add(id(cur))
+        nm = getattr(cur, "name", None)
+        if isinstance(nm, str) and nm:
+            parts.append(nm)
+        cur = getattr(cur, "_owner", None)
+    return "::".join(reversed(parts)) or None
+
+
+def _elide(index, v1_el, owner_v2, reason, anchor=None):
+    """Record one deliberate elision; optionally carry it as v2 metadata."""
+    from . import link as _link
+    rec = {
+        "v1_kind": type(v1_el).__name__,
+        "v1_name": getattr(v1_el, "name", None),
+        "v1_path": _v1_path_of(v1_el),
+        "v1_xmi_id": getattr(v1_el, "_xmi_id", None),
+        "v1_hash": _link.signature(v1_el),
+        "anchor": anchor,
+        "rule": reason,
+    }
+    seen = index.setdefault("_elided", set())
+    if id(v1_el) in seen:
+        return rec
+    seen.add(id(v1_el))
+    index.setdefault("_elisions", []).append(rec)
+    if index.get("_side_channel") and owner_v2 is not None:
+        _elided_metadata(rec, owner_v2, index)
+    return rec
+
+
+def _elided_metadata(rec, owner, index):
+    """The side-channel carrier: a MetadataUsage naming the v1 element, its
+    path and its content signature, owned by the nearest mapped element."""
+    mu = S2.MetadataUsage(declaredName="v1Elided")
+    _type_feature(mu, _library_ref(index, "SysMLv1Library::ElidedElement",
+                                   S2.MetadataDefinition))
+    for name, value in (("v1Kind", rec["v1_kind"]),
+                        ("v1Path", rec["v1_path"] or ""),
+                        ("v1Hash", rec["v1_hash"])):
+        ru = S2.ReferenceUsage(declaredName=name)
+        fv = S2.FeatureValue()
+        fv.value = S2.LiteralString(value=str(value))
+        ru.ownedRelationship.append(fv)
+        fm = S2.FeatureMembership()
+        fm.ownedRelatedElement.append(ru)
+        mu.ownedRelationship.append(fm)
+    _own_membership(owner, mu)
+    return mu
+
+
 def _own_membership(owner, member):
     """Owner gains *member* through an OwningMembership (the normative
     ownership mechanism for package members and nested definitions)."""
@@ -752,6 +821,19 @@ def _populate_usecase(uc, v2def, index, pkg):
         _type_feature(iucu, adef)
         _feature_membership(v2def, iucu)
 
+    # Extend / ExtensionPoint have no normative v2 target (the UseCase
+    # mapping's own comment) - recorded, not dropped
+    for ex in [m for m in pkg_members if isinstance(m, U.Extend)
+               and m._vals.get("extension") is uc]:
+        _elide(index, ex, v2def,
+               "Extend has no normative v2 target (UseCase_Mapping comment)",
+               "7.7.13.3")
+    for ep in [m for m in list(uc.ownedMember)
+               if type(m).__name__ == "ExtensionPoint"]:
+        _elide(index, ep, v2def,
+               "ExtensionPoint has no normative v2 target (UseCase_Mapping "
+               "comment)", "7.7.13.3")
+
     # subject: the classifier(s) whose useCase association end names this
     # use case (UML: Classifier.useCase; UseCase.subject is a pure
     # derived union, the same fallback pattern as Include). The normative
@@ -880,10 +962,17 @@ def _populate_interaction(ix, v2def, index):
       interaction's remaining ownedElements ride generic memberships
       per the Interaction rule's `elements` set)."""
     for member in list(ix.ownedMember):
+        if type(member).__name__ in _TABLE11:
+            # Table 11 (7.7.8.2): not mapped - RECORDED, never silently lost
+            _elide(index, member, v2def,
+                   "Table 11 (7.7.8.2): the formal 2.0 transformation does "
+                   "not map this element", "7.7.8.2")
+    for member in list(ix.ownedMember):
         if isinstance(member, (U.Lifeline, U.Message, U.Comment,
                                U.InteractionFragment,
-                               U.OccurrenceSpecification)):
-            continue   # handled below / Table-11-unmapped / docs in pass 1
+                               U.OccurrenceSpecification)) \
+                or type(member).__name__ in _TABLE11:
+            continue   # handled below / Table-11-ledgered / docs in pass 1
         mv2 = transform_v1_element(member, index)
         _own_membership(v2def, mv2)
         index[id(member)] = mv2
@@ -2051,6 +2140,10 @@ def _populate_activity(act, v2def, index):
         elif isinstance(n, U.InitialNode):
             # normative: elided (initial → source feature of outgoing
             # edges, 7.7.3.3.2/.11/.13/.44)
+            _elide(index, n, v2def,
+                   "InitialNode: becomes the source feature of its outgoing "
+                   "edges; no standalone v2 element (7.7.3.3.2/.11/.13/.44)",
+                   "7.7.3.3.2")
             continue
         elif isinstance(n, U.ActivityFinalNode):
             # 7.7.3.3.16: the final -> TerminateActionUsage ('then
@@ -2062,6 +2155,9 @@ def _populate_activity(act, v2def, index):
             # 7.7.3.3.34: the flow final's out-membership ride; the
             # flow-final edge ends elide like the initial (the
             # membership's member elides with them)
+            _elide(index, n, v2def,
+                   "FlowFinalNode: its out-membership member elides with "
+                   "the flow-final edge ends (7.7.3.3.34)", "7.7.3.3.34")
             continue
         elif isinstance(n, (U.CentralBufferNode, U.DataStoreNode)):
             # 7.7.3.3.17/.32: 'not defined in detail yet' - an empty
@@ -2127,6 +2223,10 @@ def _populate_activity(act, v2def, index):
             # initial/final nodes elided: the edge itself is elided
             if isinstance(src, (U.InitialNode, U.FinalNode)) or \
                     isinstance(tgt, (U.InitialNode, U.FinalNode)):
+                _elide(index, e, v2def,
+                       "edge touching an initial/final node: the succession "
+                       "rides the node's source/done features instead "
+                       "(7.7.3.3.2/.24)", "7.7.3.3.2")
                 continue
             raise UnmappedFeature(
                 f"edge {_name(e)!r} touching unmapped node")
@@ -2213,9 +2313,14 @@ def _populate_behavior_params(behavior, v2def):
         _feature_membership(v2def, ref)
 
 
-def transform_package(pkg):
+def transform_package(pkg, side_channel=False):
     """MainMapping (§7.2.2.4): transform a v1 Package (and contents)
     into a v2 AS Package. Returns the v2 root Package.
+
+    ``side_channel=True`` carries each deliberately elided v1 element into
+    the v2 model as a ``v1Elided`` MetadataUsage (path + kind + content
+    hash) owned by the nearest mapped element, so a linked pair keeps the
+    content the mapping has no target for.
 
     pass 1: one AS definition per v1 member, recursively (the index is
     the conformance-critical identity: every reference resolves to it);
@@ -2226,6 +2331,7 @@ def transform_package(pkg):
     """
     out = S2.Package(declaredName=_name(pkg) or "Package")
     index = {}   # id(v1 element) -> v2 AS object
+    index["_side_channel"] = bool(side_channel)
     ns_pairs = []   # (v1 namespace, AS namespace) in discovery order
 
     _populate_namespace(pkg, out, index, ns_pairs)
@@ -2281,6 +2387,9 @@ def transform_package(pkg):
     # provenance needs {id(v1 element): v2 element} and the v1 tree.
     out._v1_index = index
     out._v1_root = pkg
+    # M4: the elision ledger rides the result (link.sidecar() turns it into
+    # the per-model `elisions` block)
+    out._v1_elisions = index.pop("_elisions", [])
     return out
 
 
@@ -3006,4 +3115,12 @@ def transform_xmi(path):
     for root in model.roots:
         if isinstance(root, U.Package):
             out.append(transform_package(root))
+    if out:
+        # M4: the reader's own gaps (unconstructible metaclasses, unread
+        # features) ride the first root so the sidecar can report them -
+        # a loss at R1 is as silent as a loss at R3 if nobody writes it down
+        out[0]._v1_reader_gaps = {
+            "unmapped": [list(x) for x in model.unmapped],
+            "unmapped_features": [list(x) for x in model.unmapped_features],
+        }
     return out

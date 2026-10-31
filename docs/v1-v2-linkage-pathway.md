@@ -1,8 +1,7 @@
 # Maintaining a v1 ↔ v2 link through a prolonged transition
 
-**Status:** pathway published; M1 (identity + provenance), M2 (text + JSON
-persistence), M3 (sidecar + three-way sync) and M3b (rename/move repair) shipped ·
-umlmeta 0.2.x · Jon R. Fox
+**Status:** pathway published; M1, M2, M3, M3b and M4 (elision ledger, side channel,
+identity adoption) shipped · umlmeta 0.2.x · Jon R. Fox
 
 The SysML v1 → v2 transformation clause (SysML v2.0 Part 2, formal/26-03-03)
 defines a **one-shot** mapping: read a v1 model, emit a v2 model. umlmeta's
@@ -31,7 +30,7 @@ silently if identity is left to serialization artifacts.
 | v1→v2 provenance | **M1** — `umlmeta.link.provenance()` over the transform's retained index (`_v1_index`/`_v1_root`), with the v1 xmi id as a cache and a v1 content signature |
 | reverse (v2 → v1) | absent |
 | pair diff / merge / sync | **M3** — `umlmeta.sync`: element-level classification (v1-only / v2-only / unchanged / both → conflict / added / removed / v2-native) and a merge that applies it |
-| elision ledger | prose (module docstring, realization table, REPORT) — no per-model record |
+| elision ledger | **M4** — `_v1_elisions` on every transform result (kind/path/rule/anchor/hash), reader gaps reported too, carried into the sidecar's `elisions` block |
 | CLI | absent (`pyproject.toml` has no `[project.scripts]`) |
 
 Consequence: a linked pair cannot be saved, re-loaded, diffed, or handed to a
@@ -230,7 +229,7 @@ Each milestone lands as its own wave (TDD, full sweep green, REPORT part).
   the signature — the runtime stores them, and counting them made every
   descendant of a renamed element look edited (false conflicts).
 
-### M4 — elision ledger and side-channel policy
+### M4 — elision ledger and side-channel policy *(shipped)*
 - Emit `elisions` per model (reader `unmapped`/`unmapped_features` +
   transformer skips), keyed by v1 path.
 - Policy for the permanently unmapped set (Table-11 occurrences, Gates,
@@ -243,6 +242,18 @@ Each milestone lands as its own wave (TDD, full sweep green, REPORT part).
 - **Acceptance:** a model containing one member of every permanently-unmapped
   family transforms with zero silent losses — every skipped element appears
   in `elisions`.
+- **Shipped:** every deliberate skip records `{v1_kind, v1_name, v1_path,
+  v1_xmi_id, v1_hash, rule, anchor}` on the transform result
+  (`_v1_elisions`), deduplicated per v1 element; the reader's own gaps
+  (`unmapped`/`unmapped_features`) ride `_v1_reader_gaps` and reach the
+  sidecar; `link.sidecar()` writes both. `transform_package(pkg,
+  side_channel=True)` additionally carries each elision into the v2 model as a
+  `v1Elided` MetadataUsage owned by the nearest mapped element, with `v1Kind`
+  / `v1Path` / `v1Hash` features (the ActivityEdgeData carrier pattern).
+- **Identity adoption:** `link.adopt_ids(root, {path: id})` adopts an external
+  authority's identities by qualified name (the sysmlpy `stable_ids` /
+  `--reconcile-with` contract), and `assign_element_ids(adopt=True)` never
+  re-derives over an adopted id.
 
 ### M5 — scope and library resolvability
 - Cross-file v1 load scope (today a property typed outside the transformed

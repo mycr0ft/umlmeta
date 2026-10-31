@@ -2837,6 +2837,142 @@ if _fam_text is not None and _have_sysmlpy:
               f"{type(ex).__name__}: {str(ex)[:160]}")
 
 print()
+print("== M4: the elision ledger + the side channel ==")
+from umlmeta import link as _L  # noqa: E402
+L = _L
+# docs/v1-v2-linkage-pathway.md M4: every v1 element the mapping deliberately
+# does not carry is RECORDED per model, and the opt-in side channel puts the
+# same record into the v2 model as metadata.
+
+
+def _mk_elide_model():
+    p = U.Package(name="ElidePkg")
+    dt = U.DataType(name="Msg")
+    p.packagedElement.append(dt)
+    ix = U.Interaction(name="Seq")
+    rep = U.Property(name="rep")
+    rep.type = dt
+    ll = U.Lifeline(name="ll")
+    ll.represents = rep
+    ix.add("lifeline", ll)
+    ix.add("fragment", U.Continuation(name="cont"))
+    ix.add("fragment", U.OccurrenceSpecification(name="tick"))
+    ix.add("fragment", U.GeneralOrdering(name="ord"))
+    act = U.Activity(name="Flow")
+    init = U.InitialNode(name="start")
+    fin = U.FlowFinalNode(name="stop")
+    a1 = U.OpaqueAction(name="step")
+    act.node.extend([init, fin, a1])
+    cf = U.ControlFlow(name="from_init")
+    cf.source = init
+    cf.target = a1
+    act.edge.append(cf)
+    uc = U.UseCase(name="DoThing")
+    base = U.UseCase(name="Base")
+    ext = U.Extend(name="ext1")
+    ext._vals["extendedCase"] = base
+    ext._vals["extension"] = uc
+    uc.add("extensionPoint", U.ExtensionPoint(name="ep1"))
+    p.packagedElement.extend([ix, act, uc, base, ext])
+    return p
+
+
+_m4 = A.transform_package(_mk_elide_model())
+_el = getattr(_m4, "_v1_elisions", None)
+_kinds = {e["v1_kind"] for e in (_el or ())}
+check("M4: a transform never loses a permanently-unmapped element "
+      "silently (every one is recorded)",
+      _el is not None
+      and {"InitialNode", "FlowFinalNode", "Continuation",
+           "OccurrenceSpecification", "GeneralOrdering", "Extend",
+           "ExtensionPoint"} <= _kinds,
+      str(sorted(_kinds)))
+check("M4: each record carries kind / path / rule / anchor / content hash",
+      _el and all({"v1_kind", "v1_path", "v1_hash", "rule", "anchor"} <= set(r)
+                  for r in _el)
+      and all(r["anchor"] for r in _el),
+      str(_el[0] if _el else None))
+check("M4: the elided edge (touching the initial node) is recorded too",
+      any(r["v1_kind"] == "ControlFlow" for r in _el or ()),
+      str([r["v1_kind"] for r in (_el or ())]))
+
+# the side channel carries the same record into the v2 model as metadata
+_m4s = A.transform_package(_mk_elide_model(), side_channel=True)
+_elide_meta = [el for el, _p, _i in _L._walk(_m4s)
+               if el._vals.get("declaredName") == "v1Elided"]
+check("M4 (side channel): each elision rides the model as a v1Elided "
+      "MetadataUsage",
+      len(_elide_meta) == len(_el or ()),
+      f"{len(_elide_meta)} metadata usages / {len(_el or ())} elisions")
+_vals = {}
+for _r in (_elide_meta[0].ownedRelationship if _elide_meta else ()):
+    for _ru in getattr(_r, "ownedRelatedElement", ()):
+        for _fv in getattr(_ru, "ownedRelationship", ()):
+            if type(_fv).__name__ == "FeatureValue":
+                _lit = _fv._vals.get("value")
+                _vals[_ru._vals.get("declaredName")] = getattr(
+                    _lit, "_vals", {}).get("value")
+check("M4 (side channel): the carrier names the v1 kind / path / hash",
+      {"v1Kind", "v1Path", "v1Hash"} <= set(_vals)
+      and _vals.get("v1Kind") in _kinds,
+      str(_vals))
+check("M4 (side channel): the carrier is typed by the library definition",
+      any(getattr(getattr(ft, "type", None), "declaredName", None)
+          == "SysMLv1Library::ElidedElement"
+          for ft in (_elide_meta[0].ownedTyping if _elide_meta else ())))
+
+# the sidecar reports the ledger (M3 record + M4 ledger)
+_sc4 = L.sidecar(_m4)
+check("M4: the sidecar carries the per-model elision ledger",
+      len(_sc4.get("elisions") or ()) == len(_el or ())
+      and {r["v1_kind"] for r in _sc4["elisions"]} == _kinds,
+      f"{len(_sc4.get('elisions') or ())} elisions")
+
+# identity adoption (the sysmlpy reconcile contract, path-keyed)
+_paths = {L.PATH_SEP.join(parts): eid for el, parts, eid in _L._walk(_m4)
+          if isinstance(el._vals.get("declaredName"), str)
+          and el._vals.get("declaredName")}
+_adopt_map = {p: f"sysml:test-{i}" for i, p in enumerate(sorted(_paths))}
+_n_adopted, _missing = L.adopt_ids(_m4, _adopt_map)
+check("M4: identities can be adopted from an external authority by path",
+      _n_adopted == len(_adopt_map)
+      and all(el._vals.get("elementId", "").startswith("sysml:test-")
+              for el, parts, _i in _L._walk(_m4)
+              if L.PATH_SEP.join(parts) in _adopt_map
+              and isinstance(el._vals.get("declaredName"), str)),
+      f"adopted={_n_adopted} missing={len(_missing)}")
+_after = L.assign_element_ids(_m4, adopt=True)
+_adopted_ids = {eid for eid in _after if eid.startswith("sysml:test-")}
+check("M4: an adopted identity survives re-derivation (reconcile fixed "
+      "point)", _adopted_ids == set(_adopt_map.values()),
+      f"{len(_adopted_ids)} adopted ids kept")
+
+# reader-side gaps ride the result too (an R1 loss is as silent as an R3 one)
+_RXMI = """<?xml version="1.0" encoding="UTF-8"?>
+<xmi:XMI xmi:version="2.1" xmlns:uml="http://schema.omg.org/spec/UML/2.0"
+         xmlns:xmi="http://schema.omg.org/spec/XMI/2.1">
+  <uml:Package xmi:id="ep" xmi:type="uml:Package">
+    <name>GapPkg</name>
+    <packagedElement xmi:type="uml:Component" xmi:id="comp">
+      <name>NotConstructible</name>
+    </packagedElement>
+  </uml:Package>
+</xmi:XMI>
+"""
+with tempfile.NamedTemporaryFile("w", suffix=".xmi", delete=False) as fh:
+    fh.write(_RXMI)
+    _gap_path = fh.name
+try:
+    _gappkg = A.transform_xmi(_gap_path)[0]
+    _gap_sc = L.sidecar(_gappkg)
+    check("M4: reader-side gaps (unconstructible metaclasses) are reported "
+          "in the sidecar",
+          (_gap_sc.get("reader_gaps") or {}).get("unmapped"),
+          str((_gap_sc.get("reader_gaps") or {}).get("unmapped")))
+finally:
+    Path(_gap_path).unlink()
+
+print()
 print("== M3: sidecar, diff and the three-way sync ==")
 # docs/v1-v2-linkage-pathway.md M3. The pair record (sidecar) plus a merge
 # that classifies every element by who changed it since the snapshot.

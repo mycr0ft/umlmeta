@@ -3390,3 +3390,70 @@ rename changes every path below it while their own names did not move.
 - Full sweep green (701 checks).
 - Pathway: M3b section added with the two-key rationale and the
   back-reference exclusion; L3 now reads as achieved for renames/moves.
+
+# Part 57: M4 - the elision ledger, the side channel and identity adoption
+
+"Elided" used to be a word in a docstring. For a pair that is maintained for
+a year that is not good enough: a skipped element has to be *recorded per
+model*, or the same content disappears on every re-transform and nobody can
+say which edits are unrepresentable.
+
+## The ledger
+
+`transform_package` now returns its skips on the result (`_v1_elisions`), one
+record per deliberately elided v1 element:
+
+    {v1_kind, v1_name, v1_path, v1_xmi_id, v1_hash, anchor, rule}
+
+deduplicated per v1 element (a path can be reached by several passes - the
+same Extend was recorded once per use case before the dedupe). Sites wired:
+Initial/FlowFinal nodes and the edges that touch them (activity), the Table-11
+family inside an interaction (Continuation, Gates, the occurrence
+specifications, GeneralOrdering), and Extend / ExtensionPoint (use case).
+
+The reader's own losses are recorded too: `transform_xmi` attaches the
+XMI21Model's `unmapped` and `unmapped_features` to the first root as
+`_v1_reader_gaps`, and `link.sidecar()` writes both blocks (`elisions`,
+`reader_gaps`). An R1 loss is as silent as an R3 loss if nobody writes it
+down.
+
+## The side channel (opt-in)
+
+`transform_package(pkg, side_channel=True)` carries every elided element into
+the v2 model as a `v1Elided` MetadataUsage owned by the nearest mapped
+element, typed (name-only) by `SysMLv1Library::ElidedElement` and carrying
+`v1Kind` / `v1Path` / `v1Hash` as LiteralString feature values - the same
+carrier pattern the ActivityEdgeData machinery uses (wave AD). The pair keeps
+the content the mapping has no target for, and a reader can reconstruct what
+was skipped without the v1 file.
+
+## Identity adoption
+
+`link.adopt_ids(root, {qualified path: id})` adopts an external authority's
+identities by qualified name - the sysmlpy `stable_ids` / `--reconcile-with`
+contract. Named elements only (an external authority keys on qualified
+names), and adoption is sticky: `assign_element_ids(root, adopt=True)` keeps
+an adopted id instead of re-deriving, so a reconciled model is a fixed point.
+
+## Bugs the oracles caught
+
+- `GeneralOrdering` fell through the interaction's generic member loop into
+  `transform_v1_element` and raised - the Table-11 skip tuple had to match the
+  ledger's own family list.
+- The Extend record was emitted once per use case in the package (two use
+  cases, two identical records); the ledger now dedupes on the v1 element and
+  only the extension's own use case records it.
+- Adoption keyed on path alone adopted unnamed elements too (a TerminateAction
+  shares its owner's path), inflating the count and overwriting identities an
+  external authority never named.
+
+## Result
+
+- check_v1_to_v2_as.py: 248 passed (+10 M4 checks: the family set is
+  recorded, records carry kind/path/rule/anchor/hash, the elided edge is
+  recorded, side-channel carrier shape + values + typing, the sidecar carries
+  the ledger, adoption by path, the reconcile fixed point, and reader gaps
+  reported in the sidecar).
+- Full sweep green (711 checks).
+- Pathway: M4 shipped, with the acceptance line ("zero silent losses")
+  backed by the family-set oracle.
