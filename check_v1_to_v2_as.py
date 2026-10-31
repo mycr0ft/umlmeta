@@ -2964,6 +2964,90 @@ check("M3: graph diff reports added elements by identity",
                   for k in _d["changed"].values()),
       str(_d))
 
+# ---- M3b: rename / move repair ------------------------------------------
+# The identity is path-derived, so a rename mints a new id. The repair key is
+# the NAME-INDEPENDENT content key stored beside the signature; a unique match
+# re-points the fresh mapping onto the identity the link already knows, and
+# descendants follow by path suffix. Never a guess: identical siblings are
+# refused as ambiguous.
+
+
+def _mk_ren_v1(engine_name="Engine"):
+    p = U.Package(name="RenPkg")
+    p.packagedElement.append(U.DataType(name="RPM"))
+    eng = S.Block(name=engine_name)
+    p.add("packagedElement", eng)
+    pw = U.Property(name="power")
+    pw.type = p.packagedElement[0]
+    eng.add("ownedAttribute", pw)
+    p.add("packagedElement", S.Block(name="Wheel"))
+    return p
+
+
+_v1r = _mk_ren_v1()
+_as_r = A.transform_package(_v1r)
+_ids_r = _L.assign_element_ids(_as_r)
+_side_r = L.sidecar(_as_r, ids=_ids_r, generated="2026-10-31T00:00:00Z")
+_eng_old = _as_named(_as_r, "Engine")[0]
+_eng_old_id = _eng_old._vals.get("elementId")
+_pw_old = _as_named(_as_r, "power")[0]
+_pw_old_id = _pw_old._vals.get("elementId")
+_side_r_has_key = "v1_key" in _side_r["records"][0]
+check("M3b: records carry the name-independent repair key",
+      _side_r_has_key and len({r["v1_key"] for r in _side_r["records"]}) >= 3,
+      str(sorted(_side_r["records"][0])[:6]))
+
+_r7 = SY.merge(_mk_ren_v1("Motor"), _side_r, _as_r)
+_motor = _as_named(_r7.root, "Motor")
+check("M3b: a v1 rename keeps the link identity (fresh name, old id)",
+      len(_motor) == 1 and _motor[0]._vals.get("elementId") == _eng_old_id
+      and not _r7.conflicts and _r7.report["renamed"] >= 1,
+      f"report={_r7.report}")
+_pw_new = _as_named(_r7.root, "power")
+check("M3b: descendants follow the rename (path suffix, own name intact)",
+      len(_pw_new) == 1
+      and _pw_new[0]._vals.get("elementId") == _pw_old_id,
+      f"{_pw_new[0]._vals.get('elementId') if _pw_new else None}")
+
+# rename + a v2 edit of the same element -> conflict, v2 content and identity
+_as_r_edit = A.transform_package(_mk_ren_v1())
+L.assign_element_ids(_as_r_edit)
+_as_named(_as_r_edit, "Engine")[0]._vals["documentation"] = None  # touch
+_as_named(_as_r_edit, "Engine")[0]._vals["declaredName"] = "EngineEdited"
+_r8 = SY.merge(_mk_ren_v1("Motor"), _side_r, _as_r_edit)
+check("M3b: rename vs v2 edit is a conflict, v2 wins, identity stable",
+      len(_r8.conflicts) == 1
+      and _r8.conflicts[0]["kind"] == "both-changed"
+      and bool(_as_named(_r8.root, "EngineEdited"))
+      and _as_named(_r8.root, "EngineEdited")[0]._vals.get("elementId")
+      == _eng_old_id,
+      str(_r8.conflicts))
+
+# two content-identical siblings renamed at once -> no unique match: refused
+_dup_v1 = U.Package(name="DupRen")
+_dup_v1.packagedElement.append(U.DataType(name="T"))
+for _nm in ("A", "B"):
+    _b = S.Block(name=_nm)
+    _pp = U.Property(name="v")
+    _pp.type = _dup_v1.packagedElement[0]
+    _b.add("ownedAttribute", _pp)
+    _dup_v1.add("packagedElement", _b)
+_as_dup = A.transform_package(_dup_v1)
+_ids_dup = _L.assign_element_ids(_as_dup)
+_side_dup = L.sidecar(_as_dup, ids=_ids_dup)
+_dup_new = U.Package(name="DupRen")
+_dup_new.packagedElement.append(U.DataType(name="T"))
+for _nm in ("A2", "B2"):
+    _b = S.Block(name=_nm)
+    _pp = U.Property(name="v")
+    _pp.type = _dup_new.packagedElement[0]
+    _b.add("ownedAttribute", _pp)
+    _dup_new.add("packagedElement", _b)
+_r9 = SY.merge(_dup_new, _side_dup, _as_dup)
+check("M3b: content-identical siblings are refused as ambiguous "
+      "(no guessed identity)", _r9.report["ambiguous-rename"] >= 1,
+      str(_r9.report))
+
 print()
 print("== M2b: the AS persists as a metaclass-shaped JSON document ==")
 from umlmeta import v2_json as JS  # noqa: E402

@@ -140,13 +140,23 @@ def merge(v1_new, sidecar_doc, existing_root):
     old_ids = _ids_of(existing_root)
     recs = L.records_by_id(sidecar_doc) if sidecar_doc else {}
 
+    # ---- rename / move repair (M3b): the identity is path-derived, so a
+    # rename mints a new id. Re-point the fresh mapping onto the identity the
+    # link already knows - matched on the NAME-INDEPENDENT key, uniquely, and
+    # propagated down the subtree by path suffix (a renamed parent changes
+    # every descendant path).
+    adopted, ambiguous = _adopt_renames(sidecar_doc, new_root, new_ids)
+    if adopted:
+        new_ids = _ids_of(new_root)          # ids were re-pointed
+
     # current v1 signatures per v2 identity (from the fresh transform)
     cur_v1 = {r["v2_element_id"]: r["v1_hash"]
               for r in L.provenance(new_root, ids=new_ids)}
 
     chose_new, conflicts = set(), []
     report = {"v1-only": 0, "v2-only": 0, "unchanged": 0, "conflict": 0,
-              "v1-added": 0, "v1-removed": 0, "v2-native": 0}
+              "v1-added": 0, "v1-removed": 0, "v2-native": 0,
+              "renamed": 0, "ambiguous-rename": ambiguous}
 
     def conflict(kind, eid, el):
         rec = recs.get(eid) or {}
@@ -172,7 +182,10 @@ def merge(v1_new, sidecar_doc, existing_root):
                 report["conflict"] += 1
             elif v1_changed:
                 chose_new.add(eid)
-                report["v1-only"] += 1
+                if eid in adopted.values():
+                    report["renamed"] += 1
+                else:
+                    report["v1-only"] += 1
             elif v2_changed:
                 report["v2-only"] += 1
             else:
@@ -257,6 +270,94 @@ def merge(v1_new, sidecar_doc, existing_root):
         _transplant(merged, existing_root, keep, new_ids)
     L.assign_element_ids(merged, adopt=True)
     return MergeResult(merged, conflicts, report)
+
+
+def _adopt_renames(sidecar_doc, new_root, new_ids):
+    """Rename / move repair: {(fresh id): (link id)} and an ambiguity count.
+
+    Matching rules, deliberately conservative:
+
+    - only records whose identity has disappeared from the fresh transform
+      are candidates (a live id needs no repair);
+    - a candidate must have the same v2 metaclass and the same NAME-INDEPENDENT
+      content key as the record (``link.identity_key``), and the match must be
+      unique in both directions - two lost elements with identical content, or
+      one candidate claimed by two records, is ``ambiguous-rename`` and nothing
+      is adopted (never a guess);
+    - descendants adopt by path suffix under the renamed ancestor, because a
+      rename changes every path below it while their own names did not move.
+    """
+    records = (sidecar_doc or {}).get("records", [])
+    if not records:
+        return {}, 0
+    live = set(new_ids)
+    lost = [r for r in records if r["v2_element_id"] not in live]
+    if not lost:
+        return {}, 0
+    have = {r["v2_element_id"] for r in records}
+    path_of = {eid: L.PATH_SEP.join(parts)
+               for el, parts, eid in L._walk(new_root)}
+    # CONTENT only: a membership or a typing shares its owner's path (the
+    # FeatureTyping under 'Motor::power' sits at exactly that path), and a
+    # last-writer-wins map would hand the descendant repair to the typing
+    el_by_path = {}
+    for el, parts, eid in L._walk(new_root):
+        if _is_rel(el):
+            continue
+        el_by_path.setdefault(L.PATH_SEP.join(parts), eid)
+    # the repair key is a V1-side key: compare it against the fresh element's
+    # v1 counterpart (the v2 object is a different model with different
+    # content - its key can never equal a v1 key)
+    prov = {r["v2_element_id"]: r for r in L.provenance(new_root, ids=new_ids)}
+
+    def v1_key(eid):
+        r = prov.get(eid)
+        return (r.get("v1_kind"), r.get("v1_key")) if r else (None, None)
+
+    adopted, ambiguous = {}, 0
+    claims = {}
+    for rec in lost:
+        key, kind = rec.get("v1_key"), rec.get("v1_kind")
+        if not key or not kind:
+            continue
+        hits = [eid for eid in new_ids
+                if eid not in have and v1_key(eid) == (kind, key)]
+        if len(hits) == 1:
+            claims.setdefault(rec["v2_element_id"], []).append(hits[0])
+        elif len(hits) > 1:
+            ambiguous += 1          # content-identical siblings: no guess
+
+    by_candidate = {}
+    for old_id, els in claims.items():
+        by_candidate.setdefault(els[0], []).append(old_id)
+
+    for old_id, els in claims.items():
+        fresh_id = els[0]
+        if len(by_candidate.get(fresh_id, ())) != 1:
+            ambiguous += 1
+            continue
+        el = new_ids[fresh_id]
+        rec = next(r for r in lost if r["v2_element_id"] == old_id)
+        el._vals["elementId"] = old_id
+        adopted[fresh_id] = old_id
+        old_prefix = rec.get("v1_path") or ""
+        new_prefix = path_of.get(fresh_id) or ""
+        if not old_prefix or not new_prefix:
+            continue
+        for rec2 in records:
+            op = rec2.get("v1_path") or ""
+            if not op.startswith(old_prefix + L.PATH_SEP):
+                continue
+            suffix = op[len(old_prefix) + len(L.PATH_SEP):]
+            tid = el_by_path.get(new_prefix + L.PATH_SEP + suffix)
+            if tid is None or tid == rec2["v2_element_id"]:
+                continue
+            t_el = new_ids.get(tid)
+            if t_el is None or type(t_el).__name__ != rec2.get("v2_kind"):
+                continue
+            t_el._vals["elementId"] = rec2["v2_element_id"]
+            adopted[tid] = rec2["v2_element_id"]
+    return adopted, ambiguous
 
 
 def _substitute(root, new_ids, old_ids, chose_new, recs):

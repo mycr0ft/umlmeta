@@ -1,7 +1,8 @@
 # Maintaining a v1 ↔ v2 link through a prolonged transition
 
-**Status:** pathway published; M1 (identity + provenance), M2 (text + JSON persistence)
-and M3 (sidecar + three-way sync) shipped · umlmeta 0.2.x · Jon R. Fox
+**Status:** pathway published; M1 (identity + provenance), M2 (text + JSON
+persistence), M3 (sidecar + three-way sync) and M3b (rename/move repair) shipped ·
+umlmeta 0.2.x · Jon R. Fox
 
 The SysML v1 → v2 transformation clause (SysML v2.0 Part 2, formal/26-03-03)
 defines a **one-shot** mapping: read a v1 model, emit a v2 model. umlmeta's
@@ -49,7 +50,7 @@ one that only a pair can have.
 | **L0** | transform(v1) → v2 is deterministic: same snapshot, same graph |
 | **L1** | same snapshot re-transformed → identical element identities |
 | **L2** | edits elsewhere in the v1 model leave untouched elements' v2 identities unchanged |
-| **L3** | one element keeps one identity across renames, moves and independent files (explicit id or sidecar adoption) |
+| **L3** | one element keeps one identity across renames and moves (M3b repair by the name-independent key) and, with explicit ids, across independent files |
 | **L4** | the pair is *maintainable*: each side's edits are attributable, mergeable or explicitly refused, and the refusals are recorded |
 
 L0 and L1 are tests away. L2 needs content-addressed ids. L3 needs adoption
@@ -119,6 +120,8 @@ One JSON sidecar per transformed model (`<name>.v1v2link.json`):
       "v2_kind": "PartDefinition",
       "v2_element_id": "v1v2:…",
       "v2_hash": "4b01de…",
+      "v1_key": "8ac1f0…",
+      "v2_key": "8ac1f0…",
       "mapping": "Block_Mapping"
     }
   ],
@@ -210,6 +213,22 @@ Each milestone lands as its own wave (TDD, full sweep green, REPORT part).
   v2-native content is kept, and a re-mapped child forces its content
   ancestors to be rebuilt from the fresh transform (unless that ancestor was
   edited v2-side, which is the blocked case).
+
+### M3b — rename / move repair *(shipped)*
+- Records carry `v1_key` / `v2_key`: a name-INDEPENDENT content key kept beside
+  the signature. The signature must keep seeing a rename as an edit; the key
+  must survive one — two keys, two jobs (never a weaker signature).
+- A record whose identity has disappeared from the fresh transform is matched
+  to the new element with the same v1 kind + key. The match must be unique in
+  both directions; content-identical siblings are `ambiguous-rename` and
+  nothing is adopted.
+- Descendants follow by path suffix under the renamed ancestor (a rename
+  changes every path below it while their own names did not move).
+- A rename colliding with a v2 edit of the same element stays `both-changed`:
+  identity stable, v2 content wins.
+- **Pinned:** container back-references (`class`, `owning*`) are excluded from
+  the signature — the runtime stores them, and counting them made every
+  descendant of a renamed element look edited (false conflicts).
 
 ### M4 — elision ledger and side-channel policy
 - Emit `elisions` per model (reader `unmapped`/`unmapped_features` +

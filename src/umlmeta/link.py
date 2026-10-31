@@ -111,12 +111,41 @@ def signature(el):
     which is why rename *matching* needs a separate name-independent key
     (M3b), not a weaker signature here.
     """
+    return _content_hash(el, skip_names=False)
+
+
+_NAME_FIELDS = frozenset(("declaredName", "declaredShortName", "name",
+                          "shortName", "memberName"))
+# container back-references are structural position, not content: the
+# generated runtime stores them (UML Property.class, owningType, ...) and a
+# signature that counted them made every descendant of a renamed element look
+# edited (the rename then refused as a false conflict).
+_OWNER_FIELDS = frozenset(("class", "owner", "namespace", "memberNamespace",
+                           "typedElement", "associatedClassifier"))
+
+
+def identity_key(el):
+    """Name-independent content key: the rename / move repair key.
+
+    Deliberately a SECOND key beside :func:`signature`, never a weaker
+    signature: change detection must see a rename as an edit (otherwise a
+    merge silently substitutes the fresh object over a v2 rename), while
+    repair needs a key that survives one. Two keys, two jobs.
+    """
+    return _content_hash(el, skip_names=True)
+
+
+def _content_hash(el, skip_names):
     items = []
     # STORAGE-based, not descriptor-based: a redefined/union feature that the
     # model actually stores (UML Property.type) is content, and skipping it
     # made a retargeted type invisible to change detection.
     for name in sorted(getattr(el, "_vals", {})):
         if name == "elementId" or name.startswith("_"):
+            continue
+        if name.startswith("owning") or (name in _OWNER_FIELDS):
+            continue
+        if skip_names and name in _NAME_FIELDS:
             continue
         v = el._vals.get(name)
         if v is None:
@@ -248,6 +277,8 @@ def provenance(root, ids=None):
                 "v2_kind": type(v2).__name__,
                 "v2_element_id": info[1],
                 "v2_hash": _scalar_signature(v2),
+                "v1_key": identity_key(v1),
+                "v2_key": identity_key(v2),
                 "mapping": None,
             })
         stack.extend(reversed(_v1_children(v1)))

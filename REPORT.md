@@ -3345,3 +3345,48 @@ file (`<name>.v1v2link.json`).
 - Full sweep green (696 checks).
 - docs/v1-v2-linkage-pathway.md marks M3 shipped with the conflict kinds and
   the merge policy written down.
+
+# Part 56: M3b - rename / move repair
+
+The identity is path-derived, so a rename mints a new one. M3b repairs that
+with a second key, never with a weaker signature:
+
+- `link.signature` (used by `v1_hash`/`v2_hash`) MUST see a rename as an edit,
+  otherwise a merge substitutes the fresh object over a v2 rename;
+- `link.identity_key` (used by `v1_key`/`v2_key`) drops the name fields and is
+  what a rename/move match keys on.
+
+`sync._adopt_renames` runs before classification: every sidecar record whose
+identity has disappeared from the fresh transform is matched to the new
+element with the same v1 kind and the same v1 key. The match must be unique in
+both directions - two content-identical siblings, or one candidate claimed by
+two records, is `ambiguous-rename` and nothing is adopted (never a guess).
+Descendants then follow by path suffix under the renamed ancestor, because a
+rename changes every path below it while their own names did not move.
+
+## Bugs the oracles caught
+
+- The first cut compared the record's v1 key against the fresh element's V2
+  key: the v2 object is a different model with different content, so nothing
+  ever matched. Repair keys are v1-side keys; the fresh element's v1
+  counterpart (through `link.provenance`) is what to compare.
+- A path index keyed by every walked element handed the descendant repair to
+  the FeatureTyping, which shares its owner's path (`Motor::power`) - the
+  typing adopted the id and the usage kept the derived one. The index is now
+  content-only and kind-guarded.
+- The runtime stores container back-references on the child (`UML
+  Property.class`, `owningType`, ...). Counting them in the signature made
+  every descendant of a renamed element look edited, which turned the rename
+  into a `both-changed` conflict and blocked the parent. Owner back-references
+  are now excluded from both keys: they are structural position, which the
+  identity path already captures.
+
+## Result
+
+- check_v1_to_v2_as.py: 238 passed (+5 M3b checks: repair keys in the record,
+  rename keeps the identity with the fresh name, descendants follow, rename
+  vs v2 edit stays a conflict with a stable identity, content-identical
+  siblings refused as ambiguous).
+- Full sweep green (701 checks).
+- Pathway: M3b section added with the two-key rationale and the
+  back-reference exclusion; L3 now reads as achieved for renames/moves.
