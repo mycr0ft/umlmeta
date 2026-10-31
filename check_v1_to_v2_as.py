@@ -2837,6 +2837,134 @@ if _fam_text is not None and _have_sysmlpy:
               f"{type(ex).__name__}: {str(ex)[:160]}")
 
 print()
+print("== M3: sidecar, diff and the three-way sync ==")
+# docs/v1-v2-linkage-pathway.md M3. The pair record (sidecar) plus a merge
+# that classifies every element by who changed it since the snapshot.
+from umlmeta import sync as SY  # noqa: E402
+from umlmeta import link as _L  # noqa: E402
+L = _L
+
+
+def _mk_sync_v1(power_type="RPM", with_wheel=True, extra=None):
+    p = U.Package(name="SyncPkg")
+    rpm = U.DataType(name="RPM")
+    kgm = U.DataType(name="Kgm")
+    p.packagedElement.extend([rpm, kgm])
+    eng = S.Block(name="Engine")
+    p.add("packagedElement", eng)
+    pw = U.Property(name="power")
+    pw.type = rpm if power_type == "RPM" else kgm
+    eng.add("ownedAttribute", pw)
+    if with_wheel:
+        p.add("packagedElement", S.Block(name="Wheel"))
+    if extra:
+        p.add("packagedElement", S.Block(name=extra))
+    return p
+
+
+def _as_named(root, name):
+    return [el for el, _p, _i in _L._walk(root)
+            if el._vals.get("declaredName") == name]
+
+
+_v1a = _mk_sync_v1()
+_as_a = A.transform_package(_v1a)
+_ids_a = _L.assign_element_ids(_as_a)
+_side = L.sidecar(_as_a, ids=_ids_a, generated="2026-10-31T00:00:00Z")
+check("M3: the sidecar records the pair (path/kind/hashes/identity)",
+      len(_side["records"]) == 6
+      and all({"v1_path", "v1_kind", "v1_hash", "v2_element_id",
+               "v2_hash"} <= set(r) for r in _side["records"]),
+      f"{len(_side['records'])} records")
+with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as fh:
+    _sc_path = fh.name
+try:
+    L.write_sidecar(_sc_path, _side)
+    _side2 = L.read_sidecar(_sc_path)
+    check("M3: the sidecar round-trips through its file format",
+          _side2["records"] == _side["records"]
+          and _side2["v2_graph_hash"] == _side["v2_graph_hash"])
+finally:
+    Path(_sc_path).unlink()
+
+# 1. no edits anywhere -> a no-op (the merged graph is the linked graph)
+_r0 = SY.merge(_mk_sync_v1(), _side, _as_a)
+check("M3: a clean sync is a no-op (fixed point, zero conflicts)",
+      not _r0.conflicts
+      and L.graph_hash(_r0.root) == _side["v2_graph_hash"],
+      f"conflicts={len(_r0.conflicts)} report={_r0.report}")
+
+# 2. v1-only edit: the property's type changes -> the fresh mapping wins
+_r1 = SY.merge(_mk_sync_v1(power_type="Kgm"), _side, _as_a)
+_pw = _as_named(_r1.root, "power")[0]
+_type_name = None
+if _pw.ownedTyping:
+    t_el = _pw.ownedTyping[0]._vals.get("type")
+    _type_name = getattr(t_el, "declaredName", None)
+# compare by NAME: a merged graph may legitimately hold either copy of an
+# unchanged definition (object identity is not a merge contract)
+check("M3: a v1-only change flows into v2 (v1 wins)",
+      _type_name == "Kgm" and not _r1.conflicts
+      and _r1.report["v1-only"] >= 1,
+      f"type={_type_name} report={_r1.report}")
+
+# 3. v2-only edit: a hand edit on the v2 side survives the re-transform
+_as_edited = A.transform_package(_mk_sync_v1())
+L.assign_element_ids(_as_edited)
+_named = _as_named(_as_edited, "power")[0]
+_named._vals["declaredName"] = "powerMax"
+_r2 = SY.merge(_mk_sync_v1(), _side, _as_edited)
+check("M3: a v2-only edit is preserved (v2 wins)",
+      bool(_as_named(_r2.root, "powerMax")) and not _r2.conflicts
+      and _r2.report["v2-only"] >= 1, str(_r2.report))
+
+# 4. both sides changed the same element -> exactly one conflict, v2 wins
+_as_both = A.transform_package(_mk_sync_v1())
+L.assign_element_ids(_as_both)
+_as_named(_as_both, "power")[0]._vals["declaredName"] = "powerMax"
+_r3 = SY.merge(_mk_sync_v1(power_type="Kgm"), _side, _as_both)
+check("M3: simultaneous edits -> one conflict record, v2 content kept",
+      len(_r3.conflicts) == 1
+      and _r3.conflicts[0]["kind"] == "both-changed"
+      and bool(_as_named(_r3.root, "powerMax")),
+      str(_r3.conflicts))
+
+# 5. v1 deletion -> the element leaves the pair
+_r4 = SY.merge(_mk_sync_v1(with_wheel=False), _side, _as_a)
+check("M3: a v1 deletion removes the element (no conflict)",
+      not _as_named(_r4.root, "Wheel") and not _r4.conflicts
+      and _r4.report["v1-removed"] >= 1, str(_r4.report))
+
+# 6. v2-native content (never produced by the mapping) is kept
+_as_native = A.transform_package(_mk_sync_v1())
+L.assign_element_ids(_as_native)
+A._own_membership(_as_native, S2.PartDefinition(declaredName="Custom"))
+_r5 = SY.merge(_mk_sync_v1(), _side, _as_native)
+check("M3: v2-native content survives (it has no v1 counterpart)",
+      bool(_as_named(_r5.root, "Custom")) and not _r5.conflicts
+      and _r5.report["v2-native"] >= 1, str(_r5.report))
+
+# 7. deleted in v1 but edited in v2 -> refused, recorded, element kept
+_as_del_edit = A.transform_package(_mk_sync_v1())
+L.assign_element_ids(_as_del_edit)
+_as_named(_as_del_edit, "Wheel")[0]._vals["declaredName"] = "WheelV2"
+_r6 = SY.merge(_mk_sync_v1(with_wheel=False), _side, _as_del_edit)
+check("M3: delete-vs-edit is a conflict, not a silent deletion",
+      len(_r6.conflicts) == 1
+      and _r6.conflicts[0]["kind"] == "deleted-in-v1-edited-in-v2"
+      and bool(_as_named(_r6.root, "WheelV2")),
+      str(_r6.conflicts))
+
+# 8. the graph diff classifies a pair of AS snapshots by elementId
+_d = SY.diff_graph(_as_a, A.transform_package(_mk_sync_v1(extra="Spoiler")))
+check("M3: graph diff reports added elements by identity",
+      list(_d["added"].values()).count("PartDefinition") == 1
+      and not _d["removed"]
+      and not any(k not in ("Package", "OwningMembership")
+                  for k in _d["changed"].values()),
+      str(_d))
+
+print()
 print("== M2b: the AS persists as a metaclass-shaped JSON document ==")
 from umlmeta import v2_json as JS  # noqa: E402
 from umlmeta import link as _L  # noqa: E402

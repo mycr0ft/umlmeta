@@ -3280,3 +3280,68 @@ sysmlpy's `stable_ids`/`reconcile_with` with `v1v2:` ids is M4.
   records the UAF 1.2/1.3, UPDM 2 and BPMN trace families (each becomes a
   mapping table plus provenance records; the linkage design is
   profile-agnostic).
+
+# Part 55: M3 - the sidecar and the three-way sync
+
+The pair record and the merge. M3 answers the question a dual-model project
+actually asks every week: *the v1 model changed and the v2 model was edited by
+hand - what happens now?*
+
+## The pair record (sidecar)
+
+`umlmeta.link.sidecar(root)` writes the document pathway §4 specifies:
+`format`, `generated`, `link_namespace`, `v2_graph_hash`, `records`,
+`elisions` (empty until M4). Records gained `v2_hash` next to `v1_hash`, and
+both are now the SAME function - `link.signature`: scalars plus references
+resolved to `kind:name`, declared name included. Two different notions of
+"changed" on the two sides of a merge is exactly how an edit gets lost.
+
+`write_sidecar`/`read_sidecar`/`records_by_id`/`records_by_path` handle the
+file (`<name>.v1v2link.json`).
+
+## The merge
+
+`umlmeta.sync.merge(v1_new, sidecar, existing_v2)`:
+
+1. re-transform the new v1 snapshot (the mapping stays the authority);
+2. per element identity, compare `cur_v1 != record.v1_hash` and
+   `existing_v2 != record.v2_hash`;
+3. classify: `unchanged`, `v1-only` (fresh wins), `v2-only` (existing kept),
+   `both-changed` (conflict, v2 wins), `v1-added`, `v1-removed`,
+   `v2-native` (no record: kept);
+4. ancestor propagation: a re-mapped child cannot live in a preserved parent,
+   so its CONTENT ancestors are rebuilt from the fresh transform - unless one
+   of them was edited v2-side, which is `blocked-by-edited-container`
+   (refused and recorded, never smuggled into a stale subtree);
+5. apply: the fresh transform is the skeleton, `_substitute` swaps in the
+   preserved objects, `_transplant` re-attaches surviving old-only content
+   (v2-native additions, delete-vs-edit survivors) beside its nearest content
+   ancestor.
+
+`diff_graph` and `diff_v1` report the same classification without merging
+(element-level for AS snapshots, qualified-path level for v1 snapshots).
+
+## Bugs the oracles caught (worth pinning)
+
+- The first signature skipped every single-valued *reference*
+  (`if hasattr(v, "_props"): continue`) - a retargeted property type was
+  invisible, so the merge silently preferred the stale v2 copy. Signatures are
+  now storage-based: whatever the model stores is content.
+- The reference signature read `declaredName` only; v1 elements store `name`,
+  so every v1 reference hashed as `Kind:None` (RPM and Kgm hashed the same).
+- Keeping old-only *memberships* dragged a v1-deleted element back into the
+  merged model through its owning membership. `_is_rel()` now separates
+  relationships from content for both `keep` and the report counts, and
+  transplanting walks to the nearest CONTENT ancestor (Engine ->
+  FeatureMembership -> power).
+- Object identity is not a merge contract: an unchanged definition may be
+  either copy in the output. Oracles compare names, not `is`.
+
+## Result
+
+- check_v1_to_v2_as.py: 233 passed (+10 M3 checks: sidecar shape + file
+  round-trip, no-op fixed point, v1-only/v2-only flows, both-changed conflict,
+  v1 deletion, v2-native survival, delete-vs-edit conflict, graph diff).
+- Full sweep green (696 checks).
+- docs/v1-v2-linkage-pathway.md marks M3 shipped with the conflict kinds and
+  the merge policy written down.

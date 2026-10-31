@@ -101,24 +101,50 @@ def _walk(root):
             stack.append((ch, parts))
 
 
-def _scalar_signature(el):
-    """A short hash over an element's scalar features (the repair key)."""
+def signature(el):
+    """Content signature: scalars plus references, resolved to kind:name.
+
+    ONE definition is used for the provenance record (``v1_hash``) and for
+    the sync's edit detection (``v2_hash``); two different notions of
+    "changed" is exactly how a merge loses an edit. A reference counts as
+    content (a retargeted type is an edit), and so does the declared name -
+    which is why rename *matching* needs a separate name-independent key
+    (M3b), not a weaker signature here.
+    """
     items = []
-    for name in sorted(getattr(el, "_props", {})):
-        d = el._props[name]
-        if d.derived or d.union or name == "elementId":
+    # STORAGE-based, not descriptor-based: a redefined/union feature that the
+    # model actually stores (UML Property.type) is content, and skipping it
+    # made a retargeted type invisible to change detection.
+    for name in sorted(getattr(el, "_vals", {})):
+        if name == "elementId" or name.startswith("_"):
             continue
         v = el._vals.get(name)
-        if v is None or hasattr(v, "_props"):
+        if v is None:
             continue
         if isinstance(v, (list, tuple)):
-            vals = [str(x) for x in v if not hasattr(x, "_props") and x is not None]
+            vals = [_sig_item(x) for x in v if x is not None]
             if vals:
                 items.append(name + "=[" + ",".join(sorted(vals)) + "]")
         else:
-            items.append(name + "=" + str(v))
+            items.append(name + "=" + _sig_item(v))
     blob = "\n".join(items)
     return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:12]
+
+
+def _sig_item(v):
+    if hasattr(v, "_props"):
+        # v1 elements carry ``name``, v2 elements ``declaredName`` - a
+        # reference signature that ignores this makes a retargeted type
+        # indistinguishable from the original (both "DataType:None")
+        nm = v._vals.get("declaredName")
+        if nm is None:
+            nm = v._vals.get("name")
+        return type(v).__name__ + ":" + str(nm)
+    return str(v)
+
+
+# kept as an alias: provenance records used this name before the sync layer
+_scalar_signature = signature
 
 
 def assign_element_ids(root, adopt=False):
@@ -221,10 +247,66 @@ def provenance(root, ids=None):
                 "v1_hash": _scalar_signature(v1),
                 "v2_kind": type(v2).__name__,
                 "v2_element_id": info[1],
+                "v2_hash": _scalar_signature(v2),
                 "mapping": None,
             })
         stack.extend(reversed(_v1_children(v1)))
     return records
+
+
+def sidecar(root, ids=None, generated=None):
+    """The pair record for one transformed model (pathway §4).
+
+    ``format``/``link_namespace`` identify the document, ``v2_graph_hash`` is
+    the AS content hash at record time, ``records`` are the provenance records
+    (now carrying ``v2_hash`` as well as ``v1_hash`` so a sync can tell a
+    v2-side edit from an untouched element), and ``elisions`` is the per-model
+    ledger the reader/transformer can fill in (M4; empty until then).
+    """
+    ids = ids or assign_element_ids(root, adopt=True)
+    records = provenance(root, ids=ids)
+    return {
+        "format": SIDECAR_FORMAT,
+        "generated": generated or _utcnow(),
+        "link_namespace": "https://github.com/mycr0ft/umlmeta/v1v2-link/stable-ids",
+        "v2_graph_hash": graph_hash(root, ids=ids),
+        "records": records,
+        "elisions": [],
+    }
+
+
+def _utcnow():
+    import datetime
+    return datetime.datetime.now(datetime.timezone.utc).strftime(
+        "%Y-%m-%dT%H:%M:%SZ")
+
+
+def write_sidecar(path, doc):
+    import json
+    with open(path, "w", encoding="utf-8") as fp:
+        json.dump(doc, fp, indent=2, ensure_ascii=False)
+        fp.write("\n")
+    return path
+
+
+def read_sidecar(path):
+    import json
+    with open(path, encoding="utf-8") as fp:
+        doc = json.load(fp)
+    if doc.get("format") != SIDECAR_FORMAT:
+        raise ValueError(f"not a {SIDECAR_FORMAT} sidecar: "
+                         f"{doc.get('format')!r}")
+    return doc
+
+
+def records_by_id(doc):
+    """{v2_element_id: record} for a sidecar document."""
+    return {r["v2_element_id"]: r for r in doc.get("records", ())}
+
+
+def records_by_path(doc):
+    """{v1_path: record} for a sidecar document."""
+    return {r["v1_path"]: r for r in doc.get("records", ()) if r["v1_path"]}
 
 
 def graph_hash(root, ids=None):

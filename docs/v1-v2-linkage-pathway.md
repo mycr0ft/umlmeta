@@ -1,7 +1,7 @@
 # Maintaining a v1 ↔ v2 link through a prolonged transition
 
-**Status:** pathway published; M1 (identity + provenance), M2a (AS → text) and
-M2b (AS → JSON) shipped · umlmeta 0.2.x · Jon R. Fox
+**Status:** pathway published; M1 (identity + provenance), M2 (text + JSON persistence)
+and M3 (sidecar + three-way sync) shipped · umlmeta 0.2.x · Jon R. Fox
 
 The SysML v1 → v2 transformation clause (SysML v2.0 Part 2, formal/26-03-03)
 defines a **one-shot** mapping: read a v1 model, emit a v2 model. umlmeta's
@@ -29,7 +29,7 @@ silently if identity is left to serialization artifacts.
 | v2 `elementId` | **M1** — deterministic `v1v2:` uuid5 ids over the declared path + type (`umlmeta.link`) |
 | v1→v2 provenance | **M1** — `umlmeta.link.provenance()` over the transform's retained index (`_v1_index`/`_v1_root`), with the v1 xmi id as a cache and a v1 content signature |
 | reverse (v2 → v1) | absent |
-| pair diff / merge / sync | absent (`mdzip_diff` covers v1 snapshots only) |
+| pair diff / merge / sync | **M3** — `umlmeta.sync`: element-level classification (v1-only / v2-only / unchanged / both → conflict / added / removed / v2-native) and a merge that applies it |
 | elision ledger | prose (module docstring, realization table, REPORT) — no per-model record |
 | CLI | absent (`pyproject.toml` has no `[project.scripts]`) |
 
@@ -118,6 +118,7 @@ One JSON sidecar per transformed model (`<name>.v1v2link.json`):
       "v1_hash": "9f31c2…",
       "v2_kind": "PartDefinition",
       "v2_element_id": "v1v2:…",
+      "v2_hash": "4b01de…",
       "mapping": "Block_Mapping"
     }
   ],
@@ -129,6 +130,9 @@ One JSON sidecar per transformed model (`<name>.v1v2link.json`):
 
 Records are per mapped element; `elisions` is the per-model ledger of v1
 content that produced no v2 counterpart (or only a name-only carrier).
+`v1_hash`/`v2_hash` are ONE content signature (scalars + references resolved
+to `kind:name`, name included) applied to each side; a sync compares the
+current element against these to decide who changed.
 `v1_hash` covers the element's scalar features and is the repair key when a
 path changes (M3): a renamed element re-links by hash, not by name.
 
@@ -187,7 +191,7 @@ Each milestone lands as its own wave (TDD, full sweep green, REPORT part).
   is why this document shape was chosen. Reconciling sysmlpy's
   `stable_ids`/`reconcile_with` with `v1v2:` ids stays M4 work.
 
-### M3 — diff, sync, incremental transform
+### M3 — diff, sync, incremental transform *(shipped)*
 - Pair diff using `mdzip_diff`-style records on both sides; classify each
   change: v1-only (re-mappable), v2-only (v2-native edit), both (conflict),
   unmappable (elided).
@@ -198,6 +202,14 @@ Each milestone lands as its own wave (TDD, full sweep green, REPORT part).
 - **Acceptance:** edit v1 → sync preserves v2-only edits; edit v2 → v1 side
   unchanged; simultaneous edits produce exactly one conflict record per
   element; re-running a clean sync is a no-op (fixed point).
+- **Shipped:** `umlmeta.link.sidecar()` (records now carry `v2_hash` as well
+  as `v1_hash`, written/read as `<name>.v1v2link.json`) and `umlmeta.sync`
+  (`signature`, `diff_v1`, `diff_graph`, `merge`). Conflict kinds:
+  `both-changed`, `deleted-in-v1-edited-in-v2`, `blocked-by-edited-container`.
+  Merge policy: v2 wins a conflict, the fresh mapping wins a v1-only change,
+  v2-native content is kept, and a re-mapped child forces its content
+  ancestors to be rebuilt from the fresh transform (unless that ancestor was
+  edited v2-side, which is the blocked case).
 
 ### M4 — elision ledger and side-channel policy
 - Emit `elisions` per model (reader `unmapped`/`unmapped_features` +
