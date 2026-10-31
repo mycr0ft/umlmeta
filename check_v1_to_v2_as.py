@@ -2837,6 +2837,49 @@ if _fam_text is not None and _have_sysmlpy:
               f"{type(ex).__name__}: {str(ex)[:160]}")
 
 print()
+print("== M2b: the AS persists as a metaclass-shaped JSON document ==")
+from umlmeta import v2_json as JS  # noqa: E402
+from umlmeta import link as _L  # noqa: E402
+
+def _L_meta_ok(tn):
+    try:
+        return S2.metaclass(tn) is not None
+    except Exception:
+        return False
+
+
+_ids = _L.assign_element_ids(as_pkg)
+_doc = JS.to_json(as_pkg, ids=_ids)
+check("M2b: one graph node per AS element, @type is the metaclass",
+      len(_doc["@graph"]) == len(_ids)
+      and all(_L_meta_ok(n["@type"]) for n in _doc["@graph"]),
+      f"{len(_doc['@graph'])} nodes / {len(_ids)} ids")
+_js = JS.to_json_text(as_pkg, ids=_ids)
+_back = JS.from_json_text(_js)
+_js2 = JS.to_json_text(_back)
+check("M2b: write -> read -> write is a byte-identical fixed point",
+      _js == _js2)
+_back_ids = {eid for _el, _parts, eid in _L._walk(_back)}
+check("M2b: every identity survives the document, root included",
+      _back_ids == set(_ids)
+      and _back._vals.get("elementId") == as_pkg._vals.get("elementId"),
+      f"{len(_back_ids)} ids round-tripped")
+check("M2b: the re-read graph renders the same notation as the original",
+      T.emit_package(_back) == as_text)
+for _bad, _label in (
+        ({"format": "other/1", "@id": "x", "@graph": []}, "bad format"),
+        ({"format": JS.FORMAT, "@id": "x",
+          "@graph": [{"@type": "NotAMetaclass", "@id": "x"}]}, "unknown @type"),
+        ({"format": JS.FORMAT, "@id": "x",
+          "@graph": [{"@type": "Package", "@id": "x",
+                      "ownedRelationship": [{"@id": "nope"}]}]}, "dangling id")):
+    try:
+        JS.from_json(_bad)
+        check(f"M2b: {_label} is rejected", False)
+    except JS.JsonError:
+        check(f"M2b: {_label} is rejected", True)
+
+print()
 print("== M1 link: stable identities + provenance ==")
 # docs/v1-v2-linkage-pathway.md M1: elementId derivation (uuid5 over the
 # declared path + type, sysmlpy's recipe in the umlmeta link namespace),

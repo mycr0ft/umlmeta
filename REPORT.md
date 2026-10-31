@@ -3225,3 +3225,58 @@ single source of truth for what gets written.
   checks total, README refreshed).
 - docs/v1-v2-linkage-pathway.md marks M2a shipped and keeps M2b (SysML v2
   JSON interchange in sysmlpy's document shape) open.
+
+# Part 54: M2b - the AS persists (metaclass-shaped JSON)
+
+M2's second half: the v2 model has to outlive the Python process that built
+it. The document shape was decided by what is actually loadable by other
+tools, not by convenience:
+
+- **sysmlpy's interchange is a visitor parse-tree mirror** — its `@type`
+  values are wrapper kinds (`PackageDeclaration`, `DefinitionDeclaration`,
+  `Identification`, `OwnedFeatureTyping`, `FeatureType`), produced by its
+  parser and consumed by its importer. A metaclass-shaped document cannot be
+  loaded by `from_interchange` without an adapter, and a parse-tree document
+  would throw away exactly what the link needs (our `elementId`s and the AS
+  structure the transformer built).
+- **opensysml works on metaclass/KerML-shaped models**, which is the shape
+  umlmeta's AS already is.
+
+So `umlmeta.v2_json` writes the AS directly: `@type` = the metaclass,
+`@id` = the link elementId, containment as `ownedRelationship` references,
+`format: umlmeta.v2json/1`. Crossing to sysmlpy stays textual today (the
+calibrated notation, M2a) or via a small `@type` adapter; reconciling
+sysmlpy's `stable_ids`/`reconcile_with` with `v1v2:` ids is M4.
+
+## Changes
+
+- `umlmeta.v2_json`: `to_json`/`to_json_text` (DFS over composite
+  ownership, every node self-describing), `from_json`/`from_json_text`
+  (two-pass rebuild by `@type` through `sysml2.metaclass`, then features;
+  enums as `Kind.member` text), and `JsonError` for malformed documents.
+- `umlmeta.link.contained()`: composite ownership is NOT confined to
+  `ownedRelationship` — derived subsets (`ownedTyping`,
+  `ownedSpecialization`) have their own storage, and a walk that follows only
+  `ownedRelationship` drops every FeatureTyping. Identity assignment and the
+  JSON walk now share this one definition of containment; the bug surfaced as
+  a dangling `{"@id": null}` on a pin's typing, which is exactly the class of
+  error that would have silently split a link.
+
+## Gates (check_v1_to_v2_as.py, M2b section)
+
+- one graph node per AS element, and every `@type` resolves to a generated
+  metaclass (the document is self-describing, not an ad-hoc dump);
+- write → read → write is a byte-identical fixed point;
+- every identity survives, root included (`@id` set == link id set);
+- the re-read graph renders the same notation as the original — the JSON
+  does not lose anything the notation saw;
+- a wrong `format`, an unknown `@type`, and a dangling `@id` are rejected
+  (`JsonError`), so a corrupt document cannot masquerade as a model.
+
+## Result
+
+- check_v1_to_v2_as.py: 223 passed (+7 M2b). Full sweep green (686 checks).
+- docs/v1-v2-linkage-pathway.md: M2 shipped; a new "filed for later" section
+  records the UAF 1.2/1.3, UPDM 2 and BPMN trace families (each becomes a
+  mapping table plus provenance records; the linkage design is
+  profile-agnostic).

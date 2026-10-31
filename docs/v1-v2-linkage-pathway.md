@@ -1,7 +1,7 @@
 # Maintaining a v1 ↔ v2 link through a prolonged transition
 
-**Status:** pathway published; M1 (identity + provenance) and M2a (AS → text) shipped ·
-umlmeta 0.2.x · Jon R. Fox
+**Status:** pathway published; M1 (identity + provenance), M2a (AS → text) and
+M2b (AS → JSON) shipped · umlmeta 0.2.x · Jon R. Fox
 
 The SysML v1 → v2 transformation clause (SysML v2.0 Part 2, formal/26-03-03)
 defines a **one-shot** mapping: read a v1 model, emit a v2 model. umlmeta's
@@ -25,7 +25,7 @@ silently if identity is left to serialization artifacts.
 | v1 XMI reader (R1) | structural + activity internals + interactions + guards/effects/weight |
 | v1 XMI writer | implemented (`xmi_write.py`, canonical parity gate) |
 | v2 serialization (text) | **M2a** — `umlmeta.v2_text` renders the AS in the calibrated notation; byte-identical to the v1→text pipeline on the parity model, sysmlpy-validated |
-| v2 serialization (JSON) | **M2b** — not started (sysmlpy interchange document shape) |
+| v2 serialization (JSON) | **M2b** — `umlmeta.v2_json` writes a metaclass-shaped document (`umlmeta.v2json/1`) that reads back to the same AS, ids included |
 | v2 `elementId` | **M1** — deterministic `v1v2:` uuid5 ids over the declared path + type (`umlmeta.link`) |
 | v1→v2 provenance | **M1** — `umlmeta.link.provenance()` over the transform's retained index (`_v1_index`/`_v1_root`), with the v1 xmi id as a cache and a v1 content signature |
 | reverse (v2 → v1) | absent |
@@ -153,7 +153,7 @@ Each milestone lands as its own wave (TDD, full sweep green, REPORT part).
 - **Note:** the sidecar document (§4) is emitted by M3 — M1 ships the
   identity, the provenance record set and the graph hash it will carry.
 
-### M2 — persistence of the v2 side *(M2a shipped, M2b open)*
+### M2 — persistence of the v2 side *(shipped)*
 - Promote an AS → SysML v2 **textual** emitter into the package (the oracle
   renderer is the starting point), with a round-trip oracle: emit → sysmlpy
   parse → re-transform comparison.
@@ -169,9 +169,23 @@ Each milestone lands as its own wave (TDD, full sweep green, REPORT part).
   coverage oracle that fails on any newly unsupported AS metaclass. The M2
   decision taken: **one notation** — the emitter mirrors the calibrated
   forms rather than inventing AS-flavoured ones.
-- **M2b open:** SysML v2 JSON interchange in sysmlpy's document shape, so
-  the v2 model can be handed to other tools and ids can be reconciled with
-  sysmlpy's `stable_ids` (M4).
+- **M2b shipped:** `umlmeta.v2_json` (`to_json`/`from_json`) writes a
+  metaclass-shaped document — `@type` = the AS metaclass, `@id` = the link
+  elementId, containment via `ownedRelationship`, `format:
+  umlmeta.v2json/1` — and reads it back into an AS graph with every
+  identity, member order and scalar feature intact (write→read→write is a
+  byte-identical fixed point, and the re-read graph renders the same
+  notation). Gates: node count == identity count, all `@type`s resolve to
+  generated metaclasses, ids round-trip including the root, and malformed
+  documents (wrong format, unknown `@type`, dangling `@id`) are rejected.
+- **Interoperability, as measured:** sysmlpy's interchange document is a
+  *visitor parse-tree mirror* (`@type` values are `PackageDeclaration` /
+  `DefinitionDeclaration` / `Identification` / `OwnedFeatureTyping`), so it
+  cannot load a metaclass-shaped document directly — the crossing is either
+  an adapter over `@type` names or the text notation, which sysmlpy parses
+  today (M2a gate). opensysml works on metaclass/KerML-shaped models, which
+  is why this document shape was chosen. Reconciling sysmlpy's
+  `stable_ids`/`reconcile_with` with `v1v2:` ids stays M4 work.
 
 ### M3 — diff, sync, incremental transform
 - Pair diff using `mdzip_diff`-style records on both sides; classify each
@@ -223,6 +237,28 @@ Each milestone lands as its own wave (TDD, full sweep green, REPORT part).
 | Q3 | side-channel carrier shape for unmapped content (metadata usage vs documentation) | M4; ActivityEdgeData's metadata machinery is the working precedent |
 
 ---
+
+## 6b. Filed for later: other v1 profiles and trace families
+
+Recorded so it is not lost, not yet scheduled. The transformation clauses
+above cover SysML v1. Other v1 dialects that projects carry through a
+transition and that translate into KerML/SysML-based content:
+
+- **UAF 1.2 / 1.3** — umlmeta already generates the full stereotype families
+  (`uaf.py` 256, `uaf13.py` 272, `check_profiles.py`), and UAF generalizes
+  SysML stereotypes, so a UAF→v2 trace family is mostly a mapping-table
+  exercise on top of the existing R3 machinery.
+- **UPDM 2** — a UAF/DoDAF ancestor; same shape of work.
+- **BPMN 2.0** — published as CMOF (`umlmeta.bpmn`), not a UML profile, so
+  its path to v2 is a different question: process semantics map to behaviour
+  and item-flow constructs rather than to stereotype folds.
+
+These become additional trace sets for the link layer (each element kind
+needs a mapping status: mapped / elided / not-mapped) and, for a maintained
+link, their own provenance records. Nothing in M1–M5 is profile-specific: the
+identity scheme, the provenance record and the elision ledger are keyed on
+metaclass + path + content, so a new profile adds a mapping table, not a new
+linkage design.
 
 ## 7. Non-goals
 

@@ -57,13 +57,25 @@ def _relationships(el):
             if hasattr(r, "_props")]
 
 
-def _children(el):
-    """(owning relationship, owned member) pairs in graph order."""
+def contained(el):
+    """Composite children in descriptor order: (feature name, child) pairs.
+
+    Composite ownership in the generated runtime is NOT confined to
+    ``ownedRelationship``: derived subsets such as ``ownedTyping`` and
+    ``ownedSpecialization`` have their own storage, and a walk that only
+    follows ``ownedRelationship`` misses every FeatureTyping (an identity and
+    serialization bug, not a style choice).
+    """
     out = []
-    for rel in _relationships(el):
-        for ch in getattr(rel, "ownedRelatedElement", None) or ():
-            if hasattr(ch, "_props"):
-                out.append((rel, ch))
+    for name in sorted(getattr(el, "_props", {})):
+        d = el._props[name]
+        if d.derived or d.union or not d.composite:
+            continue
+        v = el._vals.get(name)
+        if v is None:
+            continue
+        items = v if isinstance(v, (list, tuple)) else [v]
+        out.extend((name, x) for x in items if hasattr(x, "_props"))
     return out
 
 
@@ -85,12 +97,7 @@ def _walk(root):
         if isinstance(name, str) and name:
             parts = parts + (name,)
         yield el, parts, el._vals.get("elementId")
-        kids = []
-        for rel in _relationships(el):
-            kids.append(rel)
-            kids.extend(c for c in (getattr(rel, "ownedRelatedElement", None) or ())
-                        if hasattr(c, "_props"))
-        for ch in reversed(kids):
+        for _feat, ch in reversed(contained(el)):
             stack.append((ch, parts))
 
 
@@ -148,14 +155,11 @@ def assign_element_ids(root, adopt=False):
             eid = LINK_PREFIX + str(uuid.uuid5(LINK_NAMESPACE, key))
             el._vals["elementId"] = eid
         ids[eid] = el
-        for i, rel in enumerate(_relationships(el)):
-            # the relationship itself is an Element: its identity anchors
-            # on the owner and the role it plays
-            visit(rel, full, eid, "rel", i)
-            rel_id = rel._vals.get("elementId")
-            for j, ch in enumerate(getattr(rel, "ownedRelatedElement", None) or ()):
-                if hasattr(ch, "_props"):
-                    visit(ch, full, rel_id, type(rel).__name__, j)
+        seen_feat = {}
+        for feat, ch in contained(el):
+            n = seen_feat.get(feat, 0)
+            seen_feat[feat] = n + 1
+            visit(ch, full, eid, feat, n)
 
     visit(root, (), None, "root", 0)
     return ids
