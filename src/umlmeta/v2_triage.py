@@ -31,8 +31,25 @@ DISPOSITIONS = {
     "Class.checkClassSpecialization":
         ("transform", "same: no library specialization edge on classes"),
     "Usage.validateUsageIsReferential":
-        ("unattributed", ""),
+        ("runtime", "isReference is derived in the KerML AS "
+                    "(deriveUsageIsReference); the runtime stores it as None "
+                    "and nothing computes it on read"),
 }
+
+
+def _classify(family):
+    """Attribute by family shape where the cause is the same across classes.
+
+    Every `check<Class>Specialization` rule asks for a library specialization
+    edge, and the transform emits none: one cause, many family names.
+    """
+    if family.endswith("IsReference"):
+        return ("runtime", "isReference is derived in the KerML AS "
+                          "(deriveUsageIsReference); the runtime stores None")
+    if family.endswith("Specialization") and ".check" in family:
+        return ("transform",
+                "the transform emits no library specialization edges (O6)")
+    return ("unattributed", "")
 
 
 def ledger(report):
@@ -41,7 +58,7 @@ def ledger(report):
                   for e in report["violations"])
     rows = []
     for family, count in vio.most_common():
-        owner, why = DISPOSITIONS.get(family, ("unattributed", ""))
+        owner, why = DISPOSITIONS.get(family, _classify(family))
         rows.append({"kind": "violation", "family": family, "count": count,
                      "owner": owner, "note": why})
     skip = Counter(s["reason"].split(":", 1)[0][:50]

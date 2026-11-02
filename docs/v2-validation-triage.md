@@ -6,63 +6,63 @@
 |---|---|---:|---|---|
 | violation | `Type.checkTypeSpecialization` | 55 | transform | the transform emits no library specialization edges (O6) |
 | violation | `Feature.checkFeatureSpecialization` | 37 | transform | same: no library specialization edge on features |
-| violation | `Usage.validateUsageIsReferential` | 26 | unattributed |  |
+| violation | `Usage.validateUsageIsReferential` | 26 | runtime | isReference is derived in the KerML AS (deriveUsageIsReference); the runtime stores it as None and nothing computes it on read |
 | violation | `Class.checkClassSpecialization` | 16 | transform | same: no library specialization edge on classes |
-| violation | `OccurrenceUsage.checkOccurrenceUsageSpecialization` | 16 | unattributed |  |
-| violation | `Step.checkStepSpecialization` | 9 | unattributed |  |
-| violation | `ActionUsage.checkActionUsageSpecialization` | 7 | unattributed |  |
+| violation | `OccurrenceUsage.checkOccurrenceUsageSpecialization` | 16 | transform | the transform emits no library specialization edges (O6) |
+| violation | `Step.checkStepSpecialization` | 9 | transform | the transform emits no library specialization edges (O6) |
+| violation | `ActionUsage.checkActionUsageSpecialization` | 7 | transform | the transform emits no library specialization edges (O6) |
 | violation | `EndFeatureMembership.validateEndFeatureMembershipIsEnd` | 6 | unattributed |  |
-| violation | `ReferenceUsage.validateReferenceUsageIsReference` | 5 | unattributed |  |
-| violation | `ActionDefinition.checkActionDefinitionSpecialization` | 5 | unattributed |  |
-| violation | `Behavior.checkBehaviorSpecialization` | 5 | unattributed |  |
-| violation | `AttributeUsage.validateAttributeUsageIsReference` | 4 | unattributed |  |
-| violation | `AttributeUsage.checkAttributeUsageSpecialization` | 4 | unattributed |  |
-| violation | `Connector.checkConnectorSpecialization` | 4 | unattributed |  |
+| violation | `ReferenceUsage.validateReferenceUsageIsReference` | 5 | runtime | isReference is derived in the KerML AS (deriveUsageIsReference); the runtime stores None |
+| violation | `ActionDefinition.checkActionDefinitionSpecialization` | 5 | transform | the transform emits no library specialization edges (O6) |
+| violation | `Behavior.checkBehaviorSpecialization` | 5 | transform | the transform emits no library specialization edges (O6) |
+| violation | `AttributeUsage.validateAttributeUsageIsReference` | 4 | runtime | isReference is derived in the KerML AS (deriveUsageIsReference); the runtime stores None |
+| violation | `AttributeUsage.checkAttributeUsageSpecialization` | 4 | transform | the transform emits no library specialization edges (O6) |
+| violation | `Connector.checkConnectorSpecialization` | 4 | transform | the transform emits no library specialization edges (O6) |
 | violation | `Connector.validateConnectorRelatedFeatures` | 4 | unattributed |  |
 | violation | `Expression.validateExpressionResultParameterMembership` | 3 | unattributed |  |
-| violation | `Expression.checkExpressionSpecialization` | 3 | unattributed |  |
-| violation | `EnumerationUsage.validateAttributeUsageIsReference` | 3 | unattributed |  |
-| violation | `EnumerationUsage.checkAttributeUsageSpecialization` | 3 | unattributed |  |
-| violation | `ItemDefinition.checkItemDefinitionSpecialization` | 3 | unattributed |  |
-| violation | `Structure.checkStructureSpecialization` | 3 | unattributed |  |
-| violation | `LiteralInteger.checkLiteralIntegerSpecialization` | 2 | unattributed |  |
-| violation | `LiteralExpression.checkLiteralExpressionSpecialization` | 2 | unattributed |  |
-| violation | `PortUsage.validatePortUsageIsReference` | 2 | unattributed |  |
-| violation | `PortUsage.checkPortUsageSpecialization` | 2 | unattributed |  |
-| violation | `EventOccurrenceUsage.validateEventOccurrenceUsageIsReference` | 2 | unattributed |  |
+| violation | `Expression.checkExpressionSpecialization` | 3 | transform | the transform emits no library specialization edges (O6) |
+| violation | `EnumerationUsage.validateAttributeUsageIsReference` | 3 | runtime | isReference is derived in the KerML AS (deriveUsageIsReference); the runtime stores None |
+| violation | `EnumerationUsage.checkAttributeUsageSpecialization` | 3 | transform | the transform emits no library specialization edges (O6) |
+| violation | `ItemDefinition.checkItemDefinitionSpecialization` | 3 | transform | the transform emits no library specialization edges (O6) |
+| violation | `Structure.checkStructureSpecialization` | 3 | transform | the transform emits no library specialization edges (O6) |
+| violation | `LiteralInteger.checkLiteralIntegerSpecialization` | 2 | transform | the transform emits no library specialization edges (O6) |
+| violation | `LiteralExpression.checkLiteralExpressionSpecialization` | 2 | transform | the transform emits no library specialization edges (O6) |
+| violation | `PortUsage.validatePortUsageIsReference` | 2 | runtime | isReference is derived in the KerML AS (deriveUsageIsReference); the runtime stores None |
+| violation | `PortUsage.checkPortUsageSpecialization` | 2 | transform | the transform emits no library specialization edges (O6) |
+| violation | `EventOccurrenceUsage.validateEventOccurrenceUsageIsReference` | 2 | runtime | isReference is derived in the KerML AS (deriveUsageIsReference); the runtime stores None |
 | violation | `ParameterMembership.validateParameterMembershipOwningType` | 2 | unattributed |  |
-| violation | `ConnectionUsage.checkConnectionUsageSpecialization` | 2 | unattributed |  |
-| violation | `PartUsage.checkPartUsageSpecialization` | 2 | unattributed |  |
+| violation | `ConnectionUsage.checkConnectionUsageSpecialization` | 2 | transform | the transform emits no library specialization edges (O6) |
+| violation | `PartUsage.checkPartUsageSpecialization` | 2 | transform | the transform emits no library specialization edges (O6) |
 | violation | `PartUsage.validatePartUsagePartDefinition` | 2 | unattributed |  |
-| violation | `ItemUsage.checkItemUsageSpecialization` | 2 | unattributed |  |
+| violation | `ItemUsage.checkItemUsageSpecialization` | 2 | transform | the transform emits no library specialization edges (O6) |
 | violation | `ConnectorAsUsage.validateUsageIsReferential` | 2 | unattributed |  |
-| violation | `DataType.checkDataTypeSpecialization` | 2 | unattributed |  |
-| violation | `PartDefinition.checkPartDefinitionSpecialization` | 2 | unattributed |  |
-| violation | `StateUsage.checkStateUsageSpecialization` | 2 | unattributed |  |
-| violation | `TransitionUsage.checkTransitionUsageSpecialization` | 2 | unattributed |  |
+| violation | `DataType.checkDataTypeSpecialization` | 2 | transform | the transform emits no library specialization edges (O6) |
+| violation | `PartDefinition.checkPartDefinitionSpecialization` | 2 | transform | the transform emits no library specialization edges (O6) |
+| violation | `StateUsage.checkStateUsageSpecialization` | 2 | transform | the transform emits no library specialization edges (O6) |
+| violation | `TransitionUsage.checkTransitionUsageSpecialization` | 2 | transform | the transform emits no library specialization edges (O6) |
 | violation | `TransitionUsage.validateTransitionUsageSuccession` | 2 | unattributed |  |
-| violation | `TransitionUsage.checkTransitionUsageSuccessionSourceSpecialization` | 2 | unattributed |  |
-| violation | `Succession.checkSuccessionSpecialization` | 2 | unattributed |  |
-| violation | `UseCaseDefinition.checkUseCaseDefinitionSpecialization` | 2 | unattributed |  |
-| violation | `CaseDefinition.checkCaseDefinitionSpecialization` | 2 | unattributed |  |
+| violation | `TransitionUsage.checkTransitionUsageSuccessionSourceSpecialization` | 2 | transform | the transform emits no library specialization edges (O6) |
+| violation | `Succession.checkSuccessionSpecialization` | 2 | transform | the transform emits no library specialization edges (O6) |
+| violation | `UseCaseDefinition.checkUseCaseDefinitionSpecialization` | 2 | transform | the transform emits no library specialization edges (O6) |
+| violation | `CaseDefinition.checkCaseDefinitionSpecialization` | 2 | transform | the transform emits no library specialization edges (O6) |
 | violation | `CaseDefinition.validateCaseDefinitionSubjectParameterPosition` | 2 | unattributed |  |
-| violation | `CalculationDefinition.checkCalculationDefinitionSpecialization` | 2 | unattributed |  |
+| violation | `CalculationDefinition.checkCalculationDefinitionSpecialization` | 2 | transform | the transform emits no library specialization edges (O6) |
 | violation | `Function.validateFunctionResultParameterMembership` | 2 | unattributed |  |
-| violation | `Function.checkFunctionSpecialization` | 2 | unattributed |  |
+| violation | `Function.checkFunctionSpecialization` | 2 | transform | the transform emits no library specialization edges (O6) |
 | violation | `MultiplicityRange.validateMultiplicityRangeBounds` | 1 | unattributed |  |
-| violation | `Multiplicity.checkMultiplicitySpecialization` | 1 | unattributed |  |
+| violation | `Multiplicity.checkMultiplicitySpecialization` | 1 | transform | the transform emits no library specialization edges (O6) |
 | violation | `EnumerationDefinition.validateEnumerationDefinitionIsVariation` | 1 | unattributed |  |
-| violation | `StateDefinition.checkStateDefinitionSpecialization` | 1 | unattributed |  |
+| violation | `StateDefinition.checkStateDefinitionSpecialization` | 1 | transform | the transform emits no library specialization edges (O6) |
 | violation | `StateSubactionMembership.validateStateSubactionMembershipOwningType` | 1 | unattributed |  |
-| violation | `UseCaseUsage.checkUseCaseUsageSpecialization` | 1 | unattributed |  |
+| violation | `UseCaseUsage.checkUseCaseUsageSpecialization` | 1 | transform | the transform emits no library specialization edges (O6) |
 | violation | `CaseUsage.validateCaseUsageSubjectParameterPosition` | 1 | unattributed |  |
-| violation | `CaseUsage.checkCaseUsageSpecialization` | 1 | unattributed |  |
-| violation | `CalculationUsage.checkCalculationUsageSpecialization` | 1 | unattributed |  |
+| violation | `CaseUsage.checkCaseUsageSpecialization` | 1 | transform | the transform emits no library specialization edges (O6) |
+| violation | `CalculationUsage.checkCalculationUsageSpecialization` | 1 | transform | the transform emits no library specialization edges (O6) |
 | violation | `ConnectionDefinition.checkConnectionDefinitionSpecializations` | 1 | unattributed |  |
 | violation | `ConnectionDefinition.validateConnectionDefinitionIsSufficient` | 1 | unattributed |  |
-| violation | `AssociationStructure.checkAssociationStructureSpecialization` | 1 | unattributed |  |
+| violation | `AssociationStructure.checkAssociationStructureSpecialization` | 1 | transform | the transform emits no library specialization edges (O6) |
 | violation | `Association.validateAssociationRelatedTypes` | 1 | unattributed |  |
-| violation | `Association.checkAssociationSpecialization` | 1 | unattributed |  |
+| violation | `Association.checkAssociationSpecialization` | 1 | transform | the transform emits no library specialization edges (O6) |
 | violation | `Import.validateImportTopLevelVisibility` | 1 | unattributed |  |
 | skip | `eval-unmapped` | 231 | runtime |  |
 | skip | `operation specializes(` | 167 | engine |  |

@@ -79,7 +79,7 @@ from umlmeta import v2_triage as TR  # noqa: E402
 rows = TR.ledger(report)
 check("every finding has a row", len(rows) == 96, f"{len(rows)} rows")
 check("known causes are attributed, the rest are queued",
-      sum(1 for r in rows if r["owner"] != "unattributed") == 39,
+      sum(1 for r in rows if r["owner"] != "unattributed") == 79,
       f"{sum(1 for r in rows if r['owner'] != 'unattributed')} attributed")
 cons = TR.structure_consistency(*roots)
 check("structure consistency does not report the missing AS union as a defect",
