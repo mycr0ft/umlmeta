@@ -135,6 +135,65 @@ class _Undefined:
 _MISSING = object()
 
 
+_DERIV_SRC = {}
+_DERIV_BUSY = set()
+
+
+def _derivation_source(cls, prop):
+    """Python source for the right-hand side of `derive<Base><Prop>`.
+
+    The KerML/SysML AS derives most properties by rule
+    (`deriveUsageIsReference` = `isReference = not isComposite`), and the
+    generated runtime stores those properties as None. Searching the MRO
+    matters: the derivation is declared where the property is, not on every
+    subclass.
+    """
+    key = (cls.__name__, prop)
+    if key in _DERIV_SRC:
+        return _DERIV_SRC[key]
+    src = None
+    for base in cls.__mro__:
+        want = "derive" + base.__name__ + prop[:1].upper() + prop[1:]
+        hit = [b for n, b in base.__dict__.get("CONSTRAINTS", ())
+               if n == want]
+        if not hit:
+            continue
+        tree = ocl_parse.parse(hit[0])            # may raise: reported
+        rhs = tree.right if isinstance(tree, ocl_ast.BinOp) and \
+            tree.op == "=" else tree
+        src = ocl_emit.to_python(rhs)
+        break
+    _DERIV_SRC[key] = src
+    return src
+
+
+def derived_read(obj, prop):
+    """Value of a derived property, or _MISSING when there is no rule."""
+    try:
+        src = _derivation_source(type(obj), prop)
+    except Exception:                              # noqa: BLE001
+        return _MISSING
+    if src is None:
+        return _MISSING
+    guard = (id(obj), prop)
+    if guard in _DERIV_BUSY:
+        return _MISSING
+    _DERIV_BUSY.add(guard)
+    try:
+        from . import derived as _derived
+        env = dict(_EVAL_ENV)
+        env["self"] = obj
+        env["_d"] = _derived_call(_derived)
+        env["all_instances"] = all_instances
+        g = dict(_EVAL_BUILTINS)
+        g.update(env)
+        return eval(src, g, {})                    # noqa: S307
+    except Exception:                              # noqa: BLE001
+        return _MISSING
+    finally:
+        _DERIV_BUSY.discard(guard)
+
+
 def ocl_dot(recv, attr):
     """Property navigation with implicit collect: over a single value
     this is getattr; over a collection it collects the attribute values
@@ -155,6 +214,10 @@ def ocl_dot(recv, attr):
     if fn is not None and (v is _MISSING or callable(v)):
         from . import derived as _derived
         return getattr(_derived, fn)(recv)
+    if v is _MISSING or v is None:
+        derived = derived_read(recv, attr)
+        if derived is not _MISSING:
+            return derived
     if v is _MISSING:
         # the runtime has no such feature: undetermined, not None
         return _Undefined(attr)

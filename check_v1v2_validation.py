@@ -88,6 +88,19 @@ check("structure consistency does not report the missing AS union as a defect",
       f"(ownedElement is derived by rule in the AS)")
 
 
+print("== derived properties answer instead of reading None ==")
+from umlmeta import ocl_translator as T  # noqa: E402
+from umlmeta import sysml2 as K  # noqa: E402
+check("a derivation body resolves through the MRO",
+      T._derivation_source(K.PartUsage, "isReference")
+      == "(not (_g(self, 'isComposite')))",
+      str(T._derivation_source(K.PartUsage, "isReference")))
+_part = K.PartUsage(declaredName="pt")
+_part.isComposite = True
+check("Reading a derived property computes it",
+      T.eval_body("self.isReference", _part, None) is False)
+
+
 print("== an empty model is clean ==")
 empty = V.validate()
 check("no roots means nothing to check",
