@@ -3552,3 +3552,101 @@ no-op git diff; and two transforms of the same snapshot are byte-identical.
 
 - check_v1_to_v2_as.py: 258 passed (+1).
 - Full sweep green (724 checks).
+
+
+# Part 60: O0/O1 — the OCL corpus is measurable and the parser produces a tree
+
+The OCL line of work starts where the last one left an assessment
+(`docs/ocl-engine-pathway.md`). O0 and O1 are the two waves that are pure
+repo work and unblock the rest; both are shipped here.
+
+## O0 — the corpus, measured
+
+`scripts/ocl_corpus.py` walks `cls.__dict__["CONSTRAINTS"]` in `uml25`,
+`sysml2` and `sysml`, runs every body through the parser and the emitter,
+and prints the coverage table:
+
+```
+OCL corpus: 1215 bodies   digest fecddd93d185b628
+  uml25    bodies  449  parse  421  lower  387
+  sysml2   bodies  623  parse  607  lower  170
+  sysml    bodies  143  parse  138  lower  119
+  TOTAL    bodies 1215  parse 1166  lower  676  no-spec   24
+```
+
+`--check` asserts the pinned counts (1215 / 24 no-spec / 1166 parse / 676
+lower) so corpus drift is a failing command, not a surprise; `--out` exports
+the bodies as JSON; `--reasons` prints the top refusals, which is how the
+next wave's queue gets written. The corpus itself is generated, so it is not
+committed — the script is the artifact.
+
+`uaf`/`uaf13` are excluded deliberately: their 528 "constraints" are English
+requirements (`«Achiever»` markers, 258/259 of them), not OCL. Counting them
+would have inflated the coverage denominator by 40%.
+
+## O1 — the AST
+
+Three modules, standard library only:
+
+- `ocl_ast.py` — frozen dataclass nodes, every one carrying a source `span`;
+  `walk()`, `dump()` (canonical S-expression, the structural oracle) and
+  `replace()` (bottom-up rebuild, used for the implicit-`it` rebind).
+- `ocl_parse.py` — the tokenizer (now with offsets, `--` line comments, real
+  literals) and the recursive-descent parser. Scoping is real: iterator
+  variables and `let` bindings resolve through a scope stack, so the emitted
+  tree names the *bound* variable, not whatever the emitted source text
+  happened to look like.
+- `ocl_emit.py` — `to_python()` (the compatibility lowering) and `to_ocl()`
+  (prints a tree back to OCL).
+
+`ocl_translator.translate()` now routes through `parse()` + `to_python()`.
+The v0 source-emitting parser stays as `translate_legacy()` — one release of
+differential oracle, then it dies at O3.
+
+Deliberate layering: the parser accepts any operation (`selectByKind`,
+`specializesFromLibrary`, the spec's helper operations), and the *emitter*
+refuses the ones with no lowering. Grammar coverage (1166/1191) and lowering
+coverage (676) are therefore different numbers, and neither is padded.
+
+## What the differential found: 12 bodies where v0 was wrong
+
+Byte-comparison of the two lowerings over all 633 v0-translatable bodies:
+615 identical, 6 differing only in `let` local numbering (alpha-equivalent),
+and 12 where the v0 output is a *different program*:
+
+- **capture** (4) — the textual `_shadow` rewrite let an implicit-`it` body
+  capture a free variable of an enclosing iterator: `p` became
+  `_g(it, 'p')`, i.e. a property read on the element.
+- **rename** (8) — the `let` rename regex carried `(?<!')` to protect quoted
+  attribute names, which also blocked every reference that emits as
+  `_g(self, 'x')`. The body therefore read **self's** property of that name
+  instead of the bound value. `ExceptionHandler.output_pins` read
+  `self.handlerBodyOutput` for `let handlerBodyOutput`: on any object that
+  has that property the constraint silently tested the wrong list.
+
+Both classes are pinned in `check_ocl_ast.py`, and each is verified
+mechanically — the assertion is "the v0 source reads a bound name as a
+property", not a hand-written excuse.
+
+## Grammar added (parse-only for now)
+
+`Tuple{...}`, `expr@pre`, `->iterate(v : T; acc : T2 = init | body)`, real
+literals, qualified names at any depth (`UML::ParameterDirectionKind::inout`),
+qualified type arguments (`oclIsKindOf(UML::Property)`), `Set(T){}` literals,
+and `--` line comments. Each parses to a node; the ones with no lowering
+(`@pre`, `iterate`, `collectNested`, `isUnique`, `sortedBy`, type-scoped
+calls) raise at emit time with a reason that names the wave (O2/O3).
+
+The remaining 25 parse refusals are corpus text defects, not grammar: 20
+bodies are truncated mid-expression, 4 are `-- cannot be expressed in OCL`
+comments, 1 has a mangled quote escape.
+
+## Result
+
+- `check_ocl_ast.py`: 26 checks (new suite).
+- `check_ocl.py`: 19 passed — the AST path evaluates the same 117 bodies on
+  the suite's model, and value parity against `translate_legacy()` holds over
+  every body both lowerings can run.
+- 1166/1191 bodies parse; all 1166 round-trip through `to_ocl` and back.
+- Full sweep green (775 checks, 20 suites; the mdzip corpus probe is
+  skipped because the corpora are not fetched).

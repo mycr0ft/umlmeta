@@ -1,53 +1,62 @@
 #!/usr/bin/env python
-"""ocl_translator.py — clean-room OCL-to-Python translator for the
-constraint bodies carried in umlmeta.uml25 (UML 2.5.1).
+"""ocl_translator.py — the OCL runtime: helpers, the eval environment, and
+the compatibility API over the AST.
 
-The generator froze 449 normative constraint bodies as OCL text
-(`CONSTRAINTS` tuples).  This module translates a body into a Python
-expression over the same object graph that derived.py evaluates.
-Anything outside the closed grammar raises `UnmappedFeature` — the
-repo's honesty rule — instead of guessing (same discipline as
-v1_to_v2.py).
+Parsing and lowering moved out (O1):
 
-Java/Groovy idioms map as:
+  ocl_parse   tokenizer + recursive-descent parser -> ocl_ast tree
+  ocl_ast     nodes with source spans, dump()/walk()/replace()
+  ocl_emit    to_python() (this module's eval target) and to_ocl()
+  ocl_symbols the operation tables shared by parser and emitter
+
+What stays here is what the lowered code calls: the navigation and coercion
+helpers (`_dot`, `_nav`, `_eq`, ...), the spec operations the repo
+implements itself (is_multivalued, containing_activity, vertex_incoming,
+all_instances, ...), and the eval environment that binds them.
+
+Entry points:
+  translate(body)         -> Python source (AST -> to_python), cached
+  translate_legacy(body)  -> the pre-AST emitter; the differential oracle in
+                             check_ocl_ast.py, delete at O3
+  parse(body)             -> ocl_ast tree
+  eval_body(body, self_obj, derived) -> Python value of the body
+  check_constraints(obj, derived)    -> (ok, results, skipped)
+
+Lowering vocabulary (unchanged; the AST emits it):
 
   OCL                           Python
   ----------------------------  ----------------------------------------
-  a.b                           getattr(a, 'b')
+  a.b                           _dot(a, 'b')  / _g(self, 'b')
   c->select(e | p)              [e for e in c if p]
   c->exists(e | p)              any(p for e in c)
   c->forAll(e | b)              all(b for e in c)
   c->size()                     len(c)
-  c->isEmpty() / ->notEmpty()   len(c) == 0 / len(c) > 0
-  c->includes(x) / ->excludes   x in c / x not in c
   a implies b                   (not a) or b
   null / <> null                None / != None
-  Enum::lit / E::_'lit'         'lit'      (runtime stores enum literals
-                                           as strings or Enums — see
-                                           _eq below)
-  let x = e in rest             (lambda x: rest)(e)
-  x.oclIsKindOf(T)              ocl_is_kind_of(x, T)
+  Enum::lit                     'lit'   (runtime stores literals as strings)
+  let x = e in rest             (lambda _let1_x: rest)(e)
+  x.oclIsKindOf(T)              _k(x, 'T')
   m.is(1,1)                     is_mult(m, 1, 1)
 
-Entry points:
-  translate(body) -> Python source (introspectable, like everything
-                     else this repo generates)
-  eval_body(body, self_obj, derived) -> Python value of the body
-
-Wave-1 elisions (raise UnmappedFeature, never guessed): ->closure,
-->iterate, Type.allInstances (extent unknown outside a resource),
-T.isAllowed/... spec-query stubs.
+Elisions (raise UnmappedFeature, never guessed): @pre, ->iterate,
+->isUnique, ->sortedBy, ->collectNested, selectByKind/specializesFromLibrary
+and other KerML/SysML/spec helper operations (O3/O4), type-scoped calls
+except `X.allInstances()` (O2/O5), and the extent itself — `all_instances`
+returns [] because a bare object has no resource.
 """
 
 from __future__ import annotations
 
 import re
 
+from . import ocl_ast, ocl_emit, ocl_parse
+from . import ocl_symbols as SY
 from . import uml25 as U
 
 
-class UnmappedFeature(Exception):
-    """OCL construct outside the closed translation grammar."""
+# the parser and emitter raise the AST module's exception; aliased here so
+# `except ocl_translator.UnmappedFeature` keeps working
+UnmappedFeature = ocl_ast.UnmappedFeature
 
 
 # --------------------------------------------------------------------------
@@ -479,67 +488,18 @@ def vertex_outgoing(v):
     return out
 
 
-DERIVED_FUNCS = {
-    "allNamespaces": ("derived", "all_namespaces"),
-    "allOwnedElements": ("derived", "all_owned_elements"),
-    "allParents": ("derived", "all_parents"),
-    "parents": ("derived", "parents"),
-    "conformsTo": ("derived", "conforms_to"),
-    "qualifiedName": ("derived", "qualified_name"),
-    "separator": ("derived", "separator"),
-    "allFeatures": ("derived", "all_features"),
-    "allAttributes": ("derived", "all_attributes"),
-    "inheritedMember": ("derived", "inherited_member"),
-    "member": ("derived", "member"),
-    "visibleMembers": ("derived", "visible_members"),
-    "importedMember": ("derived", "imported_member"),
-    "getNamesOfMember": ("derived", "get_names_of_member"),
-    "lowerBound": ("derived", "lower_bound"),
-    "upperBound": ("derived", "upper_bound"),
-    "subsettingContext": ("derived", "subsetting_context"),
-    "opposite": ("derived", "opposite"),
-    "isComposite": ("derived", "is_composite"),
-    "isDistinguishableFrom": ("derived", "is_distinguishable_from"),
-    "mustBeOwned": ("local", must_be_owned),
-    "isMultivalued": ("local", is_multivalued),
-    "isNavigable": ("local", is_navigable),
-    "isAttribute": ("local", is_attribute),
-    "containingActivity": ("local", containing_activity),
-    "containingStateMachine": ("local", containing_state_machine),
-    "containingBehavior": ("local", containing_behavior),
-    "endType": ("local", end_type),
-    "allActions": ("local", all_actions),
-    "allPins": ("local", all_pins),
-    "allOwnedNodes": ("local", all_owned_nodes),
-    "allIncludedUseCases": ("local", all_included_use_cases),
-    "allRoles": ("local", all_roles),
-    "allSlottableFeatures": ("local", all_slottable_features),
-    "allInstances": ("local", all_instances),
-    "is": ("local", is_mult),
-    "association": ("local", association),
-    "inputParameters": ("local", input_parameters),
-    "outputParameters": ("local", output_parameters),
-    "integerValue": ("local", integer_value),
-    "unlimitedValue": ("local", unlimited_value),
-    "compatibleWith": ("local", ocl_compatible_with),
-    "incoming": ("local", vertex_incoming),
-    "outgoing": ("local", vertex_outgoing),
+# The operation tables live in ocl_symbols (shared by parser, emitter and
+# this module). The legacy parser needs the function OBJECTS for its local
+# lowerings, so it gets its own view built from the shared names.
+DERIVED_FUNCS = SY.DERIVED_FUNCS
+COLLECTION_OPS = SY.COLLECTION_OPS
+CLASSIFY_OPS = SY.CLASSIFY_OPS
+_LOCAL_BARE = SY.LOCAL_BARE
+
+_DERIVED_FUNCS_LEGACY = {
+    name: (kind, fnname if kind == "derived" else globals()[fnname])
+    for name, (kind, fnname) in SY.DERIVED_FUNCS.items()
 }
-
-# names emitted as bare Python calls for local implementations; the eval
-# env binds them under their function names
-_LOCAL_BARE = {"incoming": "vertex_incoming", "outgoing": "vertex_outgoing"}
-
-COLLECTION_OPS = {
-    "size", "isEmpty", "notEmpty", "includes", "excludes", "includesAll",
-    "excludesAll", "exists", "forAll", "select", "reject", "one", "any",
-    "asSet", "asSequence", "asOrderedSet", "asBag", "collect", "union",
-    "intersection", "flatten", "first", "last", "at", "indexOf", "excluding",
-    "closure",
-}
-
-CLASSIFY_OPS = {"oclIsKindOf", "oclIsTypeOf", "oclAsType", "oclIsUndefined",
-                "oclType"}
 
 
 # --------------------------------------------------------------------------
@@ -806,8 +766,8 @@ class _Parser:
             return self.emit_collection(recv, name, args)
         if name in CLASSIFY_OPS:
             return self.emit_classify(recv, name, args)
-        if name in DERIVED_FUNCS:
-            kind, fn = DERIVED_FUNCS[name]
+        if name in _DERIVED_FUNCS_LEGACY:
+            kind, fn = _DERIVED_FUNCS_LEGACY[name]
             if kind == "derived":
                 if args:
                     return f"_d({fn!r}, {recv}, {', '.join(args)})"
@@ -1201,12 +1161,27 @@ _TRANSLATE_CACHE = {}
 
 
 def translate(body):
-    """OCL body -> Python source string (cached)."""
+    """OCL body -> Python source string (cached).
+
+    Goes through the AST (ocl_parse -> ocl_ast -> ocl_emit). The v0
+    source-emitting parser is still available as `translate_legacy` and is
+    the differential oracle in `check_ocl_ast.py` for one release.
+    """
     src = _TRANSLATE_CACHE.get(body)
     if src is None:
-        src = _Parser(body).parse()
+        src = ocl_emit.to_python(ocl_parse.parse(body))
         _TRANSLATE_CACHE[body] = src
     return src
+
+
+def translate_legacy(body):
+    """The pre-AST translator (differential oracle; delete at O3)."""
+    return _Parser(body).parse()
+
+
+def parse(body):
+    """OCL body -> ocl_ast tree (the API the type checker will use)."""
+    return ocl_parse.parse(body)
 
 
 _EVAL_ENV = {

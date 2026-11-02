@@ -4,6 +4,29 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `umlmeta.ocl_ast` / `ocl_parse` / `ocl_emit` — an OCL abstract syntax tree,
+  a tokenizer and recursive-descent parser that produce it (with source spans),
+  and two backends: Python lowering (what `translate()` uses) and OCL printing
+  (every parsed body round-trips). Grammar added over the v0 translator:
+  `Tuple{}`, `expr@pre`, `->iterate`, real literals, qualified names at any
+  depth, qualified type arguments, `Set(T){}` literals, `--` line comments.
+- `scripts/ocl_corpus.py` — measures the OCL corpus frozen in the generated
+  modules (1215 bodies: 1166 parse, 676 lower, 24 no-spec placeholders),
+  asserts the pinned counts with `--check`, exports JSON with `--out`.
+- `check_ocl_ast.py` — 26 checks: corpus, differential against the v0
+  emitter, value parity, print/parse round-trip, spans, refusals.
+
+### Fixed
+
+- The v0 OCL emitter produced wrong programs for 12 constraint bodies (free
+  variable captured by the implicit-`it` rewrite, and `let` bindings whose
+  references were left as self-property reads). The AST path resolves both
+  correctly; the bodies are pinned in `check_ocl_ast.py`.
+
 ## [0.2.0] — 2026-10-28
 
 The SysML v1 → v2 abstract-syntax transformer (R3 of the
