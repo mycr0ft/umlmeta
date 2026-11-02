@@ -87,7 +87,17 @@ DERIVED_FUNCS = {
     "hasVisibilityOf": ("derived", "has_visibility_of"),
     "makesVisible": ("derived", "makes_visible"),
     "excludeCollisions": ("derived", "exclude_collisions"),
+    # KerML/SysML extension operations that need the extent (O5a)
+    "selectByKind": ("local", "select_by_kind"),
+    "selectAsKind": ("local", "select_as_kind"),
+    "specializesFromLibrary": ("local", "specializes_from_library"),
 }
+
+# operations whose first argument names a metaclass or a library name rather
+# than a value: the emitter quotes it instead of reading it as a feature
+TYPE_ARG_OPS = {"selectByKind", "selectAsKind", "oclIsType", "specializes",
+                "redefines", "redefinesFromLibrary", "specializesFromLibrary",
+                "isType", "isKindOf"}
 
 # bare (receiver-less) names that are computed, not stored: emitted as a
 # call on self rather than a property read

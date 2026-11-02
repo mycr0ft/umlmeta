@@ -8,6 +8,18 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- `umlmeta.extent` — the model scope OCL needs: composite-containment
+  enumeration, metaclass filtering (module-first), qualified-name lookup and
+  `specializesFromLibrary` over the model's own specialization graph.
+  `eval_body(..., extent=...)` binds it for exactly one call.
+- `selectByKind` / `selectAsKind` and `specializesFromLibrary` lower and
+  evaluate; `T.allInstances()` answers from the extent instead of the
+  empty-set stub. Corpus lowering: 676 -> 1001 of 1191 real bodies (sysml2
+  170 -> 495).
+- `check_ocl_extent.py` — 17 checks.
+
+### Added
+
 - `umlmeta.stereotype` — materializes stereotype applications as objects: the
   generated stereotype class is instantiated, its `base_<Metaclass>` end set
   to the stereotyped element, its tagged values applied with their declared

@@ -150,6 +150,21 @@ def _retargets_implicit_receiver(tree):
     return scan(tree, False)
 
 
+def _uses_type_receiver(tree):
+    """The body calls allInstances on a TYPE name (`Property.allInstances()`),
+    which names the class: the AST quotes it, v0 read it as a property of
+    self."""
+    for node in A.walk(tree):
+        if isinstance(node, A.Call) and node.name in ("allInstances",
+                                                      "instances"):
+            r = node.receiver
+            if isinstance(r, A.TypeRef):
+                return True
+            if isinstance(r, (A.SelfProp, A.Var)) and r.name[:1].isupper():
+                return True
+    return False
+
+
 def _v0_reads_bound_name_as_property(old_src, tree):
     """True when the v0 source reads a *bound* variable as a property."""
     return any(f"_g(self, {n!r})" in old_src or f"_g(it, {n!r})" in old_src
@@ -158,7 +173,7 @@ def _v0_reads_bound_name_as_property(old_src, tree):
 
 print("== differential: v0 source vs AST-emitted source ==")
 identical, renamed, defects, unexplained = 0, [], [], []
-derived_route, receivers = [], []
+derived_route, receivers, type_recv = [], [], []
 legacy_only, newly_parsed, both_failed = [], [], 0
 for mod, cname, name, body in CORPUS:
     try:
@@ -183,6 +198,8 @@ for mod, cname, name, body in CORPUS:
             derived_route.append((mod, cname, name))
         elif _retargets_implicit_receiver(tree):
             receivers.append((mod, cname, name))
+        elif _uses_type_receiver(tree):
+            type_recv.append((mod, cname, name))
         else:
             unexplained.append((mod, cname, name, body))
     elif old is not None:
@@ -193,7 +210,7 @@ for mod, cname, name, body in CORPUS:
         both_failed += 1
 
 lowered = identical + len(renamed) + len(defects) + len(derived_route) + \
-    len(receivers)
+    len(receivers) + len(type_recv)
 check("every v0-translatable body also lowers through the AST",
       not legacy_only, str([f"{m}.{c}.{n}" for m, c, n, _ in legacy_only][:4]))
 check("AST lowers every body v0 lowered (633)", lowered == 633, f"{lowered}")
@@ -201,10 +218,12 @@ check("no unexplained source difference", not unexplained,
       str([f"{m}.{c}.{n}" for m, c, n, _ in unexplained][:4]))
 check("differences are itemized (names, v0 defects, derived routing, "
       "receiver retarget)",
-      len(renamed) + len(defects) + len(derived_route) + len(receivers) == 75,
+      len(renamed) + len(defects) + len(derived_route) + len(receivers)
+      + len(type_recv) == 123,
       f"identical {identical}, renamed {len(renamed)}, "
       f"defects {len(defects)}, derived {len(derived_route)}, "
-      f"receivers {len(receivers)}, both-fail {both_failed}")
+      f"receivers {len(receivers)}, type-receivers {len(type_recv)}, "
+      f"both-fail {both_failed}")
 check("every itemized defect body is pinned",
       all((m, c, n) in V0_EMITTER_DEFECTS for m, c, n in defects) and
       len(defects) == len(V0_EMITTER_DEFECTS),
@@ -371,7 +390,7 @@ print("  (lowering the not-yet-supported constructs must refuse)")
 for src, label in (("self.x@pre = 1", "@pre"),
                    ("x->iterate(v; a = 0 | a)", "->iterate"),
                    ("x->isUnique(e | e.a)", "->isUnique"),
-                   ("x->selectByKind(Feature)", "selectByKind")):
+                   ("x->sortedBy(e | e.a)", "sortedBy")):
     try:
         E.to_python(P.parse(src))
         check(f"{label} has no lowering", False)

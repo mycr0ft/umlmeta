@@ -49,6 +49,7 @@ from __future__ import annotations
 
 import re
 
+from . import extent as extent_mod
 from . import ocl_ast, ocl_emit, ocl_parse
 from . import ocl_symbols as SY
 from . import uml25 as U
@@ -204,12 +205,54 @@ def is_mult(me, lo, hi):
     return lb == lo and (un(ub) == un(hi) or (un(ub) == "*" and hi != 0))
 
 
+_EXTENT = None
+
+
+def set_extent(extent):
+    """Bind the model scope for the duration of an evaluation (or None)."""
+    global _EXTENT
+    previous = _EXTENT
+    _EXTENT = extent
+    return previous
+
+
+def current_extent():
+    return _EXTENT
+
+
 def all_instances(tname):
-    """T.allInstances(): extent is not reachable from a bare object in
-    this runtime, so wave 1 evaluates it as the empty set — the two
-    bodies using it express existence guards, and evaluating them False
-    is the conservative reading.  Documented elision (never guessed)."""
-    return []
+    """T.allInstances(): the extent's elements of that metaclass.
+
+    Without an extent (a bare object graph) the answer is the empty set —
+    stated, not guessed: there is no resource to enumerate.
+    """
+    if _EXTENT is None:
+        return []
+    return _EXTENT.of_kind(tname)
+
+
+def select_by_kind(collection, tname):
+    """KerML `x->selectByKind(T)`: the elements of the collection that are
+    (a subtype of) metaclass T."""
+    cls = extent_mod.metaclass(tname, getattr(_EXTENT, "prefer", None))
+    if cls is None:
+        return list(collection or ())
+    return [e for e in (collection or ()) if isinstance(e, cls)]
+
+
+def select_as_kind(collection, tname):
+    """KerML `x->selectAsKind(T)`: the kind filter, as T."""
+    return select_by_kind(collection, tname)
+
+
+def specializes_from_library(el, qname):
+    """KerML `specializesFromLibrary('Pkg::Element')`: does `el` specialize
+    the library element? Answered from the model's own specialization graph;
+    with no library loaded an element that never names the library does not
+    specialize it."""
+    if _EXTENT is not None:
+        return _EXTENT.specializes_from_library(el, qname)
+    return extent_mod.Extent().specializes_from_library(el, qname)
 
 
 def containing_activity(node):
@@ -511,9 +554,15 @@ COLLECTION_OPS = SY.COLLECTION_OPS
 CLASSIFY_OPS = SY.CLASSIFY_OPS
 _LOCAL_BARE = SY.LOCAL_BARE
 
+# The v0 oracle must stay frozen: the extension operations added after it
+# (O5a) are exactly what a later wave makes lowerable, so the legacy table
+# deliberately excludes them.
+_LEGACY_EXCLUDED = {"selectByKind", "selectAsKind", "specializesFromLibrary"}
+
 _DERIVED_FUNCS_LEGACY = {
     name: (kind, fnname if kind == "derived" else globals()[fnname])
     for name, (kind, fnname) in SY.DERIVED_FUNCS.items()
+    if name not in _LEGACY_EXCLUDED
 }
 
 
@@ -1200,6 +1249,9 @@ def parse(body):
 
 
 _EVAL_ENV = {
+    "select_by_kind": select_by_kind,
+    "select_as_kind": select_as_kind,
+    "specializes_from_library": specializes_from_library,
     "_g": getattr,
     "_dot": ocl_dot,
     "_nav": ocl_nav,
@@ -1248,7 +1300,7 @@ _EVAL_BUILTINS = {
 }
 
 
-def eval_body(body, self_obj, derived):
+def eval_body(body, self_obj, derived, extent=None):
     """Evaluate an OCL constraint body against self_obj.
 
     `derived` is the derived module (spec-normative query layer).
@@ -1263,7 +1315,11 @@ def eval_body(body, self_obj, derived):
     env["_d"] = _derived_call(derived)
     g = dict(_EVAL_BUILTINS)
     g.update(env)
-    return eval(src, g, {})  # noqa: S307
+    previous = set_extent(extent)
+    try:
+        return eval(src, g, {})  # noqa: S307
+    finally:
+        set_extent(previous)
 
 
 def check_constraints(obj, derived, only=None):

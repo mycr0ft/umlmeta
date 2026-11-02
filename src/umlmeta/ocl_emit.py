@@ -24,6 +24,7 @@ from . import ocl_symbols as SY
 # dispatch is by node type name; only the classes the code isinstance-checks
 # (or constructs) are imported
 from .ocl_ast import (
+    TypeRef as A_TypeRef,
     Lambda, Nav, SelfProp, TypeRef, UnmappedFeature, Var, replace as ast_replace,
 )
 
@@ -99,6 +100,13 @@ def _py_nav(n):
 
 
 def _py_call(n):
+    # a type name used as a receiver (`Property.allInstances()`) names the
+    # class, not a property of self
+    if n.name in ("allInstances", "instances") and n.receiver is not None \
+            and not isinstance(n.receiver, A_TypeRef):
+        r = n.receiver
+        if isinstance(r, (SelfProp, Var)) and r.name[:1].isupper():
+            return f"all_instances({r.name.split('::')[-1]!r})"
     if isinstance(n.receiver, TypeRef):
         # `UML::Association.allInstances()` — the v0 emitter passed the bare
         # class name to the (still-empty) extent stub; keep that lowering so
@@ -118,7 +126,14 @@ def _py_call(n):
                 f"operation {n.name} has no lowering yet (O3)")
         raise UnmappedFeature(f"operation {n.name}(")
     kind, fnname = entry
-    args = [to_python(a) for a in n.args]
+    args = []
+    for i, a in enumerate(n.args):
+        if n.name in SY.TYPE_ARG_OPS and i == 0 and \
+                isinstance(a, (SelfProp, Var)):
+            # a type/library name, not an expression: keep it a string
+            args.append(repr(a.name))
+        else:
+            args.append(to_python(a))
     if kind == "derived":
         head = f"_d({fnname!r}, {recv}"
     else:

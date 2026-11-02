@@ -3898,3 +3898,52 @@ returning a vacuous True.
 - `check_stereotype.py`: 15 checks (new suite).
 - `check_ocl.py` / `check_ocl_ast.py` / `check_ocl_types.py`: unchanged, green.
 - Full sweep green (825 checks, 22 suites).
+
+
+# Part 65: O5a — the extent, and the two KerML extensions
+
+The measurement in Part 64 left one number standing out: 344 of the 515 bodies
+that did not lower were blocked by exactly two operations — `selectByKind`
+(194) and `specializesFromLibrary` (146) — and both needed the same missing
+thing, a resource.
+
+## `umlmeta.extent`
+
+`Extent(*roots, prefer=None)` enumerates composite containment from its roots
+and offers three answered queries: `of_kind(name)` (metaclass, subtypes
+included), `qualified(qname)`, `specializes_from_library(el, qname)`. The
+metaclass registry is module-first over `uml25`/`sysml2`/`sysml`, because 25
+names collide between the first two.
+
+`eval_body(..., extent=...)` binds it for the duration of one call and
+restores the previous binding — two models in one process cannot see each
+other, and `current_extent()` is None again afterwards (asserted).
+
+## The two extensions
+
+- `x->selectByKind(T)` / `selectAsKind(T)` lower to `select_by_kind(x, 'T')`:
+  `isinstance` filtering through the registry. The name is a *type*, so the
+  emitter quotes it instead of reading it as a property of self — the same
+  distinction the type checker already made.
+- `specializesFromLibrary('Pkg::Element')` walks the element's own
+  specialization graph (`specializes`/`general`/`subtype`, plus the owning
+  type) and compares qualified names. With no library model loaded, an element
+  that never names the library does not specialize it — the honest answer to
+  the question the constraint asks, returned rather than assumed away.
+- `T.allInstances()` now answers from the extent instead of the empty-set
+  stub; a type-name receiver (`Property.allInstances()`) is quoted, and
+  without an extent the answer is still the empty set, stated as such.
+
+## Effect
+
+| | before | after |
+|---|---:|---:|
+| bodies that lower | 676 | **1001** (of 1191 real) |
+| `sysml2` specifically | 170 | 495 |
+| pinned corpus counts | `--check` | holds |
+
+## Result
+
+- `check_ocl_extent.py`: 17 checks (new suite).
+- `check_ocl_types.py`: 30 passed (unchanged).
+- Full sweep green (842 checks, 23 suites).
