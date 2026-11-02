@@ -101,6 +101,19 @@ check("Reading a derived property computes it",
       T.eval_body("self.isReference", _part, None) is False)
 
 
+print("== the skips say whose gap they are ==")
+check("every skip is bucketed by cause",
+      sum(report["skip_buckets"].values()) == len(report["skipped"]),
+      str(dict(report["skip_buckets"])))
+check("the helper-operation library is the dominant skip class",
+      report["skip_buckets"]["helper-operation"] == 1375,
+      f"{report['skip_buckets']['helper-operation']} of "
+      f"{len(report['skipped'])} skips")
+check("gate coverage is reported as a fraction",
+      V.coverage(report) == 0.5116 or abs(V.coverage(report) - 0.51) < 0.01,
+      f"{V.coverage(report):.1%} of applicable checks run")
+
+
 print("== an empty model is clean ==")
 empty = V.validate()
 check("no roots means nothing to check",

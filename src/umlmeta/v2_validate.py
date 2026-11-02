@@ -58,6 +58,9 @@ def validate(*roots, derived=None, limit_skip=8):
     checks = [e for e in evaluations if not e["constraint"].startswith("derive")]
     violations = [e for e in checks if not e["value"]]
     reasons = Counter(s["reason"].split(":", 1)[0][:60] for s in skipped)
+    # bucket the skips by CAUSE, not by message: the numbers only mean
+    # something if a skip says whose gap it is
+    buckets = Counter(skip_bucket(s["reason"]) for s in skipped)
     return {
         "elements": len(elements),
         "evaluations": evaluations,
@@ -66,8 +69,31 @@ def validate(*roots, derived=None, limit_skip=8):
         "violations": violations,
         "skipped": skipped,
         "skip_reasons": reasons.most_common(limit_skip),
+        "skip_buckets": buckets,
         "clean": not violations,
     }
+
+
+BUCKETS = ("helper-operation", "runtime-feature", "undetermined",
+           "engine-other")
+
+
+def skip_bucket(reason):
+    """Whose gap is this skip? Named, so the ledger can be worked."""
+    if reason.startswith("operation ") or reason.startswith("->"):
+        return "helper-operation"
+    if reason.startswith("eval-unmapped"):
+        return "runtime-feature"
+    if reason.startswith("undetermined"):
+        return "undetermined"
+    return "engine-other"
+
+
+def coverage(report):
+    """Checks run as a fraction of the rules that could have run."""
+    run = len(report["checks"])
+    total = run + len(report["skipped"])
+    return run / total if total else 1.0
 
 
 def summary(report):
@@ -76,4 +102,5 @@ def summary(report):
             f"{len(report['checks'])} checks "
             f"(+{len(report['derivations'])} derivations), "
             f"{len(report['violations'])} violations, "
-            f"{len(report['skipped'])} skipped")
+            f"{len(report['skipped'])} skipped, "
+            f"coverage {coverage(report):.0%}")
