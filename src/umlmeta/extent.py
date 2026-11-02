@@ -68,12 +68,23 @@ class Extent:
         """Every element reachable by composite containment from the roots."""
         out, seen = [], set()
 
+        def children(el):
+            kids = list(D.union(el, "ownedElement"))
+            # the SysML v2 AS keeps containment in ownedRelationship ->
+            # (Owning)Membership.ownedRelatedElement; `ownedElement` is
+            # derived there and may be empty on a freshly built model
+            for rel in getattr(el, "ownedRelationship", None) or ():
+                kids.append(rel)
+                for sub in getattr(rel, "ownedRelatedElement", None) or ():
+                    kids.append(sub)
+            return kids
+
         def visit(el):
             if el is None or id(el) in seen:
                 return
             seen.add(id(el))
             out.append(el)
-            for child in D.union(el, "ownedElement"):
+            for child in children(el):
                 visit(child)
 
         for root in self.roots:

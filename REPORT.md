@@ -3947,3 +3947,54 @@ other, and `current_extent()` is None again afterwards (asserted).
 - `check_ocl_extent.py`: 17 checks (new suite).
 - `check_ocl_types.py`: 30 passed (unchanged).
 - Full sweep green (842 checks, 23 suites).
+
+
+# Part 66: V1 — the semantic gate on transformed v2 models
+
+The transformer had shape oracles and no semantic one. `umlmeta.v2_validate`
+runs the KerML/SysML constraint bodies carried in `sysml2` over a model the
+transformer produced, with an extent bound so `allInstances`, `selectByKind`
+and `specializesFromLibrary` answer.
+
+## Two fixes the leg forced
+
+1. **The extent could not see a v2 model.** Containment in the AS lives in
+   `ownedRelationship` -> `Membership.ownedRelatedElement`; `ownedElement` is
+   derived and empty on a freshly built model, so `Extent.elements()` returned
+   the root alone (1 element). It now walks both.
+2. **Three local lowerings were never bound** in the eval environment
+   (`input_parameters`, `output_parameters`, `integer_value`): the corpus
+   never exercised them, so they raised `NameError` only when a v2 body ran.
+   The env now binds every `("local", ...)` entry from the table, which is the
+   invariant the table was always supposed to imply.
+
+## What it reports
+
+    131 elements, 1898 checks (+4030 derivations), 284 violations, 1872 skipped
+
+Derivation bodies (`deriveXxx = ...`) are separated from checks: their value
+is the derived property, not a verdict — counting them as violations produced
+584 phantom findings until they were split out. Skips are counted with
+reasons (top: `eval-unmapped` 231, `specializes` 167) and are never reported
+as passes.
+
+## The finding
+
+The dominant violation family is exactly the gap Part 65's caveat predicted:
+
+| family | count |
+|---|---:|
+| `Type.checkTypeSpecialization` | 55 |
+| `Feature.checkFeatureSpecialization` | 37 |
+| `Usage.validateUsageIsReferential` | 26 |
+| `Class.checkClassSpecialization` | 16 |
+
+Those are "must specialize Library::X" rules. The v1->v2 transform emits no
+library specialization edges, so the transformed model does not satisfy them.
+That is a real transformer gap, found by the first semantic run against its
+own output — and it is the concrete case for O6 (a resolved library model).
+
+## Result
+
+- `check_v1v2_validation.py`: 9 checks (new suite).
+- Full sweep green (851 checks, 24 suites).

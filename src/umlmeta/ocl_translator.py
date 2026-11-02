@@ -1287,6 +1287,14 @@ _EVAL_ENV = {
 }
 
 
+# every local lowering in the table must be bound here, or the emitted bare
+# call raises NameError at evaluation time (the corpus never exercised
+# input_parameters/output_parameters/integer_value until the v2 leg ran)
+for _name, (_kind, _fn) in SY.DERIVED_FUNCS.items():
+    if _kind == "local" and _fn in globals():
+        _EVAL_ENV.setdefault(_fn, globals()[_fn])
+
+
 def _derived_call(derived):
     """Binder: _d('funcname', obj, ...) -> derived.func(obj, ...)."""
     def call(fnname, obj, *rest):

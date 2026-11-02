@@ -8,6 +8,25 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- `umlmeta.v2_validate` — the semantic gate for a transformed SysML v2 model:
+  runs the KerML/SysML constraint bodies over the AS with an extent bound,
+  separating derivations from checks and reporting violations and skips
+  separately. First run on the vehicle example: 131 elements, 1898 checks,
+  284 violations, dominated by the missing library specialization edges
+  (`check*Specialization`), which is the case for a resolved library (O6).
+- `check_v1v2_validation.py` — 9 checks.
+
+### Fixed
+
+- `Extent.elements()` now walks `ownedRelationship`/`ownedRelatedElement`, so a
+  freshly built SysML v2 model is reachable (it previously yielded the root
+  alone — 1 element).
+- The eval environment binds every `("local", ...)` lowering from the table;
+  `input_parameters`/`output_parameters`/`integer_value` raised `NameError`
+  when a v2 body used them.
+
+### Added
+
 - `umlmeta.extent` — the model scope OCL needs: composite-containment
   enumeration, metaclass filtering (module-first), qualified-name lookup and
   `specializesFromLibrary` over the model's own specialization graph.
