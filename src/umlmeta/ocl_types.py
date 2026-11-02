@@ -170,8 +170,13 @@ class ModuleTable:
                 elif isinstance(t, str):
                     out[pname] = Prop(pname, t, None, d.multi, d.lo, d.hi,
                                       d.union, d.derived, d.composite)
+                elif t is None:
+                    # an untyped declaration (`_Ref('x', None)`): unknown,
+                    # not a primitive called "None"
+                    out[pname] = Prop(pname, None, None, d.multi, d.lo,
+                                      d.hi, d.union, d.derived, d.composite)
                 else:
-                    out[pname] = Prop(pname, None, str(t), d.multi, d.lo,
+                    out[pname] = Prop(pname, None, None, d.multi, d.lo,
                                       d.hi, d.union, d.derived, d.composite)
         self._props[cls.__name__] = out
         return out

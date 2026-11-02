@@ -5,7 +5,7 @@
       "module": "src/umlmeta/standard_profile.py",
       "stereotypes": 33,
       "enums": [],
-      "lines": 233
+      "lines": 376
     },
     {
       "profile": "SysML",
@@ -17,7 +17,7 @@
         "FlowDirectionKind",
         "VerdictKind"
       ],
-      "lines": 1466
+      "lines": 1647
     },
     {
       "profile": "UAF",
@@ -45,7 +45,7 @@
         "ValueItemKind",
         "WholeLifeConfigurationKind"
       ],
-      "lines": 3752
+      "lines": 4651
     },
     {
       "profile": "UAF",
@@ -74,7 +74,7 @@
         "ValueItemKind",
         "WholeLifeConfigurationKind"
       ],
-      "lines": 3946
+      "lines": 4905
     }
   ],
   "warnings": [

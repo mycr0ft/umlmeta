@@ -229,18 +229,27 @@ for modname in ("uml25", "sysml2", "sysml"):
                     it_bodies.add((modname, klass.__name__, name))
 
 check("every parsed body is type-checked", checked == 1166, f"{checked}")
-check("912 bodies are error-free", clean == 912,
+check("1022 bodies are error-free", clean == 1022,
       f"{clean} clean, {with_errors} with errors")
 check("no body is flagged for arithmetic",
       code_counts["arithmetic-on-non-numeric"] == 0,
       str(code_counts["arithmetic-on-non-numeric"]))
 check("unknown features are the dominant error class",
-      code_counts["unknown-feature"] == 388 and code_counts["unknown-type"] == 17,
+      code_counts["unknown-feature"] == 144 and code_counts["unknown-type"] == 17,
       f"unknown-feature {code_counts['unknown-feature']}, "
       f"unknown-type {code_counts['unknown-type']}")
-top = missing_features.most_common(1)
-check("the profile modules' base properties are the top gap",
-      top and top[0][0] == "base_Class" and top[0][1] == 42, str(top))
+# the profile generator emits the extension ends as properties (and a
+# flattened _props, the uml25 contract); both are asserted structurally
+from umlmeta import sysml as _S  # noqa: E402
+_blk = _S.Block._props
+check("stereotype classes carry a flattened _props (inherited + own + base)",
+      _blk["base_Class"].t is U.Class and "name" in _blk
+      and "isEncapsulated" in _blk, f"{len(_blk)} properties on Block")
+base_missing = sum(n for f, n in missing_features.items()
+                   if f.startswith("base_"))
+check("stereotype base properties are no longer a systematic gap",
+      base_missing <= 4,
+      f"{base_missing} base_* diagnostics (was 263 before the generator fix)")
 check("no body keeps `self` as the receiver of an implicit call",
       len(it_bodies) == 0,
       f"{len(it_bodies)} bodies still report implicit-it-receiver")

@@ -41,6 +41,8 @@ class AbstractRequirement(U.NamedElement):
     _BASE_METACLASSES = ("NamedElement",)
     _ABSTRACT = True
     _DECL = {
+    # extension end: the stereotyped NamedElement this stereotype applies to.
+    'base_NamedElement': _Ref('base_NamedElement', U.NamedElement),
     # Derived from all requirements that are the client of a <<deriveReqt>> relationship for which thi
     # s requirement is a supplier.
     'derived': _Ref('derived', None, multi=True, lo=0, hi='*', derived=True),
@@ -74,6 +76,10 @@ class AcceptChangeStructuralFeatureEventAction(U.AcceptEventAction):
     _STEREO = "SysML::Ports&Flows::AcceptChangeStructuralFeatureEventAction"
     _BASE_METACLASSES = ("AcceptEventAction",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped AcceptEventAction this stereotype applies to.
+    'base_AcceptEventAction': _Ref('base_AcceptEventAction', U.AcceptEventAction),
+    }
     CONSTRAINTS = (
         ("1_one_trigger",
          "self.base_AcceptEventAction.trigger->size()=1 and let trigger: UML::Trigger = self.base_"
@@ -120,6 +126,8 @@ class ElementPropertyPath(U.Element):
     _BASE_METACLASSES = ("Element",)
     _ABSTRACT = True
     _DECL = {
+    # extension end: the stereotyped Element this stereotype applies to.
+    'base_Element': _Ref('base_Element', U.Element),
     # A series of properties that identifies elements in the context of a block described in specializ
     # ations of ElementPropertyPath. The ordering of properties is from a property of the context bloc
     # k, through a property of each intermediate block that types the preceding property, ending in a 
@@ -145,6 +153,8 @@ class AddFlowPropertyValueOnNestedPortAction(U.AddStructuralFeatureValueAction, 
     _BASE_METACLASSES = ("AddStructuralFeatureValueAction",)
     _ABSTRACT = False
     _DECL = {
+    # extension end: the stereotyped AddStructuralFeatureValueAction this stereotype applies to.
+    'base_AddStructuralFeatureValueAction': _Ref('base_AddStructuralFeatureValueAction', U.AddStructuralFeatureValueAction),
     # Gives a series of ports that end in one supporting the flow property to which a value is being a
     # dded. The ordering of ports is from a port of the object of the stereotyped action, through a po
     # rt of each intermediate block that types the preceding port, ending in a port with a type that o
@@ -179,6 +189,8 @@ class AdjunctProperty(U.Property):
     _BASE_METACLASSES = ("Property",)
     _ABSTRACT = False
     _DECL = {
+    # extension end: the stereotyped Property this stereotype applies to.
+    'base_Property': _Ref('base_Property', U.Property),
     # Gives the element that determines the values of the property.
     'principal': _Ref('principal', U.Element),
     }
@@ -261,6 +273,8 @@ class DirectedRelationshipPropertyPath(U.DirectedRelationship):
     _BASE_METACLASSES = ("DirectedRelationship",)
     _ABSTRACT = True
     _DECL = {
+    # extension end: the stereotyped DirectedRelationship this stereotype applies to.
+    'base_DirectedRelationship': _Ref('base_DirectedRelationship', U.DirectedRelationship),
     # Gives the context for sourcePropertyPath to begin from.
     'sourceContext': _Ref('sourceContext', U.Classifier),
     # A series of properties that identifies the source of the directed relationship in the context of
@@ -333,6 +347,10 @@ class Allocate(U.Abstraction, DirectedRelationshipPropertyPath):
     _STEREO = "SysML::Allocations::Allocate"
     _BASE_METACLASSES = ("Abstraction",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Abstraction this stereotype applies to.
+    'base_Abstraction': _Ref('base_Abstraction', U.Abstraction),
+    }
     CONSTRAINTS = (
         ("2_binary",
          "self.base_Abstraction.source->size() = 1 and self.base_Abstraction.target->size() = 1"
@@ -344,6 +362,10 @@ class AllocateActivityPartition(U.ActivityPartition):
     _STEREO = "SysML::Allocations::AllocateActivityPartition"
     _BASE_METACLASSES = ("ActivityPartition",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped ActivityPartition this stereotype applies to.
+    'base_ActivityPartition': _Ref('base_ActivityPartition', U.ActivityPartition),
+    }
     CONSTRAINTS = (
         ("1_actions_on_client_ends",
          "self.base_ActivityPartition.node->select(n|n.oclIsKindOf(UML::Action)) ->forAll(a | let "
@@ -361,6 +383,10 @@ class BindingConnector(U.Connector):
     _STEREO = "SysML::Blocks::BindingConnector"
     _BASE_METACLASSES = ("Connector",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Connector this stereotype applies to.
+    'base_Connector': _Ref('base_Connector', U.Connector),
+    }
     CONSTRAINTS = (
         ("1_compatible_types",
          "self.base_Connector.end->at(1).role.type.conformsTo(self.base_Connector.end->at(2).role."
@@ -375,6 +401,8 @@ class Block(U.Class):
     _BASE_METACLASSES = ("Class",)
     _ABSTRACT = False
     _DECL = {
+    # extension end: the stereotyped Class this stereotype applies to.
+    'base_Class': _Ref('base_Class', U.Class),
     # If true, then the block is treated as a black box; a part typed by this black box can only be co
     # nnected via its ports or directly to its outer boundary. If false, or if a value is not present,
     #  then connections can be established to elements of its internal structure via deep-nested conne
@@ -416,6 +444,8 @@ class EndPathMultiplicity(U.Property):
     _BASE_METACLASSES = ("Property",)
     _ABSTRACT = False
     _DECL = {
+    # extension end: the stereotyped Property this stereotype applies to.
+    'base_Property': _Ref('base_Property', U.Property),
     # Gives the minimum number of values of the property at the end of the related bindingPath, for ea
     # ch object reached by navigation along the bindingPath from an instance of the block owning the p
     # roperty to which EndPathMultiplicity is applied
@@ -441,6 +471,8 @@ class BoundReference(EndPathMultiplicity, U.Property):
     _BASE_METACLASSES = ("Property",)
     _ABSTRACT = False
     _DECL = {
+    # extension end: the stereotyped Property this stereotype applies to.
+    'base_Property': _Ref('base_Property', U.Property),
     # Gives the propertyPath of the NestedConnectorEnd applied, if any, to the boundEnd, appended to t
     # he role of the boundEnd.
     'bindingPath': _Ref('bindingPath', U.Property, multi=True, lo=1, hi='*', derived=True),
@@ -495,6 +527,8 @@ class ChangeStructuralFeatureEvent(U.ChangeEvent):
     _BASE_METACLASSES = ("ChangeEvent",)
     _ABSTRACT = False
     _DECL = {
+    # extension end: the stereotyped ChangeEvent this stereotype applies to.
+    'base_ChangeEvent': _Ref('base_ChangeEvent', U.ChangeEvent),
     # The event models occurrences of changes to values of this structural feature.
     'structuralFeature': _Ref('structuralFeature', U.StructuralFeature),
     }
@@ -512,6 +546,10 @@ class ClassifierBehaviorProperty(U.Property):
     _STEREO = "SysML::Blocks::ClassifierBehaviorProperty"
     _BASE_METACLASSES = ("Property",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Property this stereotype applies to.
+    'base_Property': _Ref('base_Property', U.Property),
+    }
     CONSTRAINTS = (
         ("1_owner_classifierbehavior",
          "Block.allInstances().base_Class->exists(c | c.ownedAttribute->includes(self.base_Propert"
@@ -532,6 +570,10 @@ class Conform(U.Generalization):
     _STEREO = "SysML::ModelElements::Conform"
     _BASE_METACLASSES = ("Generalization",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Generalization this stereotype applies to.
+    'base_Generalization': _Ref('base_Generalization', U.Generalization),
+    }
     CONSTRAINTS = (
         ("1_general_is_viewpoint",
          "Viewpoint.allInstances()->exists(v | v.base_Class = self.base_Generalization.general)"
@@ -547,6 +589,8 @@ class ConnectorProperty(U.Property):
     _BASE_METACLASSES = ("Property",)
     _ABSTRACT = False
     _DECL = {
+    # extension end: the stereotyped Property this stereotype applies to.
+    'base_Property': _Ref('base_Property', U.Property),
     # A connector of the block owning the property on which the stereotype is applied.
     'connector': _Ref('connector', U.Connector),
     }
@@ -577,6 +621,10 @@ class ConstraintBlock(Block, U.Class):
     _STEREO = "SysML::ConstraintBlocks::ConstraintBlock"
     _BASE_METACLASSES = ("Class",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Class this stereotype applies to.
+    'base_Class': _Ref('base_Class', U.Class),
+    }
     CONSTRAINTS = (
         ("1_constraintparameters_only",
          "-- Cannot be expressed in OCL"
@@ -596,6 +644,12 @@ class Rate(U.Parameter, U.ObjectNode, U.ActivityEdge):
     _BASE_METACLASSES = ("ActivityEdge", "ObjectNode", "Parameter",)
     _ABSTRACT = False
     _DECL = {
+    # extension end: the stereotyped ActivityEdge this stereotype applies to.
+    'base_ActivityEdge': _Ref('base_ActivityEdge', U.ActivityEdge),
+    # extension end: the stereotyped ObjectNode this stereotype applies to.
+    'base_ObjectNode': _Ref('base_ObjectNode', U.ObjectNode),
+    # extension end: the stereotyped Parameter this stereotype applies to.
+    'base_Parameter': _Ref('base_Parameter', U.Parameter),
     # Value of the rate
     'rate': _Ref('rate', U.InstanceSpecification),
     }
@@ -634,6 +688,12 @@ class ControlOperator(U.Behavior):
     _STEREO = "SysML::Activities::ControlOperator"
     _BASE_METACLASSES = ("Behavior", "Operation",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Behavior this stereotype applies to.
+    'base_Behavior': _Ref('base_Behavior', U.Behavior),
+    # extension end: the stereotyped Operation this stereotype applies to.
+    'base_Operation': _Ref('base_Operation', U.Operation),
+    }
     CONSTRAINTS = (
         ("1_one_parameter_controlvalue",
          "UML::Behavior.allInstances()->forAll(b | not (ControlOperator.allInstances().base_Behavi"
@@ -654,6 +714,10 @@ class Trace(U.Abstraction, DirectedRelationshipPropertyPath):
     _STEREO = "SysML::Requirements::Trace"
     _BASE_METACLASSES = ("Abstraction",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Abstraction this stereotype applies to.
+    'base_Abstraction': _Ref('base_Abstraction', U.Abstraction),
+    }
     CONSTRAINTS = (
         ("2_binary",
          "self.base_Abstraction.client->size()=1 and self.base_Abstraction.supplier->size()=1"
@@ -665,6 +729,10 @@ class Copy(Trace, U.Abstraction):
     _STEREO = "SysML::Requirements::Copy"
     _BASE_METACLASSES = ("Abstraction",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Abstraction this stereotype applies to.
+    'base_Abstraction': _Ref('base_Abstraction', U.Abstraction),
+    }
     CONSTRAINTS = (
         ("1_source_and_taget_are_requirements",
          "AbstractRequirement.allInstances().base_NamedElement->includesAll(self.base_Abstraction."
@@ -684,6 +752,10 @@ class DeriveReqt(Trace, U.Abstraction):
     _STEREO = "SysML::Requirements::DeriveReqt"
     _BASE_METACLASSES = ("Abstraction",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Abstraction this stereotype applies to.
+    'base_Abstraction': _Ref('base_Abstraction', U.Abstraction),
+    }
     CONSTRAINTS = (
         ("1_supplier_is_requirement",
          "AbstractRequirement.allInstances().base_NamedElement->includesAll(self.base_Abstraction."
@@ -701,6 +773,8 @@ class DirectedFeature(U.Feature):
     _BASE_METACLASSES = ("Feature",)
     _ABSTRACT = False
     _DECL = {
+    # extension end: the stereotyped Feature this stereotype applies to.
+    'base_Feature': _Ref('base_Feature', U.Feature),
     # Specifies whether the feature is supported by the owning block (featureDirection="provided"), or
     #  is to be supported by other blocks for the owning block to use (featureDirection="required"), o
     # r both (featureDirection="providedrequired").
@@ -737,6 +811,10 @@ class DistributedProperty(U.Property):
     _STEREO = "SysML::Blocks::DistributedProperty"
     _BASE_METACLASSES = ("Property",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Property this stereotype applies to.
+    'base_Property': _Ref('base_Property', U.Property),
+    }
     CONSTRAINTS = (
         ("1_block_or_valuetype",
          "Block.allInstances().base_Class.oclAsType(UML::Classifier)->union(ValueType.allInstances"
@@ -750,6 +828,8 @@ class ElementGroup(U.Comment):
     _BASE_METACLASSES = ("Comment",)
     _ABSTRACT = False
     _DECL = {
+    # extension end: the stereotyped Comment this stereotype applies to.
+    'base_Comment': _Ref('base_Comment', U.Comment),
     # Specifies the rationale for being member of the group. Adding an element to the group asserts th
     # at the criterion applies to this element. Derived from Comment::body.
     'criterion': _Ref('criterion', str, derived=True),
@@ -768,6 +848,10 @@ class Expose(U.Dependency):
     _STEREO = "SysML::ModelElements::Expose"
     _BASE_METACLASSES = ("Dependency",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Dependency this stereotype applies to.
+    'base_Dependency': _Ref('base_Dependency', U.Dependency),
+    }
     CONSTRAINTS = (
         ("1_client_is_view",
          "View.allInstances()->exists(v | v.base_Class = self.base_Dependency.client)"
@@ -780,6 +864,8 @@ class FlowPort(U.Port):
     _BASE_METACLASSES = ("Port",)
     _ABSTRACT = False
     _DECL = {
+    # extension end: the stereotyped Port this stereotype applies to.
+    'base_Port': _Ref('base_Port', U.Port),
     # Indicates the direction in which an atomic flow port relays its items. If the direction is set t
     # o "in," then the items are relayed from an external connector via the flow port into the flow po
     # rt's owner (or one of its parts). If the direction is set to "out," then the items are relayed f
@@ -798,6 +884,8 @@ class FlowProperty(U.Property):
     _BASE_METACLASSES = ("Property",)
     _ABSTRACT = False
     _DECL = {
+    # extension end: the stereotyped Property this stereotype applies to.
+    'base_Property': _Ref('base_Property', U.Property),
     # Specifies if the property value is received from an external block (direction="in"), transmitted
     #  to an external Block (direction="out") or both (direction="inout").
     'direction': _Ref('direction', FlowDirectionKind),
@@ -815,12 +903,20 @@ class FlowSpecification(U.Interface):
     _STEREO = "SysML::DeprecatedElements::FlowSpecification"
     _BASE_METACLASSES = ("Interface",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Interface this stereotype applies to.
+    'base_Interface': _Ref('base_Interface', U.Interface),
+    }
 
 class FullPort(U.Port):
     """Full ports specify a separate element of the system from the owning block or its internal parts. They might have their own internal parts and behaviors to support interaction with the owning block, its internal parts, or external blocks. They cannot be behavioral ports, or linked to internal parts by binding connectors, because these constructs imply identity with the owning block or internal parts. However, full ports can be linked to non-full ports by binding connectors, because this does not necessarily imply identity with other parts of the system."""
     _STEREO = "SysML::Ports&Flows::FullPort"
     _BASE_METACLASSES = ("Port",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Port this stereotype applies to.
+    'base_Port': _Ref('base_Port', U.Port),
+    }
     CONSTRAINTS = (
         ("1_not_proxy",
          "ProxyPort.allInstances()->excludes(self.base_Port)"
@@ -864,6 +960,8 @@ class InvocationOnNestedPortAction(U.InvocationAction, ElementPropertyPath):
     _BASE_METACLASSES = ("InvocationAction",)
     _ABSTRACT = False
     _DECL = {
+    # extension end: the stereotyped InvocationAction this stereotype applies to.
+    'base_InvocationAction': _Ref('base_InvocationAction', U.InvocationAction),
     # Gives a series of ports that identifies the port receiving the invocation in the context of the 
     # target object of the invocation. The ordering of ports is from a port of the target object, thro
     # ugh a port of each intermediate block that types the preceding port, ending in a port with a typ
@@ -906,6 +1004,8 @@ class ItemFlow(U.InformationFlow):
     _BASE_METACLASSES = ("InformationFlow",)
     _ABSTRACT = False
     _DECL = {
+    # extension end: the stereotyped InformationFlow this stereotype applies to.
+    'base_InformationFlow': _Ref('base_InformationFlow', U.InformationFlow),
     # An optional property that relates the flowing item to the instances of the connectors enclosing 
     # block. This property is applicable only for item flows realized by connectors. The itemProperty 
     # attribute has no values if the item flow is realized by an Association.
@@ -957,6 +1057,10 @@ class NestedConnectorEnd(U.ConnectorEnd, ElementPropertyPath):
     _STEREO = "SysML::Blocks::NestedConnectorEnd"
     _BASE_METACLASSES = ("ConnectorEnd",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped ConnectorEnd this stereotype applies to.
+    'base_ConnectorEnd': _Ref('base_ConnectorEnd', U.ConnectorEnd),
+    }
     CONSTRAINTS = (
         ("1_propertypath_first_owned_by_connector_owner",
          "let owningBlock: UML::Class = self.base_ConnectorEnd.owner.oclAsType(UML::Connector).own"
@@ -975,6 +1079,10 @@ class NoBuffer(U.ObjectNode):
     _STEREO = "SysML::Activities::NoBuffer"
     _BASE_METACLASSES = ("ObjectNode",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped ObjectNode this stereotype applies to.
+    'base_ObjectNode': _Ref('base_ObjectNode', U.ObjectNode),
+    }
     CONSTRAINTS = (
         ("1_not_overwrite",
          "Overwrite.allInstances().base_ObjectNode->excludes(self.base_ObjectNode)"
@@ -986,6 +1094,10 @@ class Optional(U.Parameter):
     _STEREO = "SysML::Activities::Optional"
     _BASE_METACLASSES = ("Parameter",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Parameter this stereotype applies to.
+    'base_Parameter': _Ref('base_Parameter', U.Parameter),
+    }
     CONSTRAINTS = (
         ("1_lower_is_0",
          "UML::Parameter.allInstances()->forAll(p | Optional.allInstances().base_Parameter->includ"
@@ -998,6 +1110,10 @@ class Overwrite(U.ObjectNode):
     _STEREO = "SysML::Activities::Overwrite"
     _BASE_METACLASSES = ("ObjectNode",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped ObjectNode this stereotype applies to.
+    'base_ObjectNode': _Ref('base_ObjectNode', U.ObjectNode),
+    }
     CONSTRAINTS = (
         ("1_not_nobuffer",
          "NoBuffer.allInstances().base_ObjectNode->excludes(self.base_ObjectNode)"
@@ -1010,6 +1126,8 @@ class ParticipantProperty(U.Property):
     _BASE_METACLASSES = ("Property",)
     _ABSTRACT = False
     _DECL = {
+    # extension end: the stereotyped Property this stereotype applies to.
+    'base_Property': _Ref('base_Property', U.Property),
     # A member end of the association block owning the property on which the stereotype is applied.
     'end': _Ref('end', U.Property),
     }
@@ -1041,6 +1159,10 @@ class Probability(U.ActivityEdge, U.ParameterSet):
     _BASE_METACLASSES = ("ActivityEdge", "ParameterSet",)
     _ABSTRACT = False
     _DECL = {
+    # extension end: the stereotyped ActivityEdge this stereotype applies to.
+    'base_ActivityEdge': _Ref('base_ActivityEdge', U.ActivityEdge),
+    # extension end: the stereotyped ParameterSet this stereotype applies to.
+    'base_ParameterSet': _Ref('base_ParameterSet', U.ParameterSet),
     # Value of the probability
     'probability': _Ref('probability', U.ValueSpecification),
     }
@@ -1071,12 +1193,20 @@ class Problem(U.Comment):
     _STEREO = "SysML::ModelElements::Problem"
     _BASE_METACLASSES = ("Comment",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Comment this stereotype applies to.
+    'base_Comment': _Ref('base_Comment', U.Comment),
+    }
 
 class PropertySpecificType(U.Classifier):
     """<p> The PropertySpecificType stereotype can be applied to classifiers that type exactly one property and that are owned by the owner of that property. Classifiers with this stereotype applied shall be generalized by at most one other classifier. </p><p> Instances of a property-specific type are exactly those that are values of the property it types, in all instances of the property owner. Values are (de)classified under property-specific types as they are (removed from) added to the property they type: <ul> <li>quantityKind : InstanceSpecification [0..1]<br/>A kind of quantity, represented by an InstanceSpecification classified by a kind of SysML QuantityKind, that may be stated by means</li...[truncated]"""
     _STEREO = "SysML::Blocks::PropertySpecificType"
     _BASE_METACLASSES = ("Classifier",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Classifier this stereotype applies to.
+    'base_Classifier': _Ref('base_Classifier', U.Classifier),
+    }
     CONSTRAINTS = (
         ("1_only_one_property",
          "UML::Property.allInstances()->select(p | p.type = self.base_Classifier)->size() = 1"
@@ -1088,6 +1218,10 @@ class ProxyPort(U.Port):
     _STEREO = "SysML::Ports&Flows::ProxyPort"
     _BASE_METACLASSES = ("Port",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Port this stereotype applies to.
+    'base_Port': _Ref('base_Port', U.Port),
+    }
     CONSTRAINTS = (
         ("1_not_fullport",
          "FullPort.allInstances()->excludes(self.base_Port)"
@@ -1105,12 +1239,20 @@ class Rationale(U.Comment):
     _STEREO = "SysML::ModelElements::Rationale"
     _BASE_METACLASSES = ("Comment",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Comment this stereotype applies to.
+    'base_Comment': _Ref('base_Comment', U.Comment),
+    }
 
 class Refine(U.Abstraction, DirectedRelationshipPropertyPath):
     """The Refine stereotype specializes UML4SysML Refine and DirectedRelationshipPropertyPath to enable refinements to identify their sources and targets by a multi-level path of accessible properties from context blocks for the sources and targets."""
     _STEREO = "SysML::Requirements::Refine"
     _BASE_METACLASSES = ("Abstraction",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Abstraction this stereotype applies to.
+    'base_Abstraction': _Ref('base_Abstraction', U.Abstraction),
+    }
     CONSTRAINTS = (
         ("2_binary",
          "self.base_Abstraction.client->size()=1 and self.base_Abstraction.supplier->size()=1"
@@ -1122,6 +1264,10 @@ class Requirement(U.Class, AbstractRequirement):
     _STEREO = "SysML::Requirements::Requirement"
     _BASE_METACLASSES = ("Class",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Class this stereotype applies to.
+    'base_Class': _Ref('base_Class', U.Class),
+    }
     CONSTRAINTS = (
         ("1_no_operation",
          "self.base_Class.ownedOperation->isEmpty()"
@@ -1149,6 +1295,10 @@ class Satisfy(Trace, U.Abstraction):
     _STEREO = "SysML::Requirements::Satisfy"
     _BASE_METACLASSES = ("Abstraction",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Abstraction this stereotype applies to.
+    'base_Abstraction': _Ref('base_Abstraction', U.Abstraction),
+    }
     CONSTRAINTS = (
         ("1_supplier_is_requirement",
          "AbstractRequirement.allInstances().base_NamedElement->includes(self.base_Abstraction.sup"
@@ -1162,6 +1312,8 @@ class Stakeholder(U.Classifier):
     _BASE_METACLASSES = ("Classifier",)
     _ABSTRACT = False
     _DECL = {
+    # extension end: the stereotyped Classifier this stereotype applies to.
+    'base_Classifier': _Ref('base_Classifier', U.Classifier),
     'concern': _Ref('concern', str, multi=True, lo=0, hi='*', derived=True),
     'concernList': _Ref('concernList', U.Comment, multi=True, lo=0, hi='*'),
     }
@@ -1177,6 +1329,12 @@ class TestCase(U.Behavior):
     _STEREO = "SysML::Requirements::TestCase"
     _BASE_METACLASSES = ("Behavior", "Operation",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Behavior this stereotype applies to.
+    'base_Behavior': _Ref('base_Behavior', U.Behavior),
+    # extension end: the stereotyped Operation this stereotype applies to.
+    'base_Operation': _Ref('base_Operation', U.Operation),
+    }
     CONSTRAINTS = (
         ("1_return_verdictkind",
          "(self.base_Behavior->notEmpty() implies self.base_Behavior.ownedParameter->exists(p | p."
@@ -1192,6 +1350,8 @@ class TriggerOnNestedPort(U.Trigger, ElementPropertyPath):
     _BASE_METACLASSES = ("Trigger",)
     _ABSTRACT = False
     _DECL = {
+    # extension end: the stereotyped Trigger this stereotype applies to.
+    'base_Trigger': _Ref('base_Trigger', U.Trigger),
     # Gives a series of ports that identifies a port on which the event is occurring, in the context o
     # f a block in which the trigger is used. The ordering of ports is from a port of the receiving ob
     # ject, through a port of each intermediate block that types the preceding port, ending in a prope
@@ -1234,6 +1394,8 @@ class ValueType(U.DataType):
     _BASE_METACLASSES = ("DataType",)
     _ABSTRACT = False
     _DECL = {
+    # extension end: the stereotyped DataType this stereotype applies to.
+    'base_DataType': _Ref('base_DataType', U.DataType),
     # <p> A kind of quantity, represented by an InstanceSpecification classified by a kind of SysML Qu
     # antityKind, that may be stated by means of units. A value type may optionally specify a quantity
     #  kind without any unit. Such a value type may be used to type a value specification to represent
@@ -1283,6 +1445,10 @@ class Verify(Trace, U.Abstraction):
     _STEREO = "SysML::Requirements::Verify"
     _BASE_METACLASSES = ("Abstraction",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Abstraction this stereotype applies to.
+    'base_Abstraction': _Ref('base_Abstraction', U.Abstraction),
+    }
     CONSTRAINTS = (
         ("1_supplier_is_requirement",
          "AbstractRequirement.allInstances().base_NamedElement->includes(self.base_Abstraction.sup"
@@ -1296,6 +1462,8 @@ class View(U.Class):
     _BASE_METACLASSES = ("Class",)
     _ABSTRACT = False
     _DECL = {
+    # extension end: the stereotyped Class this stereotype applies to.
+    'base_Class': _Ref('base_Class', U.Class),
     # The list of stakeholders is derived from the viewpoint the view conforms to.
     'stakeholder': _Ref('stakeholder', None, multi=True, lo=0, hi='*', derived=True),
     # The viewpoint for this View is derived from the conform relationship.
@@ -1323,6 +1491,8 @@ class Viewpoint(U.Class):
     _BASE_METACLASSES = ("Class",)
     _ABSTRACT = False
     _DECL = {
+    # extension end: the stereotyped Class this stereotype applies to.
+    'base_Class': _Ref('base_Class', U.Class),
     # The interest of the stakeholders displayed as the body of the comments from concernList.
     'concern': _Ref('concern', str, multi=True, lo=0, hi='*', derived=True),
     # The interests of the stakeholders addressed by this viewpoint.
@@ -1358,6 +1528,8 @@ class _InterfaceBlock(InterfaceBlock, U.Class):
     _BASE_METACLASSES = ("Class",)
     _ABSTRACT = False
     _DECL = {
+    # extension end: the stereotyped Class this stereotype applies to.
+    'base_Class': _Ref('base_Class', U.Class),
     # The InterfaceBlock that this is a conjugation of.
     'original': _Ref('original', None),
     }
@@ -1462,5 +1634,14 @@ def _finish():
             d.owner_cls = c.__name__
         for n, d in decl.items():
             setattr(c, n, d)
+        # the uml25 contract: _props is the FLATTENED declaration map
+        # (inherited first, own declarations win). Without it a
+        # stereotype class is invisible to everything that reads
+        # _props -- derived.py, the OCL type checker, the query layer.
+        props = {}
+        for base in reversed(c.__mro__):
+            props.update(base.__dict__.get('_props') or {})
+        props.update(decl)
+        c._props = props
 _finish()
 

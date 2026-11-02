@@ -1,7 +1,8 @@
 # OCL engine pathway — parsing and evaluating OCL over the generated runtimes
 
-Status: O0, O1, O2 and O3a shipped (corpus, AST/parser, type checker,
-receiver scoping + derived-property routing); O3b-O6 open.
+Status: O0, O1, O2, O3a and the profile-property fix shipped (corpus,
+AST/parser, type checker, receiver scoping + derived routing, stereotype
+base properties); O3b-O6 open. Deferrals are itemized in §7.
 Every number below was produced by a command in this repo; the commands are
 listed so they can be re-run.
 
@@ -163,7 +164,7 @@ least one error, and the errors are concentrated:
 
 | finding | bodies | meaning |
 |---|---:|---|
-| `base_*` unknown features | 42 (`base_Class`) + 35 (`base_Property`) + … | **the profile modules carry no property descriptors at all** — `sysml.Block._props == {}`, only `_STEREO`. Every SysML v1 stereotype constraint that navigates its base property is untypable until `generate_profiles.py` emits them |
+| `base_*` unknown features | 42 (`base_Class`) + 35 (`base_Property`) + … | **the profile modules carried no property descriptors at all** — `sysml.Block._props == {}`, only `_STEREO`. **Fixed:** the generator now emits the extension ends as properties and builds the flattened `_props`; 388 → 144 unknown-feature diagnostics, 912 → 1022 error-free bodies |
 | `owner` derived-not-wired | 19 | `owner` is implemented in `derived.py` but absent from `DERIVED_FUNCS`, so the evaluator reads a non-existent attribute — one table entry fixes all 19 |
 | implicit-`it` receiver | 90 | an unqualified call inside an `it` body lowered with `self` as receiver, so `x->exists(oclIsKindOf(T))` tested **self's** type instead of each element's. **Fixed in O3a** (53 bodies change lowering) |
 | unsupported operations | 567 diagnostics | `selectByKind`, `specializesFromLibrary`, the spec helper operations — the O4/O5 queue |

@@ -191,6 +191,8 @@ class UAFElement(U.Element):
     _BASE_METACLASSES = ("Element",)
     _ABSTRACT = True
     _DECL = {
+    # extension end: the stereotyped Element this stereotype applies to.
+    'base_Element': _Ref('base_Element', U.Element),
     # Captures Unique identifier for the element.
     'URI_': _Ref('URI_', str),
     # Relates a UAFElement to the Standard that the UAFElement is conforming to.
@@ -202,6 +204,10 @@ class Achiever(U.InstanceSpecification, UAFElement):
     _STEREO = "UAF::States::Achiever"
     _BASE_METACLASSES = ("InstanceSpecification",)
     _ABSTRACT = True
+    _DECL = {
+    # extension end: the stereotyped InstanceSpecification this stereotype applies to.
+    'base_InstanceSpecification': _Ref('base_InstanceSpecification', U.InstanceSpecification),
+    }
 
 class MeasurableElement(UAFElement, U.Element):
     """Abstract grouping for elements that can be measured by applying MeasurementSets to them."""
@@ -209,6 +215,8 @@ class MeasurableElement(UAFElement, U.Element):
     _BASE_METACLASSES = ("Element",)
     _ABSTRACT = True
     _DECL = {
+    # extension end: the stereotyped Element this stereotype applies to.
+    'base_Element': _Ref('base_Element', U.Element),
     # Relates the MeasurableElement to the ActualMeasurementSet that provides its ActualMeasurements.
     'actualMeasurementSet': _Ref('actualMeasurementSet', 'ActualMeasurementSet', multi=True, lo=0, hi='*'),
     # Relates the MeasurableElement to the MeasurementSet that provides its Measurements by which it c
@@ -221,6 +229,10 @@ class Achieves(U.Dependency, MeasurableElement):
     _STEREO = "UAF::States::Achieves"
     _BASE_METACLASSES = ("Dependency",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Dependency this stereotype applies to.
+    'base_Dependency': _Ref('base_Dependency', U.Dependency),
+    }
     CONSTRAINTS = (
         ("Achieves.client",
          "Value for the client metaproperty must be stereotyped by the specialization of «Achiever"
@@ -237,6 +249,10 @@ class AffectableElement(UAFElement, U.Element):
     _STEREO = "UAF::Parameters::AffectableElement"
     _BASE_METACLASSES = ("Element",)
     _ABSTRACT = True
+    _DECL = {
+    # extension end: the stereotyped Element this stereotype applies to.
+    'base_Element': _Ref('base_Element', U.Element),
+    }
 
 class Activity(U.Activity, MeasurableElement, AffectableElement):
     """An abstract element that represents a behavior or process (i.e. a Function or OperationalActivity) that can be performed by a Performer."""
@@ -244,6 +260,8 @@ class Activity(U.Activity, MeasurableElement, AffectableElement):
     _BASE_METACLASSES = ("Activity",)
     _ABSTRACT = True
     _DECL = {
+    # extension end: the stereotyped Activity this stereotype applies to.
+    'base_Activity': _Ref('base_Activity', U.Activity),
     # The environment under which an activity is performed.
     'activityPerformableUnderCondition': _Ref('activityPerformableUnderCondition', 'ActualCondition', multi=True, lo=0, hi='*'),
     }
@@ -254,6 +272,8 @@ class ActualState(UAFElement, U.Element):
     _BASE_METACLASSES = ("Element",)
     _ABSTRACT = True
     _DECL = {
+    # extension end: the stereotyped Element this stereotype applies to.
+    'base_Element': _Ref('base_Element', U.Element),
     # End time for all "actual" elements.
     'endDate': _Ref('endDate', 'ISO8601DateTime'),
     # Start time for all "actual" elements.
@@ -265,6 +285,10 @@ class ActualPropertySet(U.InstanceSpecification, ActualState):
     _STEREO = "UAF::Parameters::ActualPropertySet"
     _BASE_METACLASSES = ("InstanceSpecification",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped InstanceSpecification this stereotype applies to.
+    'base_InstanceSpecification': _Ref('base_InstanceSpecification', U.InstanceSpecification),
+    }
     CONSTRAINTS = (
         ("ActualPropertySet.classifier",
          "Value for the classifier metaproperty must be stereotyped by the specialization of «Prop"
@@ -277,6 +301,10 @@ class ActualCondition(ActualPropertySet, U.InstanceSpecification):
     _STEREO = "UAF::Parameters::ActualCondition"
     _BASE_METACLASSES = ("InstanceSpecification",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped InstanceSpecification this stereotype applies to.
+    'base_InstanceSpecification': _Ref('base_InstanceSpecification', U.InstanceSpecification),
+    }
     CONSTRAINTS = (
         ("ActualCondition.classifier",
          "Value for the classifier metaproperty has to be stereotyped «Condition» or its specializ"
@@ -290,6 +318,8 @@ class ActualEffect(ActualPropertySet, U.InstanceSpecification):
     _BASE_METACLASSES = ("InstanceSpecification",)
     _ABSTRACT = False
     _DECL = {
+    # extension end: the stereotyped InstanceSpecification this stereotype applies to.
+    'base_InstanceSpecification': _Ref('base_InstanceSpecification', U.InstanceSpecification),
     # Condition under which the Effect can be achieved.
     'enablingCondition': _Ref('enablingCondition', 'ActualCondition', multi=True, lo=0, hi='*'),
     }
@@ -305,6 +335,10 @@ class ActualStrategicPhase(Achiever, ActualPropertySet, U.InstanceSpecification)
     _STEREO = "UAF::Processes::ActualStrategicPhase"
     _BASE_METACLASSES = ("InstanceSpecification",)
     _ABSTRACT = True
+    _DECL = {
+    # extension end: the stereotyped InstanceSpecification this stereotype applies to.
+    'base_InstanceSpecification': _Ref('base_InstanceSpecification', U.InstanceSpecification),
+    }
     CONSTRAINTS = (
         ("ActualStrategicPhase.classifier",
          "Value for the classifier metaproperty must be stereotyped by «StrategicPhase» or its spe"
@@ -321,6 +355,10 @@ class ActualEnduringTask(ActualStrategicPhase, U.InstanceSpecification):
     _STEREO = "UAF::Processes::ActualEnduringTask"
     _BASE_METACLASSES = ("InstanceSpecification",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped InstanceSpecification this stereotype applies to.
+    'base_InstanceSpecification': _Ref('base_InstanceSpecification', U.InstanceSpecification),
+    }
 
 class ActualEnterprisePhase(ActualStrategicPhase, U.InstanceSpecification):
     """A time period within which a set of Capabilities are deployed."""
@@ -328,6 +366,8 @@ class ActualEnterprisePhase(ActualStrategicPhase, U.InstanceSpecification):
     _BASE_METACLASSES = ("InstanceSpecification",)
     _ABSTRACT = False
     _DECL = {
+    # extension end: the stereotyped InstanceSpecification this stereotype applies to.
+    'base_InstanceSpecification': _Ref('base_InstanceSpecification', U.InstanceSpecification),
     # Relates the ActualEnterprisePhase to the ActualEnduringTasks that are intended to be implemented
     #  during that phase.
     'statementTask': _Ref('statementTask', 'ActualEnduringTask', multi=True, lo=0, hi='*'),
@@ -338,6 +378,10 @@ class ActualEnvironment(ActualCondition, U.InstanceSpecification):
     _STEREO = "UAF::Parameters::ActualEnvironment"
     _BASE_METACLASSES = ("InstanceSpecification",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped InstanceSpecification this stereotype applies to.
+    'base_InstanceSpecification': _Ref('base_InstanceSpecification', U.InstanceSpecification),
+    }
     CONSTRAINTS = (
         ("ActualEnvironment.classifier",
          "Value for the classifier metaproperty has to be stereotyped «Environment» or its special"
@@ -351,6 +395,8 @@ class ActualLocation(ActualCondition, U.InstanceSpecification):
     _BASE_METACLASSES = ("InstanceSpecification",)
     _ABSTRACT = False
     _DECL = {
+    # extension end: the stereotyped InstanceSpecification this stereotype applies to.
+    'base_InstanceSpecification': _Ref('base_InstanceSpecification', U.InstanceSpecification),
     # String describing the address of the ActualLocation, i.e. "1600 Pennsylvania avenue", "The White
     #  House"
     'address': _Ref('address', str),
@@ -374,6 +420,8 @@ class ActualMeasurement(ActualState, U.Slot):
     _BASE_METACLASSES = ("Slot",)
     _ABSTRACT = False
     _DECL = {
+    # extension end: the stereotyped Slot this stereotype applies to.
+    'base_Slot': _Ref('base_Slot', U.Slot),
     # Enumerated value describing the intent of the ActualMeasurement.
     'intention': _Ref('intention', ActualMeasurementKind),
     }
@@ -394,6 +442,8 @@ class ActualMeasurementSet(ActualPropertySet, U.InstanceSpecification):
     _BASE_METACLASSES = ("InstanceSpecification",)
     _ABSTRACT = False
     _DECL = {
+    # extension end: the stereotyped InstanceSpecification this stereotype applies to.
+    'base_InstanceSpecification': _Ref('base_InstanceSpecification', U.InstanceSpecification),
     # Relates the ActualMeasurementSet to the elements that are being measured.
     'appliesFor': _Ref('appliesFor', 'MeasurableElement', multi=True, lo=0, hi='*'),
     }
@@ -414,6 +464,8 @@ class Stakeholder(UAFElement, U.Element):
     _BASE_METACLASSES = ("Element",)
     _ABSTRACT = True
     _DECL = {
+    # extension end: the stereotyped Element this stereotype applies to.
+    'base_Element': _Ref('base_Element', U.Element),
     # Relates a Stakeholder to a Concern.
     'stakeholderConcern': _Ref('stakeholderConcern', 'Concern', multi=True, lo=0, hi='*'),
     }
@@ -423,12 +475,20 @@ class SubjectOfResourceConstraint(UAFElement, U.Element):
     _STEREO = "UAF::Constraints::SubjectOfResourceConstraint"
     _BASE_METACLASSES = ("Element",)
     _ABSTRACT = True
+    _DECL = {
+    # extension end: the stereotyped Element this stereotype applies to.
+    'base_Element': _Ref('base_Element', U.Element),
+    }
 
 class CapableElement(UAFElement, U.Element):
     """An abstract type that represents a structural element that can exhibit capabilities."""
     _STEREO = "UAF::Processes::CapableElement"
     _BASE_METACLASSES = ("Element",)
     _ABSTRACT = True
+    _DECL = {
+    # extension end: the stereotyped Element this stereotype applies to.
+    'base_Element': _Ref('base_Element', U.Element),
+    }
 
 class ActualResource(ActualPropertySet, Achiever, U.InstanceSpecification, SubjectOfResourceConstraint, CapableElement):
     """An instance of a ResourcePerformer in the real world."""
@@ -436,6 +496,8 @@ class ActualResource(ActualPropertySet, Achiever, U.InstanceSpecification, Subje
     _BASE_METACLASSES = ("InstanceSpecification",)
     _ABSTRACT = False
     _DECL = {
+    # extension end: the stereotyped InstanceSpecification this stereotype applies to.
+    'base_InstanceSpecification': _Ref('base_InstanceSpecification', U.InstanceSpecification),
     # Relates the ActualResource to the ActualStates of an environment or location describing its situ
     # ation
     'actualCondition': _Ref('actualCondition', 'ActualCondition', multi=True, lo=0, hi='*'),
@@ -455,12 +517,20 @@ class ActualOrganizationalResource(ActualResource, U.InstanceSpecification, Stak
     _STEREO = "UAF::Taxonomy::ActualOrganizationalResource"
     _BASE_METACLASSES = ("InstanceSpecification",)
     _ABSTRACT = True
+    _DECL = {
+    # extension end: the stereotyped InstanceSpecification this stereotype applies to.
+    'base_InstanceSpecification': _Ref('base_InstanceSpecification', U.InstanceSpecification),
+    }
 
 class ActualResponsibleResource(ActualOrganizationalResource, U.InstanceSpecification):
     """An abstract grouping of responsible OrganizationalResources."""
     _STEREO = "UAF::Taxonomy::ActualResponsibleResource"
     _BASE_METACLASSES = ("InstanceSpecification",)
     _ABSTRACT = True
+    _DECL = {
+    # extension end: the stereotyped InstanceSpecification this stereotype applies to.
+    'base_InstanceSpecification': _Ref('base_InstanceSpecification', U.InstanceSpecification),
+    }
 
 class ActualOrganization(ActualResponsibleResource, U.InstanceSpecification):
     """An actual formal or informal organizational unit, e.g. "Driving and Vehicle Licensing Agency", "UAF team Alpha"."""
@@ -468,6 +538,8 @@ class ActualOrganization(ActualResponsibleResource, U.InstanceSpecification):
     _BASE_METACLASSES = ("InstanceSpecification",)
     _ABSTRACT = False
     _DECL = {
+    # extension end: the stereotyped InstanceSpecification this stereotype applies to.
+    'base_InstanceSpecification': _Ref('base_InstanceSpecification', U.InstanceSpecification),
     # Standards that were ratified by this ActualOrganization.
     'ratifiedStandards': _Ref('ratifiedStandards', 'Standard', multi=True, lo=0, hi='*'),
     # Service office code or symbol
@@ -491,6 +563,10 @@ class ActualResourceRole(U.Slot, UAFElement):
     _STEREO = "UAF::Structure::ActualResourceRole"
     _BASE_METACLASSES = ("Slot",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Slot this stereotype applies to.
+    'base_Slot': _Ref('base_Slot', U.Slot),
+    }
     CONSTRAINTS = (
         ("ActualResourceRole.definingFeature",
          "Value for definingFeature metaproperty has to be stereotyped «ResourceRole» or its speci"
@@ -507,6 +583,10 @@ class ActualOrganizationRole(ActualResourceRole, U.Slot):
     _STEREO = "UAF::Structure::ActualOrganizationRole"
     _BASE_METACLASSES = ("Slot",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Slot this stereotype applies to.
+    'base_Slot': _Ref('base_Slot', U.Slot),
+    }
     CONSTRAINTS = (
         ("ActualOrganizationRole.owningInstance",
          "Value for owningInstance metaproperty has to be stereotyped «ActualOrganization» or its "
@@ -519,12 +599,20 @@ class ActualOutcome(ActualEffect, U.InstanceSpecification):
     _STEREO = "UAF::States::ActualOutcome"
     _BASE_METACLASSES = ("InstanceSpecification",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped InstanceSpecification this stereotype applies to.
+    'base_InstanceSpecification': _Ref('base_InstanceSpecification', U.InstanceSpecification),
+    }
 
 class ActualPerson(ActualResponsibleResource, U.InstanceSpecification):
     """An individual human being."""
     _STEREO = "UAF::Taxonomy::ActualPerson"
     _BASE_METACLASSES = ("InstanceSpecification",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped InstanceSpecification this stereotype applies to.
+    'base_InstanceSpecification': _Ref('base_InstanceSpecification', U.InstanceSpecification),
+    }
     CONSTRAINTS = (
         ("ActualPerson.classifier",
          "Value for the classifier metaproperty has to be stereotyped «Person» or its specializati"
@@ -537,6 +625,10 @@ class ActualPost(ActualResponsibleResource, U.InstanceSpecification):
     _STEREO = "UAF::Taxonomy::ActualPost"
     _BASE_METACLASSES = ("InstanceSpecification",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped InstanceSpecification this stereotype applies to.
+    'base_InstanceSpecification': _Ref('base_InstanceSpecification', U.InstanceSpecification),
+    }
     CONSTRAINTS = (
         ("ActualPost.classifier",
          "Classifier metaproperty value must be stereotyped «Post» or its specializations."
@@ -549,6 +641,8 @@ class ActualProject(ActualOrganizationalResource, Achiever, U.InstanceSpecificat
     _BASE_METACLASSES = ("InstanceSpecification",)
     _ABSTRACT = False
     _DECL = {
+    # extension end: the stereotyped InstanceSpecification this stereotype applies to.
+    'base_InstanceSpecification': _Ref('base_InstanceSpecification', U.InstanceSpecification),
     # Relates the ActualProjectMilestones to the relevant ActualProject.
     'ownedMilestone': _Ref('ownedMilestone', 'ActualProjectMilestone', multi=True, lo=0, hi='*', derived=True),
     # Enumerated value describing the kind of ActualProject.
@@ -571,6 +665,8 @@ class ActualProjectMilestone(ActualPropertySet, U.InstanceSpecification):
     _BASE_METACLASSES = ("InstanceSpecification",)
     _ABSTRACT = False
     _DECL = {
+    # extension end: the stereotyped InstanceSpecification this stereotype applies to.
+    'base_InstanceSpecification': _Ref('base_InstanceSpecification', U.InstanceSpecification),
     # Relates an ActualProjectMilestone to the ActualResources that are affected by the milestone. It 
     # is used to describe aspects of the lifecycle of an ActualResource.
     'actualResource': _Ref('actualResource', 'ActualResource', multi=True, lo=0, hi='*'),
@@ -593,6 +689,10 @@ class ActualProjectMilestoneRole(ActualState, U.Slot):
     _STEREO = "UAF::Roadmap::ActualProjectMilestoneRole"
     _BASE_METACLASSES = ("Slot",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Slot this stereotype applies to.
+    'base_Slot': _Ref('base_Slot', U.Slot),
+    }
     CONSTRAINTS = (
         ("ActualProjectMilestoneRole.definingFeature",
          "Value for the definingFeature metaproperty has to be stereotyped «ProjectMilestoneRole» "
@@ -613,6 +713,10 @@ class ActualProjectRole(ActualState, U.Slot):
     _STEREO = "UAF::Roadmap::ActualProjectRole"
     _BASE_METACLASSES = ("Slot",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Slot this stereotype applies to.
+    'base_Slot': _Ref('base_Slot', U.Slot),
+    }
     CONSTRAINTS = (
         ("ActualProjectRole.definingFeature",
          "Value for the definingFeature metaproperty has to be stereotyped «ProjectRole» or its sp"
@@ -633,6 +737,10 @@ class ActualResourceRelationship(sysml.ItemFlow, U.InformationFlow, UAFElement):
     _STEREO = "UAF::Connectivity::ActualResourceRelationship"
     _BASE_METACLASSES = ("InformationFlow",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped InformationFlow this stereotype applies to.
+    'base_InformationFlow': _Ref('base_InformationFlow', U.InformationFlow),
+    }
     CONSTRAINTS = (
         ("ActualResourceRelationship.informationSource",
          "Value for informationSource metaproperty must be stereotyped «ActualResource» or its spe"
@@ -653,6 +761,10 @@ class ActualResponsibility(ActualOrganizationalResource, U.InstanceSpecification
     _STEREO = "UAF::Taxonomy::ActualResponsibility"
     _BASE_METACLASSES = ("InstanceSpecification",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped InstanceSpecification this stereotype applies to.
+    'base_InstanceSpecification': _Ref('base_InstanceSpecification', U.InstanceSpecification),
+    }
     CONSTRAINTS = (
         ("ActualResponsibility.classifier",
          "Classifier metaproperty value must be stereotyped «Responsibility» or its specialization"
@@ -666,6 +778,8 @@ class ActualRisk(ActualPropertySet, U.InstanceSpecification):
     _BASE_METACLASSES = ("InstanceSpecification",)
     _ABSTRACT = False
     _DECL = {
+    # extension end: the stereotyped InstanceSpecification this stereotype applies to.
+    'base_InstanceSpecification': _Ref('base_InstanceSpecification', U.InstanceSpecification),
     # Enables association of an ActualRisk to an actual organizational role that is responsible for ex
     # ecuting the actual mitigation.
     'actualRiskOwner': _Ref('actualRiskOwner', 'ActualResponsibleResource'),
@@ -684,6 +798,10 @@ class ActualService(ActualMeasurementSet, U.InstanceSpecification, CapableElemen
     _STEREO = "UAF::Constraints::ActualService"
     _BASE_METACLASSES = ("InstanceSpecification",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped InstanceSpecification this stereotype applies to.
+    'base_InstanceSpecification': _Ref('base_InstanceSpecification', U.InstanceSpecification),
+    }
     CONSTRAINTS = (
         ("ActualService.classifier",
          "Value for the classifier metaproperty must be stereotyped by «Service» or its specializa"
@@ -696,6 +814,10 @@ class Affects(U.Dependency, MeasurableElement):
     _STEREO = "UAF::Parameters::Affects"
     _BASE_METACLASSES = ("Dependency",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Dependency this stereotype applies to.
+    'base_Dependency': _Ref('base_Dependency', U.Dependency),
+    }
     CONSTRAINTS = (
         ("Affects.client",
          "Value for the client metaproperty must be stereotyped «Risk» or its specializations."
@@ -711,6 +833,10 @@ class AffectsInContext(U.Dependency, MeasurableElement):
     _STEREO = "UAF::Parameters::AffectsInContext"
     _BASE_METACLASSES = ("Dependency",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Dependency this stereotype applies to.
+    'base_Dependency': _Ref('base_Dependency', U.Dependency),
+    }
     CONSTRAINTS = (
         ("AffectsInContext.client",
          "Value for the client metaproperty must be stereotyped «Risk» or its specializations."
@@ -727,6 +853,8 @@ class Alias(MeasurableElement, U.Comment):
     _BASE_METACLASSES = ("Comment",)
     _ABSTRACT = False
     _DECL = {
+    # extension end: the stereotyped Comment this stereotype applies to.
+    'base_Comment': _Ref('base_Comment', U.Comment),
     # Someone or something that uses this alternative name.
     'nameOwner': _Ref('nameOwner', str, multi=True, lo=0, hi='*'),
     }
@@ -742,6 +870,10 @@ class ArbitraryConnector(U.Dependency, MeasurableElement):
     _STEREO = "UAF::Taxonomy::ArbitraryConnector"
     _BASE_METACLASSES = ("Dependency",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Dependency this stereotype applies to.
+    'base_Dependency': _Ref('base_Dependency', U.Dependency),
+    }
     CONSTRAINTS = (
         ("ArbitraryConnector.client",
          "The value for client metaproperty has to be stereotyped «ConceptRole» or its specializat"
@@ -759,6 +891,8 @@ class ArchitecturalDescription(U.Package, MeasurableElement):
     _BASE_METACLASSES = ("Package",)
     _ABSTRACT = False
     _DECL = {
+    # extension end: the stereotyped Package this stereotype applies to.
+    'base_Package': _Ref('base_Package', U.Package),
     # Someone or something that has the authority to approve the ArchitecturalDescription.
     'approvalAuthority': _Ref('approvalAuthority', str, multi=True, lo=0, hi='*'),
     # Someone responsible for the creation of ArchitecturalDescription.
@@ -808,6 +942,10 @@ class ArchitecturalReference(U.Dependency, MeasurableElement):
     _STEREO = "UAF::Traceability::ArchitecturalReference"
     _BASE_METACLASSES = ("Dependency",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Dependency this stereotype applies to.
+    'base_Dependency': _Ref('base_Dependency', U.Dependency),
+    }
     CONSTRAINTS = (
         ("ArchitecturalReference.client",
          "Value for the client metaproperty must be stereotyped «ArchitecturalDescription» or its "
@@ -825,6 +963,8 @@ class Architecture(U.Class, UAFElement):
     _BASE_METACLASSES = ("Class",)
     _ABSTRACT = True
     _DECL = {
+    # extension end: the stereotyped Class this stereotype applies to.
+    'base_Class': _Ref('base_Class', U.Class),
     # The description of an Architecture.
     'describedBy': _Ref('describedBy', 'ArchitecturalDescription', multi=True, lo=0, hi='*'),
     }
@@ -835,6 +975,8 @@ class Metadata(MeasurableElement, U.Comment):
     _BASE_METACLASSES = ("Comment",)
     _ABSTRACT = False
     _DECL = {
+    # extension end: the stereotyped Comment this stereotype applies to.
+    'base_Comment': _Ref('base_Comment', U.Comment),
     # Defines the category of a Metadata element example: http://purl.org/dc/terms/abstract.
     'category': _Ref('category', str),
     # A metadata category that is a DublinCore tag.
@@ -856,6 +998,10 @@ class ArchitectureMetadata(Metadata, U.Comment):
     _STEREO = "UAF::Information::ArchitectureMetadata"
     _BASE_METACLASSES = ("Comment",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Comment this stereotype applies to.
+    'base_Comment': _Ref('base_Comment', U.Comment),
+    }
     CONSTRAINTS = (
         ("ArchitectureMetadata.annotatedElement",
          "Value for the annotatedElement metaproperty must be stereotyped «ArchitecturalDescriptio"
@@ -868,12 +1014,20 @@ class ConceptItem(UAFElement, U.Element):
     _STEREO = "UAF::Taxonomy::ConceptItem"
     _BASE_METACLASSES = ("Element",)
     _ABSTRACT = True
+    _DECL = {
+    # extension end: the stereotyped Element this stereotype applies to.
+    'base_Element': _Ref('base_Element', U.Element),
+    }
 
 class PropertySet(UAFElement, U.Element):
     """An abstract grouping of architectural elements that can own Measurements."""
     _STEREO = "UAF::Parameters::PropertySet"
     _BASE_METACLASSES = ("Element",)
     _ABSTRACT = True
+    _DECL = {
+    # extension end: the stereotyped Element this stereotype applies to.
+    'base_Element': _Ref('base_Element', U.Element),
+    }
 
 class LocationHolder(UAFElement, U.Element):
     """Abstract grouping used to define elements that are allowed to be associated with a Location."""
@@ -881,6 +1035,8 @@ class LocationHolder(UAFElement, U.Element):
     _BASE_METACLASSES = ("Element",)
     _ABSTRACT = True
     _DECL = {
+    # extension end: the stereotyped Element this stereotype applies to.
+    'base_Element': _Ref('base_Element', U.Element),
     # Relates a LocationHolder (i.e. OperationalPerformer, OperationalRole, ResourceRole etc.) to its 
     # ActualLocation.
     'physicalLocation': _Ref('physicalLocation', 'ActualLocation', multi=True, lo=0, hi='*'),
@@ -894,6 +1050,10 @@ class SubjectOfSecurityConstraint(UAFElement, U.Element):
     _STEREO = "UAF::Constraints::SubjectOfSecurityConstraint"
     _BASE_METACLASSES = ("Element",)
     _ABSTRACT = True
+    _DECL = {
+    # extension end: the stereotyped Element this stereotype applies to.
+    'base_Element': _Ref('base_Element', U.Element),
+    }
 
 class Asset(sysml.Block, U.Class, ConceptItem, PropertySet, LocationHolder, SubjectOfSecurityConstraint, AffectableElement):
     """An abstract element that indicates the types of elements that can be affected by Risk. Asset as applied to Security views is an abstract element that indicates the types of elements that can be considered as a subject for security analysis."""
@@ -901,6 +1061,8 @@ class Asset(sysml.Block, U.Class, ConceptItem, PropertySet, LocationHolder, Subj
     _BASE_METACLASSES = ("Class",)
     _ABSTRACT = True
     _DECL = {
+    # extension end: the stereotyped Class this stereotype applies to.
+    'base_Class': _Ref('base_Class', U.Class),
     # Enables association of an Asset to the set of security related measurements (MeasurementSet).
     'categoryCategorizesAsset': _Ref('categoryCategorizesAsset', 'MeasurementSet'),
     }
@@ -910,24 +1072,40 @@ class AssetRole(MeasurableElement, SubjectOfSecurityConstraint, U.Element):
     _STEREO = "UAF::Structure::AssetRole"
     _BASE_METACLASSES = ("Element",)
     _ABSTRACT = True
+    _DECL = {
+    # extension end: the stereotyped Element this stereotype applies to.
+    'base_Element': _Ref('base_Element', U.Element),
+    }
 
 class Desirer(UAFElement, U.Element):
     """Abstract element used to group architecture elements that might desire a particular effect."""
     _STEREO = "UAF::States::Desirer"
     _BASE_METACLASSES = ("Element",)
     _ABSTRACT = True
+    _DECL = {
+    # extension end: the stereotyped Element this stereotype applies to.
+    'base_Element': _Ref('base_Element', U.Element),
+    }
 
 class PhaseableElement(UAFElement, U.Element):
     """An abstract element that indicates the types of elements that can be assigned to a specific ActualStrategicPhase."""
     _STEREO = "UAF::Taxonomy::PhaseableElement"
     _BASE_METACLASSES = ("Element",)
     _ABSTRACT = True
+    _DECL = {
+    # extension end: the stereotyped Element this stereotype applies to.
+    'base_Element': _Ref('base_Element', U.Element),
+    }
 
 class SubjectOfStrategicConstraint(UAFElement, U.Element):
     """An abstract grouping of elements that can be the subject of a StrategicConstraint."""
     _STEREO = "UAF::Constraints::SubjectOfStrategicConstraint"
     _BASE_METACLASSES = ("Element",)
     _ABSTRACT = True
+    _DECL = {
+    # extension end: the stereotyped Element this stereotype applies to.
+    'base_Element': _Ref('base_Element', U.Element),
+    }
 
 class Capability(sysml.Block, U.Class, PropertySet, Desirer, PhaseableElement, AffectableElement, SubjectOfStrategicConstraint):
     """An enterprise's ability to Achieve a desired effect realized through a combination of ways and means (e.g. CapabilityConfigurations) along with specified measures."""
@@ -935,6 +1113,8 @@ class Capability(sysml.Block, U.Class, PropertySet, Desirer, PhaseableElement, A
     _BASE_METACLASSES = ("Class",)
     _ABSTRACT = False
     _DECL = {
+    # extension end: the stereotyped Class this stereotype applies to.
+    'base_Class': _Ref('base_Class', U.Class),
     # Identification of a special kind of Capability that is different from one of the predefined enum
     # erated kinds.
     'customKind': _Ref('customKind', str),
@@ -947,6 +1127,10 @@ class ResourceAsset(Asset, U.Class):
     _STEREO = "UAF::Taxonomy::ResourceAsset"
     _BASE_METACLASSES = ("Class",)
     _ABSTRACT = True
+    _DECL = {
+    # extension end: the stereotyped Class this stereotype applies to.
+    'base_Class': _Ref('base_Class', U.Class),
+    }
 
 class Resource(PropertySet):
     """Abstract element grouping for all elements that can be conveyed by an Exchange."""
@@ -970,6 +1154,8 @@ class VersionedElement(U.Class, UAFElement):
     _BASE_METACLASSES = ("Class",)
     _ABSTRACT = True
     _DECL = {
+    # extension end: the stereotyped Class this stereotype applies to.
+    'base_Class': _Ref('base_Class', U.Class),
     # Relates a VersionedElement to the ActualProjectMilestone. It indicates the ActualProjectMileston
     # e at which the VersionedElement is released.
     'versionReleasedAtMilestone': _Ref('versionReleasedAtMilestone', 'ActualProjectMilestone', multi=True, lo=0, hi='*'),
@@ -983,6 +1169,10 @@ class SubjectOfForecast(U.Class, UAFElement):
     _STEREO = "UAF::Roadmap::SubjectOfForecast"
     _BASE_METACLASSES = ("Class",)
     _ABSTRACT = True
+    _DECL = {
+    # extension end: the stereotyped Class this stereotype applies to.
+    'base_Class': _Ref('base_Class', U.Class),
+    }
 
 class OperationalExchangeItem(Resource):
     """An abstract grouping for elements that defines the types of elements that can be exchanged between OperationalPerformers and conveyed by an OperationalExchange."""
@@ -1006,6 +1196,10 @@ class StrategicExchangeItem(Resource, U.Element):
     _STEREO = "UAF::Connectivity::StrategicExchangeItem"
     _BASE_METACLASSES = ("Element",)
     _ABSTRACT = True
+    _DECL = {
+    # extension end: the stereotyped Element this stereotype applies to.
+    'base_Element': _Ref('base_Element', U.Element),
+    }
 
 class ResourcePerformer(ResourceAsset, VersionedElement, SubjectOfForecast, U.Class, ResourceExchangeItem, OperationalExchangeItem, ServiceExchangeItem, StrategicExchangeItem, SubjectOfResourceConstraint, CapableElement, Desirer):
     """An abstract grouping of elements that can perform Functions."""
@@ -1013,6 +1207,8 @@ class ResourcePerformer(ResourceAsset, VersionedElement, SubjectOfForecast, U.Cl
     _BASE_METACLASSES = ("Class",)
     _ABSTRACT = True
     _DECL = {
+    # extension end: the stereotyped Class this stereotype applies to.
+    'base_Class': _Ref('base_Class', U.Class),
     # Indicates if the ResourcePerformer is StandardConfiguration, default=false.
     'isStandardConfiguration': _Ref('isStandardConfiguration', bool),
     # Relates ResourcePerformer to ProjectMilestones that affect it.
@@ -1037,6 +1233,10 @@ class ResourceArchitecture(ResourcePerformer, Architecture, U.Class):
     _STEREO = "UAF::Taxonomy::ResourceArchitecture"
     _BASE_METACLASSES = ("Class",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Class this stereotype applies to.
+    'base_Class': _Ref('base_Class', U.Class),
+    }
 
 class CapabilityConfiguration(ResourceArchitecture, U.Class):
     """A composite structure representing the physical and human resources (and their interactions) in an enterprise, assembled to meet a capability."""
@@ -1044,6 +1244,8 @@ class CapabilityConfiguration(ResourceArchitecture, U.Class):
     _BASE_METACLASSES = ("Class",)
     _ABSTRACT = False
     _DECL = {
+    # extension end: the stereotyped Class this stereotype applies to.
+    'base_Class': _Ref('base_Class', U.Class),
     # Represents the doctrinal line of development of the Capability.
     'doctrine': _Ref('doctrine', 'StandardOperationalActivity', multi=True, lo=0, hi='*'),
     }
@@ -1053,6 +1255,10 @@ class CapabilityRole(U.Property, MeasurableElement, Desirer):
     _STEREO = "UAF::Structure::CapabilityRole"
     _BASE_METACLASSES = ("Property",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Property this stereotype applies to.
+    'base_Property': _Ref('base_Property', U.Property),
+    }
     CONSTRAINTS = (
         ("CapabilityRole.class",
          "Value for class metaproperty must be stereotyped «Capability» or its specializations."
@@ -1068,6 +1274,8 @@ class MotivationalElement(sysml.Block, U.Class, PropertySet):
     _BASE_METACLASSES = ("Class",)
     _ABSTRACT = True
     _DECL = {
+    # extension end: the stereotyped Class this stereotype applies to.
+    'base_Class': _Ref('base_Class', U.Class),
     # Numerical identifier for tracking and sorting Motivational Elements.
     'ID': _Ref('ID', str),
     # Description of a Motivational Element.
@@ -1080,6 +1288,8 @@ class Challenge(MotivationalElement, U.Class):
     _BASE_METACLASSES = ("Class",)
     _ABSTRACT = False
     _DECL = {
+    # extension end: the stereotyped Class this stereotype applies to.
+    'base_Class': _Ref('base_Class', U.Class),
     # Selection of the enumerated kind for this element.
     'kind': _Ref('kind', ChallengeKind),
     }
@@ -1089,6 +1299,10 @@ class Exchange(sysml.ItemFlow, U.InformationFlow, MeasurableElement, SubjectOfSe
     _STEREO = "UAF::Connectivity::Exchange"
     _BASE_METACLASSES = ("InformationFlow",)
     _ABSTRACT = True
+    _DECL = {
+    # extension end: the stereotyped InformationFlow this stereotype applies to.
+    'base_InformationFlow': _Ref('base_InformationFlow', U.InformationFlow),
+    }
 
 class ResourceExchange(Exchange, U.InformationFlow):
     """Asserts that a flow can exist between ResourcePerformers (i.e. flows of data, people, materiel, or energy)."""
@@ -1096,6 +1310,8 @@ class ResourceExchange(Exchange, U.InformationFlow):
     _BASE_METACLASSES = ("InformationFlow",)
     _ABSTRACT = False
     _DECL = {
+    # extension end: the stereotyped InformationFlow this stereotype applies to.
+    'base_InformationFlow': _Ref('base_InformationFlow', U.InformationFlow),
     # Captures the kind of ResourceExchange.
     'exchangeKind': _Ref('exchangeKind', ResourceExchangeKind, derived=True),
     }
@@ -1135,6 +1351,10 @@ class Command(ResourceExchange, U.InformationFlow):
     _STEREO = "UAF::Connectivity::Command"
     _BASE_METACLASSES = ("InformationFlow",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped InformationFlow this stereotype applies to.
+    'base_InformationFlow': _Ref('base_InformationFlow', U.InformationFlow),
+    }
     CONSTRAINTS = (
         ("Command.informationSource",
          "Value for the informationSource metaproperty must be stereotyped by the specialization o"
@@ -1155,6 +1375,10 @@ class ComparesTo(sysml.Trace, U.Abstraction, MeasurableElement):
     _STEREO = "UAF::Traceability::ComparesTo"
     _BASE_METACLASSES = ("Abstraction",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Abstraction this stereotype applies to.
+    'base_Abstraction': _Ref('base_Abstraction', U.Abstraction),
+    }
     CONSTRAINTS = (
         ("ComparesTo.client",
          "Value for the client metaproperty must be stereotyped by any of specializations of «Actu"
@@ -1171,12 +1395,20 @@ class Competence(SubjectOfForecast, sysml.Block, U.Class, PropertySet):
     _STEREO = "UAF::Constraints::Competence"
     _BASE_METACLASSES = ("Class",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Class this stereotype applies to.
+    'base_Class': _Ref('base_Class', U.Class),
+    }
 
 class CompetenceForRole(sysml.Allocate, U.Abstraction, MeasurableElement):
     """An abstraction relationship used to associate an organizational role with a specific set of required competencies."""
     _STEREO = "UAF::Constraints::CompetenceForRole"
     _BASE_METACLASSES = ("Abstraction",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Abstraction this stereotype applies to.
+    'base_Abstraction': _Ref('base_Abstraction', U.Abstraction),
+    }
     CONSTRAINTS = (
         ("CompetenceForRole.client",
          "Value for the client metaproperty must be stereotyped «ResourceRole» or its specializati"
@@ -1193,6 +1425,10 @@ class CompetenceToConduct(sysml.Allocate, U.Abstraction, MeasurableElement):
     _STEREO = "UAF::Processes::CompetenceToConduct"
     _BASE_METACLASSES = ("Abstraction",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Abstraction this stereotype applies to.
+    'base_Abstraction': _Ref('base_Abstraction', U.Abstraction),
+    }
     CONSTRAINTS = (
         ("CompetenceToConduct.client",
          "Value for the client metaproperty must be stereotyped «Function» or its specializations."
@@ -1208,6 +1444,10 @@ class ConceptRole(U.Property, MeasurableElement):
     _STEREO = "UAF::Taxonomy::ConceptRole"
     _BASE_METACLASSES = ("Property",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Property this stereotype applies to.
+    'base_Property': _Ref('base_Property', U.Property),
+    }
     CONSTRAINTS = (
         ("ConceptRole.type",
          "Value for the type metaproperty must be stereotyped by a specialization of «ConceptItem»"
@@ -1224,18 +1464,30 @@ class Concern(sysml.Block, U.Class, PropertySet, PhaseableElement):
     _STEREO = "UAF::Summary and Overview::Concern"
     _BASE_METACLASSES = ("Class",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Class this stereotype applies to.
+    'base_Class': _Ref('base_Class', U.Class),
+    }
 
 class Condition(sysml.ValueType, U.DataType, PropertySet):
     """A type that defines the Location, Environment and/or GeoPoliticalExtent."""
     _STEREO = "UAF::Parameters::Condition"
     _BASE_METACLASSES = ("DataType",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped DataType this stereotype applies to.
+    'base_DataType': _Ref('base_DataType', U.DataType),
+    }
 
 class Control(ResourceExchange, U.InformationFlow):
     """A type of ResourceExchange that asserts that one PhysicalResource controls another PhysicalResource (i.e. the driver of a vehicle controlling the vehicle speed or direction)."""
     _STEREO = "UAF::Connectivity::Control"
     _BASE_METACLASSES = ("InformationFlow",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped InformationFlow this stereotype applies to.
+    'base_InformationFlow': _Ref('base_InformationFlow', U.InformationFlow),
+    }
     CONSTRAINTS = (
         ("Control.conveyed",
          "Value for the conveyed metaproperty must be stereotyped «ResourceInformation» or its spe"
@@ -1256,6 +1508,10 @@ class Creates(U.Dependency, MeasurableElement):
     _STEREO = "UAF::Processes::Creates"
     _BASE_METACLASSES = ("Dependency",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Dependency this stereotype applies to.
+    'base_Dependency': _Ref('base_Dependency', U.Dependency),
+    }
     CONSTRAINTS = (
         ("Creates.client",
          "Value for the client metaproperty must be stereotyped «ActualOutcome» or its specializat"
@@ -1273,6 +1529,8 @@ class Definition(MeasurableElement, U.Comment):
     _BASE_METACLASSES = ("Comment",)
     _ABSTRACT = False
     _DECL = {
+    # extension end: the stereotyped Comment this stereotype applies to.
+    'base_Comment': _Ref('base_Comment', U.Comment),
     # The original or current person (architect) responsible for the Definition.
     'author': _Ref('author', str, multi=True, lo=0, hi='*'),
     }
@@ -1288,6 +1546,10 @@ class Desires(U.Dependency, MeasurableElement):
     _STEREO = "UAF::States::Desires"
     _BASE_METACLASSES = ("Dependency",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Dependency this stereotype applies to.
+    'base_Dependency': _Ref('base_Dependency', U.Dependency),
+    }
     CONSTRAINTS = (
         ("Desires.client",
          "Value for the client metaproperty must be stereotyped a specialization of «Desirer»."
@@ -1304,6 +1566,8 @@ class Driver(MotivationalElement, U.Class):
     _BASE_METACLASSES = ("Class",)
     _ABSTRACT = False
     _DECL = {
+    # extension end: the stereotyped Class this stereotype applies to.
+    'base_Class': _Ref('base_Class', U.Class),
     # Selection of the enumerated kind for this element.
     'kind': _Ref('kind', DriverKind),
     }
@@ -1313,12 +1577,20 @@ class Effect(MotivationalElement, U.Class):
     _STEREO = "UAF::States::Effect"
     _BASE_METACLASSES = ("Class",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Class this stereotype applies to.
+    'base_Class': _Ref('base_Class', U.Class),
+    }
 
 class Enables(U.Dependency, MeasurableElement):
     """A dependency relationship denoting that an Opportunity provides the means for achieving an EnterpriseGoal or Objective."""
     _STEREO = "UAF::Motivation::Enables"
     _BASE_METACLASSES = ("Dependency",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Dependency this stereotype applies to.
+    'base_Dependency': _Ref('base_Dependency', U.Dependency),
+    }
     CONSTRAINTS = (
         ("Enables.client",
          "Value for the client metaproperty must be stereotyped «Opportunity»."
@@ -1335,6 +1607,8 @@ class SecurityControl(sysml.Requirement, U.Class, MeasurableElement):
     _BASE_METACLASSES = ("Class",)
     _ABSTRACT = False
     _DECL = {
+    # extension end: the stereotyped Class this stereotype applies to.
+    'base_Class': _Ref('base_Class', U.Class),
     # Relates an actual mitigation (an ActualResource for mitigating a Risk) to a SecurityControl.
     'mitigatingActualResource': _Ref('mitigatingActualResource', 'ActualResource', multi=True, lo=0, hi='*'),
     }
@@ -1344,12 +1618,20 @@ class EnhancedSecurityControl(SecurityControl, U.Class):
     _STEREO = "UAF::Motivation::EnhancedSecurityControl"
     _BASE_METACLASSES = ("Class",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Class this stereotype applies to.
+    'base_Class': _Ref('base_Class', U.Class),
+    }
 
 class Enhances(sysml.DeriveReqt, U.Abstraction, MeasurableElement):
     """A dependency relationship relating the EnhancedSecurityControl to a SecurityControl."""
     _STEREO = "UAF::Motivation::Enhances"
     _BASE_METACLASSES = ("Abstraction",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Abstraction this stereotype applies to.
+    'base_Abstraction': _Ref('base_Abstraction', U.Abstraction),
+    }
     CONSTRAINTS = (
         ("Enhances.client",
          "Value for the client metaproperty must be stereotyped «EnhancedSecurityControl» or its s"
@@ -1367,6 +1649,8 @@ class EnterpriseGoal(sysml.Requirement, U.Class, PropertySet, PhaseableElement, 
     _BASE_METACLASSES = ("Class",)
     _ABSTRACT = False
     _DECL = {
+    # extension end: the stereotyped Class this stereotype applies to.
+    'base_Class': _Ref('base_Class', U.Class),
     # An advantage or profit gained from achieving the EnterpriseGoal.
     'benefit': _Ref('benefit', 'ValueItem', multi=True, lo=0, hi='*'),
     }
@@ -1376,12 +1660,20 @@ class EnterpriseMission(ActualEnterprisePhase, U.InstanceSpecification):
     _STEREO = "UAF::Processes::EnterpriseMission"
     _BASE_METACLASSES = ("InstanceSpecification",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped InstanceSpecification this stereotype applies to.
+    'base_InstanceSpecification': _Ref('base_InstanceSpecification', U.InstanceSpecification),
+    }
 
 class EnterpriseObjective(EnterpriseGoal, U.Class):
     """A statement of an attainable, time-targeted, and measurable target that the enterprise seeks to meet in order to achieve its Goals. http://www.omg.org/spec/BMM/1.3/"""
     _STEREO = "UAF::Taxonomy::EnterpriseObjective"
     _BASE_METACLASSES = ("Class",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Class this stereotype applies to.
+    'base_Class': _Ref('base_Class', U.Class),
+    }
 
 class EnterpriseVision(sysml.Block, U.Class, PropertySet, PhaseableElement):
     """A Vision describes the future state of the enterprise, without regard to how it is to be achieved. http://www.omg.org/spec/BMM/1.3/"""
@@ -1389,6 +1681,8 @@ class EnterpriseVision(sysml.Block, U.Class, PropertySet, PhaseableElement):
     _BASE_METACLASSES = ("Class",)
     _ABSTRACT = False
     _DECL = {
+    # extension end: the stereotyped Class this stereotype applies to.
+    'base_Class': _Ref('base_Class', U.Class),
     # A description of the Vision.
     'statement': _Ref('statement', 'VisionStatement', multi=True, lo=0, hi='*', derived=True),
     }
@@ -1399,6 +1693,8 @@ class Environment(Condition, U.DataType):
     _BASE_METACLASSES = ("DataType",)
     _ABSTRACT = False
     _DECL = {
+    # extension end: the stereotyped DataType this stereotype applies to.
+    'base_DataType': _Ref('base_DataType', U.DataType),
     # Captures the kind of Environment.
     'kind': _Ref('kind', EnvironmentKind),
     }
@@ -1408,6 +1704,10 @@ class EnvironmentProperty(U.Property, MeasurableElement):
     _STEREO = "UAF::Parameters::EnvironmentProperty"
     _BASE_METACLASSES = ("Property",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Property this stereotype applies to.
+    'base_Property': _Ref('base_Property', U.Property),
+    }
     CONSTRAINTS = (
         ("EnvironmentalProperty.class",
          "Value for the class metaproperty must be stereotyped «Environment» or its specialization"
@@ -1423,6 +1723,10 @@ class EvokedBy(U.Dependency, MeasurableElement):
     _STEREO = "UAF::Traceability::EvokedBy"
     _BASE_METACLASSES = ("Dependency",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Dependency this stereotype applies to.
+    'base_Dependency': _Ref('base_Dependency', U.Dependency),
+    }
     CONSTRAINTS = (
         ("EvokedBy.client",
          "Value for the client metaproperty must be stereotyped «Risk» or its specializations."
@@ -1439,6 +1743,8 @@ class Exhibits(sysml.Allocate, U.Abstraction, MeasurableElement):
     _BASE_METACLASSES = ("Abstraction",)
     _ABSTRACT = False
     _DECL = {
+    # extension end: the stereotyped Abstraction this stereotype applies to.
+    'base_Abstraction': _Ref('base_Abstraction', U.Abstraction),
     # Defines the environmental conditions constraining the way that a Capability is exhibited.
     'environmentalConditions': _Ref('environmentalConditions', 'Environment', multi=True, lo=0, hi='*'),
     }
@@ -1457,6 +1763,10 @@ class FieldedCapability(ActualResource, U.InstanceSpecification):
     _STEREO = "UAF::Taxonomy::FieldedCapability"
     _BASE_METACLASSES = ("InstanceSpecification",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped InstanceSpecification this stereotype applies to.
+    'base_InstanceSpecification': _Ref('base_InstanceSpecification', U.InstanceSpecification),
+    }
     CONSTRAINTS = (
         ("FieldedCapability.classifier",
          "Value for the classifier metaproperty must be stereotyped «CapabilityConfiguration» or i"
@@ -1470,6 +1780,8 @@ class FillsPost(sysml.Allocate, U.Abstraction, MeasurableElement):
     _BASE_METACLASSES = ("Abstraction",)
     _ABSTRACT = False
     _DECL = {
+    # extension end: the stereotyped Abstraction this stereotype applies to.
+    'base_Abstraction': _Ref('base_Abstraction', U.Abstraction),
     # End date of an ActualPerson filling an ActualPost.
     'endDate': _Ref('endDate', 'ISO8601DateTime'),
     # Start date of an ActualPerson filling an ActualPost.
@@ -1492,6 +1804,8 @@ class Forecast(U.Dependency, MeasurableElement):
     _BASE_METACLASSES = ("Dependency",)
     _ABSTRACT = False
     _DECL = {
+    # extension end: the stereotyped Dependency this stereotype applies to.
+    'base_Dependency': _Ref('base_Dependency', U.Dependency),
     # Relates the SubjectOfForecast to the ActualStrategicPhase in which the SubjectOfForecast is expe
     # cted to be provided.
     'forecastPeriod': _Ref('forecastPeriod', 'ActualStrategicPhase'),
@@ -1518,6 +1832,8 @@ class Function(Activity, U.Activity, SubjectOfResourceConstraint):
     _BASE_METACLASSES = ("Activity",)
     _ABSTRACT = False
     _DECL = {
+    # extension end: the stereotyped Activity this stereotype applies to.
+    'base_Activity': _Ref('base_Activity', U.Activity),
     # ResourceExchangeItems consumed and produced internally within a Function.
     'affectedResource': _Ref('affectedResource', 'ResourceExchangeItem', multi=True, lo=0, hi='*', derived=True),
     }
@@ -1533,6 +1849,10 @@ class FunctionAction(U.CallBehaviorAction, MeasurableElement):
     _STEREO = "UAF::Processes::FunctionAction"
     _BASE_METACLASSES = ("CallBehaviorAction",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped CallBehaviorAction this stereotype applies to.
+    'base_CallBehaviorAction': _Ref('base_CallBehaviorAction', U.CallBehaviorAction),
+    }
     CONSTRAINTS = (
         ("FunctionAction.activity",
          "Value for the activity metaproperty must be stereotyped «Function» or its specialization"
@@ -1549,6 +1869,10 @@ class FunctionEdge(U.ActivityEdge, MeasurableElement):
     _STEREO = "UAF::Processes::FunctionEdge"
     _BASE_METACLASSES = ("ActivityEdge",)
     _ABSTRACT = True
+    _DECL = {
+    # extension end: the stereotyped ActivityEdge this stereotype applies to.
+    'base_ActivityEdge': _Ref('base_ActivityEdge', U.ActivityEdge),
+    }
     CONSTRAINTS = (
         ("FunctionEdge.owner",
          "«FunctionEdge» must be owned directly or indirectly by «Function» or its specializations"
@@ -1561,6 +1885,10 @@ class FunctionControlFlow(U.ControlFlow, FunctionEdge):
     _STEREO = "UAF::Processes::FunctionControlFlow"
     _BASE_METACLASSES = ("ControlFlow",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped ControlFlow this stereotype applies to.
+    'base_ControlFlow': _Ref('base_ControlFlow', U.ControlFlow),
+    }
     CONSTRAINTS = (
         ("FunctionControlFlow.source",
          "Value for the source metaproperty must be stereotyped «FunctionAction» or its specializa"
@@ -1577,6 +1905,10 @@ class FunctionObjectFlow(U.ObjectFlow, FunctionEdge):
     _STEREO = "UAF::Processes::FunctionObjectFlow"
     _BASE_METACLASSES = ("ObjectFlow",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped ObjectFlow this stereotype applies to.
+    'base_ObjectFlow': _Ref('base_ObjectFlow', U.ObjectFlow),
+    }
 
 class GeoPoliticalExtentType(Condition, U.DataType, ResourceExchangeItem, OperationalExchangeItem, StrategicExchangeItem):
     """A type of geospatial extent whose boundaries are defined by declaration or agreement by political parties."""
@@ -1584,6 +1916,8 @@ class GeoPoliticalExtentType(Condition, U.DataType, ResourceExchangeItem, Operat
     _BASE_METACLASSES = ("DataType",)
     _ABSTRACT = False
     _DECL = {
+    # extension end: the stereotyped DataType this stereotype applies to.
+    'base_DataType': _Ref('base_DataType', U.DataType),
     # Captures the kind of GeopoliticalExtentType if the GeoPoliticalExtentTypeKind has been set to "O
     # therType".
     'customKind': _Ref('customKind', str),
@@ -1596,6 +1930,10 @@ class GovernedBy(sysml.Allocate, U.Abstraction, MeasurableElement):
     _STEREO = "UAF::Traceability::GovernedBy"
     _BASE_METACLASSES = ("Abstraction",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Abstraction this stereotype applies to.
+    'base_Abstraction': _Ref('base_Abstraction', U.Abstraction),
+    }
     CONSTRAINTS = (
         ("GovernedBy.client",
          "Value for the client metaproperty must be stereotyped «Service» or its specializations."
@@ -1611,18 +1949,30 @@ class HighLevelOperationalConcept(sysml.Block, U.Class, PropertySet):
     _STEREO = "UAF::Taxonomy::HighLevelOperationalConcept"
     _BASE_METACLASSES = ("Class",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Class this stereotype applies to.
+    'base_Class': _Ref('base_Class', U.Class),
+    }
 
 class ISO8601DateTime(U.LiteralString, UAFElement):
     """A date and time specified in the ISO8601 date-time format including timezone designator (TZD): YYYY-MM-DDThh:mm:ssTZD."""
     _STEREO = "UAF::Taxonomy::ISO8601DateTime"
     _BASE_METACLASSES = ("LiteralString",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped LiteralString this stereotype applies to.
+    'base_LiteralString': _Ref('base_LiteralString', U.LiteralString),
+    }
 
 class ImpactedBy(U.Abstraction, MeasurableElement):
     """A dependency relationship denoting that a Capability is affected by an Opportunity."""
     _STEREO = "UAF::Motivation::ImpactedBy"
     _BASE_METACLASSES = ("Abstraction",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Abstraction this stereotype applies to.
+    'base_Abstraction': _Ref('base_Abstraction', U.Abstraction),
+    }
     CONSTRAINTS = (
         ("ImpactedBy.supplier",
          "In case of value for ImpactedBy.client is stereotyped: a. by any of specializations of «"
@@ -1651,6 +2001,10 @@ class Implements(sysml.Allocate, U.Abstraction, MeasurableElement):
     _STEREO = "UAF::Traceability::Implements"
     _BASE_METACLASSES = ("Abstraction",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Abstraction this stereotype applies to.
+    'base_Abstraction': _Ref('base_Abstraction', U.Abstraction),
+    }
     CONSTRAINTS = (
         ("Implements.client",
          "In case of value for Implements.supplier is stereotyped: a. by any of specializations of"
@@ -1709,6 +2063,8 @@ class Information(MeasurableElement, U.Comment):
     _BASE_METACLASSES = ("Comment",)
     _ABSTRACT = False
     _DECL = {
+    # extension end: the stereotyped Comment this stereotype applies to.
+    'base_Comment': _Ref('base_Comment', U.Comment),
     # Captures the kind of information.
     'informationKind': _Ref('informationKind', InformationKind),
     }
@@ -1724,6 +2080,10 @@ class SubjectOfOperationalConstraint(UAFElement, U.Element):
     _STEREO = "UAF::Constraints::SubjectOfOperationalConstraint"
     _BASE_METACLASSES = ("Element",)
     _ABSTRACT = True
+    _DECL = {
+    # extension end: the stereotyped Element this stereotype applies to.
+    'base_Element': _Ref('base_Element', U.Element),
+    }
 
 class InformationModel(U.Package, SubjectOfOperationalConstraint, SubjectOfResourceConstraint):
     """A structural specification of information types, showing relationships between them. The type of information captured in the InformationModel is described using the enumeration InformationModelKind (Conceptual, Logical, and Physical)."""
@@ -1731,6 +2091,8 @@ class InformationModel(U.Package, SubjectOfOperationalConstraint, SubjectOfResou
     _BASE_METACLASSES = ("Package",)
     _ABSTRACT = False
     _DECL = {
+    # extension end: the stereotyped Package this stereotype applies to.
+    'base_Package': _Ref('base_Package', U.Package),
     # Captures the kind of DataModel being represented, Conceptual, Logical or Physical.
     'kind': _Ref('kind', InformationModelKind),
     }
@@ -1740,6 +2102,10 @@ class IsCapableToPerform(sysml.Allocate, U.Abstraction, MeasurableElement):
     _STEREO = "UAF::Processes::IsCapableToPerform"
     _BASE_METACLASSES = ("Abstraction",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Abstraction this stereotype applies to.
+    'base_Abstraction': _Ref('base_Abstraction', U.Abstraction),
+    }
     CONSTRAINTS = (
         ("IsCapableOfPerforming.client",
          "In case of value for IsCapableToPerform.supplier is stereotyped: a. «OperationalActivity"
@@ -1768,12 +2134,20 @@ class OperationalAsset(Asset, U.Class):
     _STEREO = "UAF::Taxonomy::OperationalAsset"
     _BASE_METACLASSES = ("Class",)
     _ABSTRACT = True
+    _DECL = {
+    # extension end: the stereotyped Class this stereotype applies to.
+    'base_Class': _Ref('base_Class', U.Class),
+    }
 
 class OperationalAgent(OperationalAsset, U.Class, SubjectOfOperationalConstraint, CapableElement, Desirer):
     """An abstract type grouping OperationalArchitecture and OperationalPerformer."""
     _STEREO = "UAF::Structure::OperationalAgent"
     _BASE_METACLASSES = ("Class",)
     _ABSTRACT = True
+    _DECL = {
+    # extension end: the stereotyped Class this stereotype applies to.
+    'base_Class': _Ref('base_Class', U.Class),
+    }
     CONSTRAINTS = (
         ("OperationalAgent.ownedPort",
          "Values for the ownedPort metaproperty must be stereotyped «OperationalPort» or its speci"
@@ -1793,12 +2167,20 @@ class OperationalPerformer(OperationalAgent, U.Class):
     _STEREO = "UAF::Structure::OperationalPerformer"
     _BASE_METACLASSES = ("Class",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Class this stereotype applies to.
+    'base_Class': _Ref('base_Class', U.Class),
+    }
 
 class KnownResource(OperationalPerformer, ResourcePerformer, U.Class):
     """Asserts that a known ResourcePerformer constrains the implementation of the OperationalPerformer that plays the role in the OperationalArchitecture."""
     _STEREO = "UAF::Structure::KnownResource"
     _BASE_METACLASSES = ("Class",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Class this stereotype applies to.
+    'base_Class': _Ref('base_Class', U.Class),
+    }
 
 class Location(Condition, U.DataType, ConceptItem):
     """A specification of the generic area in which a LocationHolder is required to be located."""
@@ -1806,6 +2188,8 @@ class Location(Condition, U.DataType, ConceptItem):
     _BASE_METACLASSES = ("DataType",)
     _ABSTRACT = False
     _DECL = {
+    # extension end: the stereotyped DataType this stereotype applies to.
+    'base_DataType': _Ref('base_DataType', U.DataType),
     # Captures the kind of Location if the LocationTypeKind has been set to "OtherType".
     'customKind': _Ref('customKind', str),
     # Captures the kind of Location.
@@ -1817,6 +2201,10 @@ class MapsToCapability(sysml.Allocate, U.Abstraction, MeasurableElement):
     _STEREO = "UAF::Traceability::MapsToCapability"
     _BASE_METACLASSES = ("Abstraction",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Abstraction this stereotype applies to.
+    'base_Abstraction': _Ref('base_Abstraction', U.Abstraction),
+    }
     CONSTRAINTS = (
         ("MapsToCapability.client",
          "Value for the client metaproperty must be stereotyped a specialization of «Activity»."
@@ -1831,6 +2219,10 @@ class MapsToGoal(sysml.Refine, MeasurableElement, U.Element):
     _STEREO = "UAF::Information::MapsToGoal"
     _BASE_METACLASSES = ("Element",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Element this stereotype applies to.
+    'base_Element': _Ref('base_Element', U.Element),
+    }
     CONSTRAINTS = (
         ("MapsToGoal.client",
          "Value for the client metaproperty must be stereotyped «StrategicInformation»."
@@ -1847,6 +2239,8 @@ class Measurement(U.Property, MeasurableElement):
     _BASE_METACLASSES = ("Property",)
     _ABSTRACT = False
     _DECL = {
+    # extension end: the stereotyped Property this stereotype applies to.
+    'base_Property': _Ref('base_Property', U.Property),
     # Relates the Measurement to the Condition (which provides the environementalContext) under which 
     # the Measurement is expected to be taken.
     'environmentalContext': _Ref('environmentalContext', 'ActualCondition'),
@@ -1864,6 +2258,8 @@ class MeasurementSet(sysml.ValueType, U.DataType, PropertySet):
     _BASE_METACLASSES = ("DataType",)
     _ABSTRACT = False
     _DECL = {
+    # extension end: the stereotyped DataType this stereotype applies to.
+    'base_DataType': _Ref('base_DataType', U.DataType),
     # Relates the MeasurementSet to the MeasurableElement that it is applicable to.
     'appliesFor': _Ref('appliesFor', 'MeasurableElement', multi=True, lo=0, hi='*'),
     }
@@ -1873,6 +2269,10 @@ class Sequence(U.Dependency, MeasurableElement):
     _STEREO = "UAF::Traceability::Sequence"
     _BASE_METACLASSES = ("Dependency",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Dependency this stereotype applies to.
+    'base_Dependency': _Ref('base_Dependency', U.Dependency),
+    }
     CONSTRAINTS = (
         ("Sequence.client",
          "Value for the client metaproperty must be stereotyped by any of specializations of «Actu"
@@ -1889,6 +2289,10 @@ class MilestoneDependency(Sequence, U.Dependency):
     _STEREO = "UAF::Connectivity::MilestoneDependency"
     _BASE_METACLASSES = ("Dependency",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Dependency this stereotype applies to.
+    'base_Dependency': _Ref('base_Dependency', U.Dependency),
+    }
     CONSTRAINTS = (
         ("MilestoneDependency.client",
          "Value for the client metaproperty must be stereotyped «ActualProjectMilestone» or its sp"
@@ -1905,6 +2309,10 @@ class Mitigates(U.Dependency, MeasurableElement):
     _STEREO = "UAF::Parameters::Mitigates"
     _BASE_METACLASSES = ("Dependency",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Dependency this stereotype applies to.
+    'base_Dependency': _Ref('base_Dependency', U.Dependency),
+    }
     CONSTRAINTS = (
         ("Mitigates.client",
          "Value for the client metaproperty must be stereotyped «SecurityControl» or its specializ"
@@ -1920,6 +2328,10 @@ class MotivatedBy(U.Dependency, MeasurableElement):
     _STEREO = "UAF::Motivation::MotivatedBy"
     _BASE_METACLASSES = ("Dependency",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Dependency this stereotype applies to.
+    'base_Dependency': _Ref('base_Dependency', U.Dependency),
+    }
     CONSTRAINTS = (
         ("MotivatedBy.supplier",
          "In case of value for ImpactedBy.client is stereotyped: a. «Opportunity» or its specializ"
@@ -1940,12 +2352,20 @@ class PhysicalResource(ResourcePerformer, U.Class):
     _STEREO = "UAF::Taxonomy::PhysicalResource"
     _BASE_METACLASSES = ("Class",)
     _ABSTRACT = True
+    _DECL = {
+    # extension end: the stereotyped Class this stereotype applies to.
+    'base_Class': _Ref('base_Class', U.Class),
+    }
 
 class NaturalResource(PhysicalResource, U.Class):
     """Type of physical resource that occurs in nature such as oil, water, gas or coal."""
     _STEREO = "UAF::Taxonomy::NaturalResource"
     _BASE_METACLASSES = ("Class",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Class this stereotype applies to.
+    'base_Class': _Ref('base_Class', U.Class),
+    }
 
 class OperationalActivity(Activity, U.Activity, SubjectOfOperationalConstraint):
     """An Activity that captures a logical process, specified independently of how the process is carried out."""
@@ -1953,6 +2373,8 @@ class OperationalActivity(Activity, U.Activity, SubjectOfOperationalConstraint):
     _BASE_METACLASSES = ("Activity",)
     _ABSTRACT = False
     _DECL = {
+    # extension end: the stereotyped Activity this stereotype applies to.
+    'base_Activity': _Ref('base_Activity', U.Activity),
     # A collection of OperationalExchangeItems consumed and produced internally within the Operational
     # Activity.
     'affectedResource': _Ref('affectedResource', 'OperationalExchangeItem', multi=True, lo=0, hi='*', derived=True),
@@ -1969,6 +2391,10 @@ class OperationalActivityAction(U.CallBehaviorAction, MeasurableElement):
     _STEREO = "UAF::Processes::OperationalActivityAction"
     _BASE_METACLASSES = ("CallBehaviorAction",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped CallBehaviorAction this stereotype applies to.
+    'base_CallBehaviorAction': _Ref('base_CallBehaviorAction', U.CallBehaviorAction),
+    }
     CONSTRAINTS = (
         ("OperationalActivityAction.behavior",
          "Value for activity metaproperty must be stereotyped «OperationalActivity» or its special"
@@ -1985,6 +2411,10 @@ class OperationalActivityEdge(U.ActivityEdge, MeasurableElement):
     _STEREO = "UAF::Processes::OperationalActivityEdge"
     _BASE_METACLASSES = ("ActivityEdge",)
     _ABSTRACT = True
+    _DECL = {
+    # extension end: the stereotyped ActivityEdge this stereotype applies to.
+    'base_ActivityEdge': _Ref('base_ActivityEdge', U.ActivityEdge),
+    }
     CONSTRAINTS = (
         ("OperationalActivityEdge.owner",
          "«OperationalActivityEdge» must be owned directly or indirectly by «OperationalActivity» "
@@ -1997,12 +2427,20 @@ class OperationalArchitecture(OperationalAgent, Architecture, U.Class):
     _STEREO = "UAF::Structure::OperationalArchitecture"
     _BASE_METACLASSES = ("Class",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Class this stereotype applies to.
+    'base_Class': _Ref('base_Class', U.Class),
+    }
 
 class OperationalConnector(U.Connector, AssetRole):
     """A Connector that goes between OperationalRoles representing a need to exchange Resources. It can carry a number of OperationalExchanges."""
     _STEREO = "UAF::Connectivity::OperationalConnector"
     _BASE_METACLASSES = ("Connector",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Connector this stereotype applies to.
+    'base_Connector': _Ref('base_Connector', U.Connector),
+    }
     CONSTRAINTS = (
         ("OperationalConnector.end",
          "The value for the role metaproperty for the owned ConnectorEnd must be stereotype «Opera"
@@ -2016,6 +2454,8 @@ class Rule(U.Constraint, MeasurableElement):
     _BASE_METACLASSES = ("Constraint",)
     _ABSTRACT = True
     _DECL = {
+    # extension end: the stereotyped Constraint this stereotype applies to.
+    'base_Constraint': _Ref('base_Constraint', U.Constraint),
     # Captures the kind of Rule that is being described.
     'ruleKind': _Ref('ruleKind', RuleKind),
     }
@@ -2025,6 +2465,10 @@ class OperationalConstraint(Rule, U.Constraint):
     _STEREO = "UAF::Constraints::OperationalConstraint"
     _BASE_METACLASSES = ("Constraint",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Constraint this stereotype applies to.
+    'base_Constraint': _Ref('base_Constraint', U.Constraint),
+    }
     CONSTRAINTS = (
         ("OperationalConstraint.constrainedElement",
          "Value for the constrainedElement metaproperty must be stereotyped by any specialization "
@@ -2037,6 +2481,10 @@ class OperationalControlFlow(U.ControlFlow, OperationalActivityEdge):
     _STEREO = "UAF::Processes::OperationalControlFlow"
     _BASE_METACLASSES = ("ControlFlow",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped ControlFlow this stereotype applies to.
+    'base_ControlFlow': _Ref('base_ControlFlow', U.ControlFlow),
+    }
     CONSTRAINTS = (
         ("OperationalControlFlow.target",
          "Value for the target metaproperty must be stereotyped «OperationalActivityAction» or its"
@@ -2054,6 +2502,8 @@ class OperationalExchange(Exchange, U.InformationFlow, SubjectOfOperationalConst
     _BASE_METACLASSES = ("InformationFlow",)
     _ABSTRACT = False
     _DECL = {
+    # extension end: the stereotyped InformationFlow this stereotype applies to.
+    'base_InformationFlow': _Ref('base_InformationFlow', U.InformationFlow),
     # Captures the kind of Resource being exchanged.
     'exchangeKind': _Ref('exchangeKind', OperationalExchangeKind, derived=True),
     # Captures the directional arbitrary level of trust related to an OperationalExchange between two 
@@ -2099,6 +2549,10 @@ class OperationalInformation(OperationalAsset, U.Class, OperationalExchangeItem,
     _STEREO = "UAF::Information::OperationalInformation"
     _BASE_METACLASSES = ("Class",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Class this stereotype applies to.
+    'base_Class': _Ref('base_Class', U.Class),
+    }
     CONSTRAINTS = (
         ("InformationElement.owner",
          "Values for the owner metaproperty must be stereotyped «DataModel» or its specializations"
@@ -2111,6 +2565,10 @@ class OperationalInformationRole(U.Property, AssetRole):
     _STEREO = "UAF::Structure::OperationalInformationRole"
     _BASE_METACLASSES = ("Property",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Property this stereotype applies to.
+    'base_Property': _Ref('base_Property', U.Property),
+    }
     CONSTRAINTS = (
         ("OperationalInformationRole.type",
          "Value for the type metaproperty must be stereotyped «OperationalInformation» or its spec"
@@ -2127,6 +2585,10 @@ class OperationalInterface(sysml.InterfaceBlock, U.Class, PropertySet):
     _STEREO = "UAF::Connectivity::OperationalInterface"
     _BASE_METACLASSES = ("Class",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Class this stereotype applies to.
+    'base_Class': _Ref('base_Class', U.Class),
+    }
     CONSTRAINTS = (
         ("OperationalInterface.ownedOperation",
          "Values for the ownedOperation metaproperty must be stereotyped «OperationalMethod» or it"
@@ -2139,6 +2601,10 @@ class OperationalMessage(U.Message, MeasurableElement):
     _STEREO = "UAF::Sequences::OperationalMessage"
     _BASE_METACLASSES = ("Message",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Message this stereotype applies to.
+    'base_Message': _Ref('base_Message', U.Message),
+    }
     CONSTRAINTS = (
         ("OperationalMessage.receiveEvent.event.operation",
          "Values for the receiveEvent.event.operation metaproperty must be stereotyped with «Opera"
@@ -2151,6 +2617,10 @@ class OperationalMethod(U.Operation, MeasurableElement):
     _STEREO = "UAF::Structure::OperationalMethod"
     _BASE_METACLASSES = ("Operation",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Operation this stereotype applies to.
+    'base_Operation': _Ref('base_Operation', U.Operation),
+    }
     CONSTRAINTS = (
         ("OperationalMethod.ownedParameter",
          "The values for the ownedParameter metaproperty must be stereotyped «OperationalParameter"
@@ -2167,18 +2637,30 @@ class OperationalMitigation(OperationalArchitecture, U.Class):
     _STEREO = "UAF::Taxonomy::OperationalMitigation"
     _BASE_METACLASSES = ("Class",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Class this stereotype applies to.
+    'base_Class': _Ref('base_Class', U.Class),
+    }
 
 class OperationalObjectFlow(U.ObjectFlow, OperationalActivityEdge):
     """An ActivityEdge that shows the flow of Resources (objects/information) between OperationalActivityActions."""
     _STEREO = "UAF::Processes::OperationalObjectFlow"
     _BASE_METACLASSES = ("ObjectFlow",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped ObjectFlow this stereotype applies to.
+    'base_ObjectFlow': _Ref('base_ObjectFlow', U.ObjectFlow),
+    }
 
 class OperationalParameter(U.Parameter, MeasurableElement):
     """An element that represents inputs and outputs of an OperationalActivity. It is typed by an OperationalExchangeItem."""
     _STEREO = "UAF::Structure::OperationalParameter"
     _BASE_METACLASSES = ("Parameter",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Parameter this stereotype applies to.
+    'base_Parameter': _Ref('base_Parameter', U.Parameter),
+    }
     CONSTRAINTS = (
         ("OperationalParameter.type",
          "Value for the type metaproperty must be stereotyped by specialization of «OperationalExc"
@@ -2191,6 +2673,10 @@ class OperationalPort(sysml.ProxyPort, U.Port, MeasurableElement):
     _STEREO = "UAF::Structure::OperationalPort"
     _BASE_METACLASSES = ("Port",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Port this stereotype applies to.
+    'base_Port': _Ref('base_Port', U.Port),
+    }
     CONSTRAINTS = (
         ("OperationalPort.class",
          "Value for class metaproperty must be stereotyped «OperationalAgent» or its specializatio"
@@ -2207,6 +2693,10 @@ class OperationalRole(U.Property, AssetRole, MeasurableElement, LocationHolder):
     _STEREO = "UAF::Structure::OperationalRole"
     _BASE_METACLASSES = ("Property",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Property this stereotype applies to.
+    'base_Property': _Ref('base_Property', U.Property),
+    }
     CONSTRAINTS = (
         ("OperationalRole.type",
          "Value for type metaproperty must be stereotyped by a specialization of «OperationalAgent"
@@ -2223,12 +2713,20 @@ class OperationalSignal(U.Signal, OperationalExchangeItem, SubjectOfOperationalC
     _STEREO = "UAF::Connectivity::OperationalSignal"
     _BASE_METACLASSES = ("Signal",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Signal this stereotype applies to.
+    'base_Signal': _Ref('base_Signal', U.Signal),
+    }
 
 class OperationalSignalProperty(U.Property, MeasurableElement):
     """A property of an OperationalSignal typed by OperationalExchangeItem. It enables OperationalExchangeItem e.g. OperationalInformation to be passed as arguments of the OperationalSignal."""
     _STEREO = "UAF::Connectivity::OperationalSignalProperty"
     _BASE_METACLASSES = ("Property",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Property this stereotype applies to.
+    'base_Property': _Ref('base_Property', U.Property),
+    }
     CONSTRAINTS = (
         ("OperationalSignalProperty.class",
          "Value for class metaproperty must be stereotyped «OperationalSignal» or its specializati"
@@ -2245,6 +2743,10 @@ class OperationalStateDescription(U.StateMachine, MeasurableElement):
     _STEREO = "UAF::States::OperationalStateDescription"
     _BASE_METACLASSES = ("StateMachine",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped StateMachine this stereotype applies to.
+    'base_StateMachine': _Ref('base_StateMachine', U.StateMachine),
+    }
     CONSTRAINTS = (
         ("OperationalStateDescription.owner",
          "Values for the owner metaproperty must be stereotyped with specializations of «Operation"
@@ -2257,24 +2759,40 @@ class Opportunity(MotivationalElement, U.Class, PhaseableElement, AffectableElem
     _STEREO = "UAF::Motivation::Opportunity"
     _BASE_METACLASSES = ("Class",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Class this stereotype applies to.
+    'base_Class': _Ref('base_Class', U.Class),
+    }
 
 class OrganizationalResource(PhysicalResource, U.Class, Stakeholder):
     """An abstract element grouping for Organization, Person, Post and Responsibility."""
     _STEREO = "UAF::Taxonomy::OrganizationalResource"
     _BASE_METACLASSES = ("Class",)
     _ABSTRACT = True
+    _DECL = {
+    # extension end: the stereotyped Class this stereotype applies to.
+    'base_Class': _Ref('base_Class', U.Class),
+    }
 
 class Organization(OrganizationalResource, U.Class):
     """A group of OrganizationalResources (Persons, Posts, Organizations and Responsibilities) associated for a particular purpose."""
     _STEREO = "UAF::Taxonomy::Organization"
     _BASE_METACLASSES = ("Class",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Class this stereotype applies to.
+    'base_Class': _Ref('base_Class', U.Class),
+    }
 
 class OrganizationInPhase(sysml.Allocate, U.Abstraction, MeasurableElement):
     """An abstraction relationship relating an ActualOrganization to an ActualStrategicPhase to denote that the ActualOrganization plays a role or is a stakeholder in an ActualStrategicPhase."""
     _STEREO = "UAF::Traceability::OrganizationInPhase"
     _BASE_METACLASSES = ("Abstraction",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Abstraction this stereotype applies to.
+    'base_Abstraction': _Ref('base_Abstraction', U.Abstraction),
+    }
     CONSTRAINTS = (
         ("OrganizationInEnterprise.supplier",
          "Value for the supplier metaproperty must be stereotyped by any of specializations of «Ac"
@@ -2291,6 +2809,10 @@ class OwnsProcess(sysml.Allocate, U.Abstraction, MeasurableElement):
     _STEREO = "UAF::Traceability::OwnsProcess"
     _BASE_METACLASSES = ("Abstraction",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Abstraction this stereotype applies to.
+    'base_Abstraction': _Ref('base_Abstraction', U.Abstraction),
+    }
     CONSTRAINTS = (
         ("OwnsProcess.supplier",
          "Value for the supplier metaproperty must be stereotyped «OperationalActivity» or its spe"
@@ -2307,6 +2829,10 @@ class OwnsRisk(sysml.Allocate, U.Abstraction, MeasurableElement):
     _STEREO = "UAF::Parameters::OwnsRisk"
     _BASE_METACLASSES = ("Abstraction",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Abstraction this stereotype applies to.
+    'base_Abstraction': _Ref('base_Abstraction', U.Abstraction),
+    }
     CONSTRAINTS = (
         ("OwnsRisk.client",
          "Value for the client metaproperty must be stereotyped «OrganizationalResource» or its sp"
@@ -2322,6 +2848,10 @@ class OwnsRiskInContext(sysml.Allocate, U.Abstraction, MeasurableElement):
     _STEREO = "UAF::Parameters::OwnsRiskInContext"
     _BASE_METACLASSES = ("Abstraction",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Abstraction this stereotype applies to.
+    'base_Abstraction': _Ref('base_Abstraction', U.Abstraction),
+    }
     CONSTRAINTS = (
         ("OwnsRiskInContext.client",
          "Value for the client metaproperty must be stereotyped «ResourceRole» or its specializati"
@@ -2337,6 +2867,10 @@ class OwnsValue(sysml.Allocate, U.Abstraction, MeasurableElement):
     _STEREO = "UAF::Taxonomy::OwnsValue"
     _BASE_METACLASSES = ("Abstraction",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Abstraction this stereotype applies to.
+    'base_Abstraction': _Ref('base_Abstraction', U.Abstraction),
+    }
     CONSTRAINTS = (
         ("OwnsValue.client",
          "Value for the client metaproperty must be stereotyped by any of specializations of «Actu"
@@ -2353,6 +2887,10 @@ class PerformsInContext(sysml.Allocate, U.Abstraction, MeasurableElement):
     _STEREO = "UAF::Processes::PerformsInContext"
     _BASE_METACLASSES = ("Abstraction",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Abstraction this stereotype applies to.
+    'base_Abstraction': _Ref('base_Abstraction', U.Abstraction),
+    }
     CONSTRAINTS = (
         ("PerformsInContext.client",
          "In case of value for PerformsInContext.supplier is stereotyped: a. «OperationalActivityA"
@@ -2379,12 +2917,20 @@ class Person(OrganizationalResource, U.Class):
     _STEREO = "UAF::Taxonomy::Person"
     _BASE_METACLASSES = ("Class",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Class this stereotype applies to.
+    'base_Class': _Ref('base_Class', U.Class),
+    }
 
 class Phases(U.Abstraction, MeasurableElement):
     """An abstraction relationship that exists between a PhaseableElement and an ActualStrategicPhase that it is assigned to."""
     _STEREO = "UAF::Summary and Overview::Phases"
     _BASE_METACLASSES = ("Abstraction",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Abstraction this stereotype applies to.
+    'base_Abstraction': _Ref('base_Abstraction', U.Abstraction),
+    }
     CONSTRAINTS = (
         ("Phases.client",
          "Value for the client metaproperty must be stereotyped by any of specializations of «Actu"
@@ -2401,12 +2947,20 @@ class Post(OrganizationalResource, U.Class):
     _STEREO = "UAF::Taxonomy::Post"
     _BASE_METACLASSES = ("Class",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Class this stereotype applies to.
+    'base_Class': _Ref('base_Class', U.Class),
+    }
 
 class PresentedBy(U.Dependency, MeasurableElement):
     """A dependency relationship denoting that a Challenge must be overcome for addressing a Driver."""
     _STEREO = "UAF::Motivation::PresentedBy"
     _BASE_METACLASSES = ("Dependency",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Dependency this stereotype applies to.
+    'base_Dependency': _Ref('base_Dependency', U.Dependency),
+    }
     CONSTRAINTS = (
         ("PresentedBy.client",
          "Value for the client metaproperty must be stereotyped «Challenge» or its specializations"
@@ -2422,6 +2976,10 @@ class ProblemDomain(OperationalRole, U.Property):
     _STEREO = "UAF::Structure::ProblemDomain"
     _BASE_METACLASSES = ("Property",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Property this stereotype applies to.
+    'base_Property': _Ref('base_Property', U.Property),
+    }
     CONSTRAINTS = (
         ("ProblemDomain.class",
          "Value for the class metaproperty must be stereotyped «OperationalArchitecture» or its sp"
@@ -2438,18 +2996,30 @@ class Project(OrganizationalResource, sysml.Block, U.Class):
     _STEREO = "UAF::Taxonomy::Project"
     _BASE_METACLASSES = ("Class",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Class this stereotype applies to.
+    'base_Class': _Ref('base_Class', U.Class),
+    }
 
 class ProjectActivity(Function, U.Activity):
     """An activity carried out during a project."""
     _STEREO = "UAF::Processes::ProjectActivity"
     _BASE_METACLASSES = ("Activity",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Activity this stereotype applies to.
+    'base_Activity': _Ref('base_Activity', U.Activity),
+    }
 
 class ProjectActivityAction(FunctionAction, U.CallBehaviorAction):
     """The ProjectActivityAction is defined as a call behavior action that invokes the activity that needs to be preformed."""
     _STEREO = "UAF::Processes::ProjectActivityAction"
     _BASE_METACLASSES = ("CallBehaviorAction",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped CallBehaviorAction this stereotype applies to.
+    'base_CallBehaviorAction': _Ref('base_CallBehaviorAction', U.CallBehaviorAction),
+    }
     CONSTRAINTS = (
         ("ProjectActivityAction.activity",
          "Value for the activity metaproperty must be stereotyped «ProjectActivity» or its special"
@@ -2467,6 +3037,8 @@ class ProjectMilestone(sysml.Block, U.Class, PropertySet):
     _BASE_METACLASSES = ("Class",)
     _ABSTRACT = False
     _DECL = {
+    # extension end: the stereotyped Class this stereotype applies to.
+    'base_Class': _Ref('base_Class', U.Class),
     # Relates a ProjectMilestone to the Resources that can be affected by the milestone. It is used to
     #  describe aspects of the lifecycle of a Resource.
     'resource': _Ref('resource', 'ResourcePerformer', multi=True, lo=0, hi='*'),
@@ -2483,6 +3055,10 @@ class ProjectMilestoneRole(U.Property, MeasurableElement):
     _STEREO = "UAF::Structure::ProjectMilestoneRole"
     _BASE_METACLASSES = ("Property",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Property this stereotype applies to.
+    'base_Property': _Ref('base_Property', U.Property),
+    }
     CONSTRAINTS = (
         ("ProjectMilestoneRole.class",
          "Value for the class metaproperty must be stereotyped «Project» or its specializations."
@@ -2499,6 +3075,8 @@ class ResourceRole(U.Property, AssetRole, LocationHolder, SubjectOfResourceConst
     _BASE_METACLASSES = ("Property",)
     _ABSTRACT = False
     _DECL = {
+    # extension end: the stereotyped Property this stereotype applies to.
+    'base_Property': _Ref('base_Property', U.Property),
     # Captures the kind of role a Resource can play.
     'roleKind': _Ref('roleKind', RoleKind),
     }
@@ -2518,6 +3096,10 @@ class ProjectRole(ResourceRole, U.Property):
     _STEREO = "UAF::Structure::ProjectRole"
     _BASE_METACLASSES = ("Property",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Property this stereotype applies to.
+    'base_Property': _Ref('base_Property', U.Property),
+    }
     CONSTRAINTS = (
         ("ProjectRole.class",
          "Value for the class metaproperty must be stereotyped «Project» or its specializations."
@@ -2532,6 +3114,10 @@ class ProjectSequence(Sequence, U.Dependency):
     _STEREO = "UAF::Connectivity::ProjectSequence"
     _BASE_METACLASSES = ("Dependency",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Dependency this stereotype applies to.
+    'base_Dependency': _Ref('base_Dependency', U.Dependency),
+    }
     CONSTRAINTS = (
         ("ProjectSequence.client",
          "Value for the client metaproperty must be stereotyped «ActualProject» or its specializat"
@@ -2548,6 +3134,10 @@ class ProjectStatus(U.Slot, UAFElement):
     _STEREO = "UAF::Structure::ProjectStatus"
     _BASE_METACLASSES = ("Slot",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Slot this stereotype applies to.
+    'base_Slot': _Ref('base_Slot', U.Slot),
+    }
     CONSTRAINTS = (
         ("ProjectStatus.definingFeature",
          "Value for the DefiningFeature metaproperty must be stereotyped «ProjectTheme» or its spe"
@@ -2560,6 +3150,10 @@ class ProjectTheme(U.Property, MeasurableElement):
     _STEREO = "UAF::Structure::ProjectTheme"
     _BASE_METACLASSES = ("Property",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Property this stereotype applies to.
+    'base_Property': _Ref('base_Property', U.Property),
+    }
     CONSTRAINTS = (
         ("ProjecTheme.type",
          "Value for the type metaproperty must be stereotyped «StatusIndicators» or its specializa"
@@ -2576,6 +3170,10 @@ class Protects(U.Dependency, MeasurableElement):
     _STEREO = "UAF::Motivation::Protects"
     _BASE_METACLASSES = ("Dependency",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Dependency this stereotype applies to.
+    'base_Dependency': _Ref('base_Dependency', U.Dependency),
+    }
     CONSTRAINTS = (
         ("Protects.client",
          "Value for the client metaproperty must be stereotyped «SecurityControl» or its specializ"
@@ -2592,6 +3190,10 @@ class ProtectsInContext(U.Dependency, MeasurableElement):
     _STEREO = "UAF::Motivation::ProtectsInContext"
     _BASE_METACLASSES = ("Dependency",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Dependency this stereotype applies to.
+    'base_Dependency': _Ref('base_Dependency', U.Dependency),
+    }
     CONSTRAINTS = (
         ("ProtectsInContext.client",
          "Value for the client metaproperty must be stereotyped «SecurityControl» or its specializ"
@@ -2609,6 +3211,8 @@ class Standard(SubjectOfForecast, sysml.Block, U.Class, PropertySet):
     _BASE_METACLASSES = ("Class",)
     _ABSTRACT = False
     _DECL = {
+    # extension end: the stereotyped Class this stereotype applies to.
+    'base_Class': _Ref('base_Class', U.Class),
     # The date when this version of the Standard was published.
     'mandatedDate': _Ref('mandatedDate', 'ISO8601DateTime'),
     # Relates a Standard to the ActualOrganization that ratified the Standard.
@@ -2622,6 +3226,10 @@ class Protocol(Standard, U.Class):
     _STEREO = "UAF::Taxonomy::Protocol"
     _BASE_METACLASSES = ("Class",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Class this stereotype applies to.
+    'base_Class': _Ref('base_Class', U.Class),
+    }
 
 class ProtocolImplementation(UAFElement, U.Element):
     """An abstract grouping of architectural elements that can implement Protocols."""
@@ -2629,6 +3237,8 @@ class ProtocolImplementation(UAFElement, U.Element):
     _BASE_METACLASSES = ("Element",)
     _ABSTRACT = True
     _DECL = {
+    # extension end: the stereotyped Element this stereotype applies to.
+    'base_Element': _Ref('base_Element', U.Element),
     # Relates the ResourceConnector and ResourcePort to the Protocols that they can implement.
     'implements': _Ref('implements', 'Protocol', multi=True, lo=0, hi='*'),
     }
@@ -2638,6 +3248,10 @@ class ProtocolLayer(U.Property, MeasurableElement):
     _STEREO = "UAF::Structure::ProtocolLayer"
     _BASE_METACLASSES = ("Property",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Property this stereotype applies to.
+    'base_Property': _Ref('base_Property', U.Property),
+    }
     CONSTRAINTS = (
         ("ProtocolLayer.class",
          "Value for the class metaproperty must be stereotyped «Protocol» or its specializations."
@@ -2652,18 +3266,30 @@ class ProtocolStack(Protocol, U.Class):
     _STEREO = "UAF::Taxonomy::ProtocolStack"
     _BASE_METACLASSES = ("Class",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Class this stereotype applies to.
+    'base_Class': _Ref('base_Class', U.Class),
+    }
 
 class ProvidedServiceLevel(ActualService, U.InstanceSpecification):
     """A sub type of ActualService that details a specific service level delivered by the provider."""
     _STEREO = "UAF::Constraints::ProvidedServiceLevel"
     _BASE_METACLASSES = ("InstanceSpecification",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped InstanceSpecification this stereotype applies to.
+    'base_InstanceSpecification': _Ref('base_InstanceSpecification', U.InstanceSpecification),
+    }
 
 class ProvidesCompetence(U.Dependency, MeasurableElement):
     """A dependency relationship that asserts that an ActualOrganizationalResource provides a specific set of Competencies."""
     _STEREO = "UAF::Constraints::ProvidesCompetence"
     _BASE_METACLASSES = ("Dependency",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Dependency this stereotype applies to.
+    'base_Dependency': _Ref('base_Dependency', U.Dependency),
+    }
     CONSTRAINTS = (
         ("ProvidesCompetence.client",
          "Value for the client metaproperty must be stereotyped by a specialization of «ActualOrga"
@@ -2680,12 +3306,20 @@ class RequiredServiceLevel(ActualService, U.InstanceSpecification):
     _STEREO = "UAF::Constraints::RequiredServiceLevel"
     _BASE_METACLASSES = ("InstanceSpecification",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped InstanceSpecification this stereotype applies to.
+    'base_InstanceSpecification': _Ref('base_InstanceSpecification', U.InstanceSpecification),
+    }
 
 class RequiresCompetence(sysml.Allocate, U.Abstraction, MeasurableElement):
     """An abstraction relationship that asserts that an ActualOrganizationalResource is required to have a specific set of Competencies."""
     _STEREO = "UAF::Constraints::RequiresCompetence"
     _BASE_METACLASSES = ("Abstraction",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Abstraction this stereotype applies to.
+    'base_Abstraction': _Ref('base_Abstraction', U.Abstraction),
+    }
     CONSTRAINTS = (
         ("RequiresCompetence.client",
          "Value for the client metaproperty must be stereotyped a specialization of «Organizationa"
@@ -2702,6 +3336,10 @@ class ResourceArtifact(PhysicalResource, U.Class):
     _STEREO = "UAF::Taxonomy::ResourceArtifact"
     _BASE_METACLASSES = ("Class",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Class this stereotype applies to.
+    'base_Class': _Ref('base_Class', U.Class),
+    }
 
 class ResourceConnector(U.Connector, AssetRole, ProtocolImplementation):
     """A channel for exchange between two ResourceRoles."""
@@ -2709,6 +3347,8 @@ class ResourceConnector(U.Connector, AssetRole, ProtocolImplementation):
     _BASE_METACLASSES = ("Connector",)
     _ABSTRACT = False
     _DECL = {
+    # extension end: the stereotyped Connector this stereotype applies to.
+    'base_Connector': _Ref('base_Connector', U.Connector),
     # Relates a ResourceConector to the extremes of the Environment in which it is required to be made
     #  available.
     'boundaryCondition': _Ref('boundaryCondition', 'Environment', multi=True, lo=0, hi='*'),
@@ -2725,6 +3365,10 @@ class ResourceConstraint(Rule, U.Constraint):
     _STEREO = "UAF::Constraints::ResourceConstraint"
     _BASE_METACLASSES = ("Constraint",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Constraint this stereotype applies to.
+    'base_Constraint': _Ref('base_Constraint', U.Constraint),
+    }
     CONSTRAINTS = (
         ("ResourceConstraint.constrainedElement",
          "Value for the constrainedElement metaproperty must be stereotyped by the specialization "
@@ -2737,6 +3381,10 @@ class ResourceInformation(ResourceAsset, U.Class, ResourceExchangeItem, SubjectO
     _STEREO = "UAF::Information::ResourceInformation"
     _BASE_METACLASSES = ("Class",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Class this stereotype applies to.
+    'base_Class': _Ref('base_Class', U.Class),
+    }
     CONSTRAINTS = (
         ("ResourceInformation.owner",
          "Values for the owner metaproperty must be stereotyped «InformationModel» or its speciali"
@@ -2749,6 +3397,10 @@ class ResourceInformationRole(AssetRole, U.Element):
     _STEREO = "UAF::Structure::ResourceInformationRole"
     _BASE_METACLASSES = ("Element",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Element this stereotype applies to.
+    'base_Element': _Ref('base_Element', U.Element),
+    }
     CONSTRAINTS = (
         ("ResourceInformationRole.class",
          "Value for the class metaproperty must be stereotyped by the specialization of «ResourceA"
@@ -2765,6 +3417,10 @@ class ResourceInterface(sysml.InterfaceBlock, U.Class, PropertySet):
     _STEREO = "UAF::Connectivity::ResourceInterface"
     _BASE_METACLASSES = ("Class",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Class this stereotype applies to.
+    'base_Class': _Ref('base_Class', U.Class),
+    }
     CONSTRAINTS = (
         ("ResourceInterface.ownedOperation",
          "Values for ownedOperation metaproperty must be stereotyped «ResourceMethod» or its speci"
@@ -2777,6 +3433,10 @@ class ResourceMessage(U.Message, MeasurableElement):
     _STEREO = "UAF::Sequences::ResourceMessage"
     _BASE_METACLASSES = ("Message",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Message this stereotype applies to.
+    'base_Message': _Ref('base_Message', U.Message),
+    }
     CONSTRAINTS = (
         ("ResourceMessage.receiveEvent.event.operation",
          "Values for the receiveEvent.event.operation metaproperty must be stereotyped with «Resou"
@@ -2789,6 +3449,10 @@ class ResourceMethod(U.Operation, MeasurableElement):
     _STEREO = "UAF::Structure::ResourceMethod"
     _BASE_METACLASSES = ("Operation",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Operation this stereotype applies to.
+    'base_Operation': _Ref('base_Operation', U.Operation),
+    }
     CONSTRAINTS = (
         ("ResourceMethod.method",
          "Value for the method metaproperty must be stereotyped «Function» or its specializations."
@@ -2803,12 +3467,20 @@ class ResourceMitigation(ResourceArchitecture, U.Class):
     _STEREO = "UAF::Taxonomy::ResourceMitigation"
     _BASE_METACLASSES = ("Class",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Class this stereotype applies to.
+    'base_Class': _Ref('base_Class', U.Class),
+    }
 
 class ResourceParameter(U.Parameter, MeasurableElement):
     """An element that represents inputs and outputs of a Function. It is typed by a ResourceInteractionItem."""
     _STEREO = "UAF::Structure::ResourceParameter"
     _BASE_METACLASSES = ("Parameter",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Parameter this stereotype applies to.
+    'base_Parameter': _Ref('base_Parameter', U.Parameter),
+    }
     CONSTRAINTS = (
         ("ResourceParameter.type",
          "Value for the type metaproperty must be stereotyped with a specialization of «ResourceIn"
@@ -2821,6 +3493,10 @@ class ResourcePort(sysml.ProxyPort, U.Port, MeasurableElement, ProtocolImplement
     _STEREO = "UAF::Structure::ResourcePort"
     _BASE_METACLASSES = ("Port",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Port this stereotype applies to.
+    'base_Port': _Ref('base_Port', U.Port),
+    }
     CONSTRAINTS = (
         ("ResoucePort.type",
          "Value for the type metaproperty must be stereotyped «ResourceInterface» or its specializ"
@@ -2837,24 +3513,40 @@ class ResourceService(ResourcePerformer, U.Class):
     _STEREO = "UAF::Taxonomy::ResourceService"
     _BASE_METACLASSES = ("Class",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Class this stereotype applies to.
+    'base_Class': _Ref('base_Class', U.Class),
+    }
 
 class ResourceServiceInterface(ResourceInterface, U.Class):
     """A contract that defines the ResourceMethods and ResourceSignal receptions that the ResourceServices realize."""
     _STEREO = "UAF::Connectivity::ResourceServiceInterface"
     _BASE_METACLASSES = ("Class",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Class this stereotype applies to.
+    'base_Class': _Ref('base_Class', U.Class),
+    }
 
 class ResourceSignal(U.Signal, ResourceExchangeItem):
     """A ResourceSignal is a specification of a kind of communication between resources (ResourcePerformers) in which a reaction is asynchronously triggered in the receiver without a reply."""
     _STEREO = "UAF::Connectivity::ResourceSignal"
     _BASE_METACLASSES = ("Signal",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Signal this stereotype applies to.
+    'base_Signal': _Ref('base_Signal', U.Signal),
+    }
 
 class ResourceSignalProperty(U.Property, MeasurableElement):
     """A property of an ResourceSignal typed by ResourceExchangeItem. It enables ResourceExchangeItem e.g. ResourceInformation to be passed as arguments of the ResourceSignal."""
     _STEREO = "UAF::Connectivity::ResourceSignalProperty"
     _BASE_METACLASSES = ("Property",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Property this stereotype applies to.
+    'base_Property': _Ref('base_Property', U.Property),
+    }
     CONSTRAINTS = (
         ("ResourceSignalProperty.class",
          "Value for class metaproperty must be stereotyped «ResourceSignal» or its specializations"
@@ -2871,6 +3563,10 @@ class ResourceStateDescription(U.StateMachine, MeasurableElement):
     _STEREO = "UAF::States::ResourceStateDescription"
     _BASE_METACLASSES = ("StateMachine",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped StateMachine this stereotype applies to.
+    'base_StateMachine': _Ref('base_StateMachine', U.StateMachine),
+    }
     CONSTRAINTS = (
         ("ResourceStateDescription.owner",
          "Values for the owner metaproperty must be stereotyped with the specialization of «Resour"
@@ -2883,6 +3579,10 @@ class Responsibility(OrganizationalResource, U.Class):
     _STEREO = "UAF::Taxonomy::Responsibility"
     _BASE_METACLASSES = ("Class",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Class this stereotype applies to.
+    'base_Class': _Ref('base_Class', U.Class),
+    }
 
 class ResponsibleFor(sysml.Allocate, U.Abstraction, MeasurableElement):
     """An abstraction relationship between an ActualResponsibleResource and an ActualResponsibility or ActualProject. It defines the duties that the ActualResponsibleResource is ResponsibleFor."""
@@ -2890,6 +3590,8 @@ class ResponsibleFor(sysml.Allocate, U.Abstraction, MeasurableElement):
     _BASE_METACLASSES = ("Abstraction",)
     _ABSTRACT = False
     _DECL = {
+    # extension end: the stereotyped Abstraction this stereotype applies to.
+    'base_Abstraction': _Ref('base_Abstraction', U.Abstraction),
     # End date of an ActualResponsibleResource being ResponsibleFor and ActualProject or ActualRespons
     # ibility.
     'endDate': _Ref('endDate', 'ISO8601DateTime'),
@@ -2916,12 +3618,20 @@ class Risk(sysml.Block, U.Constraint, PropertySet):
     _STEREO = "UAF::Parameters::Risk"
     _BASE_METACLASSES = ("Constraint",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Constraint this stereotype applies to.
+    'base_Constraint': _Ref('base_Constraint', U.Constraint),
+    }
 
 class SameAs(U.Dependency, MeasurableElement):
     """A dependency relationship that asserts that two elements refer to the same real-world thing."""
     _STEREO = "UAF::Information::SameAs"
     _BASE_METACLASSES = ("Dependency",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Dependency this stereotype applies to.
+    'base_Dependency': _Ref('base_Dependency', U.Dependency),
+    }
     CONSTRAINTS = (
         ("SameAs.client",
          "Values for the client metaproperty must be stereotyped by the specialization of «UAFElem"
@@ -2938,6 +3648,10 @@ class SecurityConstraint(Rule, U.Constraint):
     _STEREO = "UAF::Constraints::SecurityConstraint"
     _BASE_METACLASSES = ("Constraint",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Constraint this stereotype applies to.
+    'base_Constraint': _Ref('base_Constraint', U.Constraint),
+    }
     CONSTRAINTS = (
         ("Security.constrainedElement",
          "Value for the constrainedElement metaproperty must be stereotyped by the specialization "
@@ -2950,24 +3664,40 @@ class SecurityControlFamily(SecurityControl, U.Class):
     _STEREO = "UAF::Motivation::SecurityControlFamily"
     _BASE_METACLASSES = ("Class",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Class this stereotype applies to.
+    'base_Class': _Ref('base_Class', U.Class),
+    }
 
 class SecurityEnclave(ResourceArchitecture, U.Class):
     """Collection of information systems connected by one or more internal networks under the control of a single authority and security policy. The systems may be structured by physical proximity or by function, independent of location."""
     _STEREO = "UAF::Taxonomy::SecurityEnclave"
     _BASE_METACLASSES = ("Class",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Class this stereotype applies to.
+    'base_Class': _Ref('base_Class', U.Class),
+    }
 
 class SecurityProcess(OperationalActivity, Function, U.Activity, SubjectOfSecurityConstraint):
     """The security-related procedure that satisfies the security control requirement."""
     _STEREO = "UAF::Processes::SecurityProcess"
     _BASE_METACLASSES = ("Activity",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Activity this stereotype applies to.
+    'base_Activity': _Ref('base_Activity', U.Activity),
+    }
 
 class SecurityProcessAction(OperationalActivityAction, FunctionAction, U.CallBehaviorAction):
     """A call of a SecurityProcess in the context of another SecurityProcess."""
     _STEREO = "UAF::Processes::SecurityProcessAction"
     _BASE_METACLASSES = ("CallBehaviorAction",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped CallBehaviorAction this stereotype applies to.
+    'base_CallBehaviorAction': _Ref('base_CallBehaviorAction', U.CallBehaviorAction),
+    }
     CONSTRAINTS = (
         ("SecurityProcessAction.behavior",
          "Value for behavior metaproperty must be stereotyped «SecurityProcess» or its specializat"
@@ -2980,24 +3710,40 @@ class SecurityRisk(Risk, U.Class):
     _STEREO = "UAF::Constraints::SecurityRisk"
     _BASE_METACLASSES = ("Class",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Class this stereotype applies to.
+    'base_Class': _Ref('base_Class', U.Class),
+    }
 
 class Service(Asset, VersionedElement, sysml.Block, U.Class, PropertySet, CapableElement):
     """A mechanism to enable access to one or more capabilities, where the access is provided using a prescribed service interface and is exercised consistent with service constraints and policies."""
     _STEREO = "UAF::Taxonomy::Service"
     _BASE_METACLASSES = ("Class",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Class this stereotype applies to.
+    'base_Class': _Ref('base_Class', U.Class),
+    }
 
 class ServiceArchitecture(Service, Architecture, U.Class):
     """An element used to denote a model of the Architecture, described from the Services perspective."""
     _STEREO = "UAF::Taxonomy::ServiceArchitecture"
     _BASE_METACLASSES = ("Class",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Class this stereotype applies to.
+    'base_Class': _Ref('base_Class', U.Class),
+    }
 
 class ServiceConnector(U.Connector, AssetRole):
     """A channel for exchange between two Services. Where one acts as the consumer of the other."""
     _STEREO = "UAF::Connectivity::ServiceConnector"
     _BASE_METACLASSES = ("Connector",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Connector this stereotype applies to.
+    'base_Connector': _Ref('base_Connector', U.Connector),
+    }
     CONSTRAINTS = (
         ("ServiceConnector.end",
          "The value for the role metaproperty for the owned ConnectorEnd must be stereotyped «Serv"
@@ -3011,6 +3757,8 @@ class ServiceContract(Rule, U.Constraint):
     _BASE_METACLASSES = ("Constraint",)
     _ABSTRACT = False
     _DECL = {
+    # extension end: the stereotyped Constraint this stereotype applies to.
+    'base_Constraint': _Ref('base_Constraint', U.Constraint),
     # OperationalExchanges constrained to be carried out by the Service GovernedBy this ServiceContrac
     # t.
     'constrainedExchanges': _Ref('constrainedExchanges', 'OperationalExchange', multi=True, lo=0, hi='*', derived=True),
@@ -3027,6 +3775,10 @@ class ServiceFunctionEdge(U.ActivityEdge, MeasurableElement):
     _STEREO = "UAF::Processes::ServiceFunctionEdge"
     _BASE_METACLASSES = ("ActivityEdge",)
     _ABSTRACT = True
+    _DECL = {
+    # extension end: the stereotyped ActivityEdge this stereotype applies to.
+    'base_ActivityEdge': _Ref('base_ActivityEdge', U.ActivityEdge),
+    }
     CONSTRAINTS = (
         ("ServiceFunctionEdge.owner",
          "«ServiceFunctionEdge» must be owned directly or indirectly by «ServiceFunction» or its s"
@@ -3039,6 +3791,10 @@ class ServiceControlFlow(U.ControlFlow, ServiceFunctionEdge):
     _STEREO = "UAF::Processes::ServiceControlFlow"
     _BASE_METACLASSES = ("ControlFlow",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped ControlFlow this stereotype applies to.
+    'base_ControlFlow': _Ref('base_ControlFlow', U.ControlFlow),
+    }
     CONSTRAINTS = (
         ("ServiceControlFlow.source",
          "Value for the source metaproperty must be stereotyped «ServiceFunctionAction» or its spe"
@@ -3056,6 +3812,8 @@ class ServiceExchange(Exchange, U.InformationFlow):
     _BASE_METACLASSES = ("InformationFlow",)
     _ABSTRACT = False
     _DECL = {
+    # extension end: the stereotyped InformationFlow this stereotype applies to.
+    'base_InformationFlow': _Ref('base_InformationFlow', U.InformationFlow),
     # Captures the kind of Resource being exchanged.
     'exchangeKind': _Ref('exchangeKind', ServiceExchangeKind, derived=True),
     }
@@ -3091,6 +3849,10 @@ class ServiceFunction(Activity, U.Activity):
     _STEREO = "UAF::Processes::ServiceFunction"
     _BASE_METACLASSES = ("Activity",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Activity this stereotype applies to.
+    'base_Activity': _Ref('base_Activity', U.Activity),
+    }
     CONSTRAINTS = (
         ("ServiceFunction.ownedParameter",
          "The values for the ownedParameter metaproperty must be stereotyped «ServiceParameter»."
@@ -3102,6 +3864,10 @@ class ServiceFunctionAction(U.CallBehaviorAction, MeasurableElement):
     _STEREO = "UAF::Processes::ServiceFunctionAction"
     _BASE_METACLASSES = ("CallBehaviorAction",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped CallBehaviorAction this stereotype applies to.
+    'base_CallBehaviorAction': _Ref('base_CallBehaviorAction', U.CallBehaviorAction),
+    }
     CONSTRAINTS = (
         ("ServiceFunctionAction.behavior",
          "Value for the activity metaproperty must be stereotyped «ServiceFunction» or its special"
@@ -3118,6 +3884,10 @@ class ServiceInterface(sysml.InterfaceBlock, U.Class, PropertySet):
     _STEREO = "UAF::Connectivity::ServiceInterface"
     _BASE_METACLASSES = ("Class",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Class this stereotype applies to.
+    'base_Class': _Ref('base_Class', U.Class),
+    }
     CONSTRAINTS = (
         ("ServiceInterface.ownedOperation",
          "Values for the ownedOperation metaproperty must be stereotyped «ServiceMethod» or its sp"
@@ -3130,6 +3900,10 @@ class ServiceMessage(U.Message, MeasurableElement):
     _STEREO = "UAF::Sequences::ServiceMessage"
     _BASE_METACLASSES = ("Message",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Message this stereotype applies to.
+    'base_Message': _Ref('base_Message', U.Message),
+    }
     CONSTRAINTS = (
         ("ServiceMessage.receiveEvent.event.operation",
          "Values for the receiveEvent.event.operation metaproperty must be stereotyped with «Servi"
@@ -3142,6 +3916,10 @@ class ServiceMethod(U.Operation, MeasurableElement):
     _STEREO = "UAF::Structure::ServiceMethod"
     _BASE_METACLASSES = ("Operation",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Operation this stereotype applies to.
+    'base_Operation': _Ref('base_Operation', U.Operation),
+    }
     CONSTRAINTS = (
         ("ServiceMethod.ownedParameter",
          "The values for the ownedParameter metaproperty must be stereotyped «ServiceParameter» or"
@@ -3162,12 +3940,20 @@ class ServiceObjectFlow(U.ObjectFlow, ServiceFunctionEdge):
     _STEREO = "UAF::Processes::ServiceObjectFlow"
     _BASE_METACLASSES = ("ObjectFlow",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped ObjectFlow this stereotype applies to.
+    'base_ObjectFlow': _Ref('base_ObjectFlow', U.ObjectFlow),
+    }
 
 class ServiceParameter(U.Parameter, MeasurableElement):
     """An element that represents inputs and outputs of a ServiceFunction, represents inputs and outputs of a Service."""
     _STEREO = "UAF::Structure::ServiceParameter"
     _BASE_METACLASSES = ("Parameter",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Parameter this stereotype applies to.
+    'base_Parameter': _Ref('base_Parameter', U.Parameter),
+    }
     CONSTRAINTS = (
         ("ServiceParameter.type",
          "The values for the type metaproperty must be stereotyped a specialization of «ServiceExc"
@@ -3180,6 +3966,10 @@ class ServicePolicy(Rule, U.Constraint):
     _STEREO = "UAF::Constraints::ServicePolicy"
     _BASE_METACLASSES = ("Constraint",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Constraint this stereotype applies to.
+    'base_Constraint': _Ref('base_Constraint', U.Constraint),
+    }
     CONSTRAINTS = (
         ("ServicePolicy.constrainedElement",
          "Values for constrainedElement metaproperty must be stereotyped «Service» or its speciali"
@@ -3192,6 +3982,10 @@ class ServicePort(sysml.ProxyPort, U.Port, MeasurableElement):
     _STEREO = "UAF::Structure::ServicePort"
     _BASE_METACLASSES = ("Port",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Port this stereotype applies to.
+    'base_Port': _Ref('base_Port', U.Port),
+    }
     CONSTRAINTS = (
         ("ServicePort.type",
          "Value for the type metaproperty must be stereotyped «ServiceInterface» or its specializa"
@@ -3207,6 +4001,10 @@ class ServiceRole(U.Property, AssetRole, MeasurableElement):
     _STEREO = "UAF::Structure::ServiceRole"
     _BASE_METACLASSES = ("Property",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Property this stereotype applies to.
+    'base_Property': _Ref('base_Property', U.Property),
+    }
     CONSTRAINTS = (
         ("ServiceRole.type",
          "Value for the type metaproperty must be stereotyped «Service» or its specializations."
@@ -3221,12 +4019,20 @@ class ServiceSignal(U.Signal, ServiceExchangeItem):
     _STEREO = "UAF::Connectivity::ServiceSignal"
     _BASE_METACLASSES = ("Signal",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Signal this stereotype applies to.
+    'base_Signal': _Ref('base_Signal', U.Signal),
+    }
 
 class ServiceSignalProperty(U.Property, MeasurableElement):
     """A property of a ServiceSignal typed by ServiceExchangeItem. It enables ServiceExchangeItem e.g. OperationalInformation to be passed as arguments of the ServiceSignal."""
     _STEREO = "UAF::Connectivity::ServiceSignalProperty"
     _BASE_METACLASSES = ("Property",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Property this stereotype applies to.
+    'base_Property': _Ref('base_Property', U.Property),
+    }
     CONSTRAINTS = (
         ("ServiceSignalProperty.class",
          "Value for class metaproperty must be stereotyped «ServiceSignal» or its specializations."
@@ -3242,6 +4048,10 @@ class ServiceStateDescription(U.StateMachine, MeasurableElement):
     _STEREO = "UAF::States::ServiceStateDescription"
     _BASE_METACLASSES = ("StateMachine",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped StateMachine this stereotype applies to.
+    'base_StateMachine': _Ref('base_StateMachine', U.StateMachine),
+    }
     CONSTRAINTS = (
         ("ServiceStateMachine.owner",
          "Values for the owner metaproperty must be stereotyped «Service» or its specializations."
@@ -3253,36 +4063,60 @@ class Software(ResourceArtifact, U.Class):
     _STEREO = "UAF::Taxonomy::Software"
     _BASE_METACLASSES = ("Class",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Class this stereotype applies to.
+    'base_Class': _Ref('base_Class', U.Class),
+    }
 
 class StandardOperationalActivity(OperationalActivity, U.Activity):
     """A sub-type of OperationalActivity that is a standard operating procedure."""
     _STEREO = "UAF::Processes::StandardOperationalActivity"
     _BASE_METACLASSES = ("Activity",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Activity this stereotype applies to.
+    'base_Activity': _Ref('base_Activity', U.Activity),
+    }
 
 class StatusIndicators(U.Enumeration, sysml.ValueType, MeasurableElement):
     """An enumerated type that specifies a status for a ProjectTheme."""
     _STEREO = "UAF::Structure::StatusIndicators"
     _BASE_METACLASSES = ("Enumeration",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Enumeration this stereotype applies to.
+    'base_Enumeration': _Ref('base_Enumeration', U.Enumeration),
+    }
 
 class StrategicAsset(Asset, U.Class):
     """An abstract element that indicates the types of strategic elements that can be affected by Risk."""
     _STEREO = "UAF::Taxonomy::StrategicAsset"
     _BASE_METACLASSES = ("Class",)
     _ABSTRACT = True
+    _DECL = {
+    # extension end: the stereotyped Class this stereotype applies to.
+    'base_Class': _Ref('base_Class', U.Class),
+    }
 
 class StrategicConstraint(Rule, U.Constraint):
     """A Rule governing a Capability."""
     _STEREO = "UAF::Constraints::StrategicConstraint"
     _BASE_METACLASSES = ("Constraint",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Constraint this stereotype applies to.
+    'base_Constraint': _Ref('base_Constraint', U.Constraint),
+    }
 
 class StrategicExchange(Exchange, U.InformationFlow):
     """Asserts that a flow can exist between ActualStrategicPhases (i.e. flows of information, people, materiel, or energy)."""
     _STEREO = "UAF::Connectivity::StrategicExchange"
     _BASE_METACLASSES = ("InformationFlow",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped InformationFlow this stereotype applies to.
+    'base_InformationFlow': _Ref('base_InformationFlow', U.InformationFlow),
+    }
     CONSTRAINTS = (
         ("StrategicExchange.conveyed",
          "Value for conveyed metaproperty has to be stereotyped by any of specializations of «Stra"
@@ -3303,6 +4137,10 @@ class StrategicInformation(StrategicAsset, U.Class, StrategicExchangeItem):
     _STEREO = "UAF::Information::StrategicInformation"
     _BASE_METACLASSES = ("Class",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Class this stereotype applies to.
+    'base_Class': _Ref('base_Class', U.Class),
+    }
     CONSTRAINTS = (
         ("StrategicInformation.owner",
          "Values for the owner metaproperty must be stereotyped «DataModel» or its specializations"
@@ -3315,12 +4153,20 @@ class StrategicPhase(sysml.Block, U.Class, PropertySet):
     _STEREO = "UAF::Taxonomy::StrategicPhase"
     _BASE_METACLASSES = ("Class",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Class this stereotype applies to.
+    'base_Class': _Ref('base_Class', U.Class),
+    }
 
 class StructuralPart(U.Property, MeasurableElement):
     """Usage of a StrategicPhase in the context of another StrategicPhase. It asserts that one StrategicPhase is a spatial part of another. Creates a whole-part relationship that represents the structure of the StrategicPhase."""
     _STEREO = "UAF::Structure::StructuralPart"
     _BASE_METACLASSES = ("Property",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Property this stereotype applies to.
+    'base_Property': _Ref('base_Property', U.Property),
+    }
     CONSTRAINTS = (
         ("StructuralPart.class",
          "Value for class metaproperty must be stereotyped «StrategicPhase» or its specializations"
@@ -3336,6 +4182,10 @@ class Supports(sysml.Allocate, U.Abstraction, MeasurableElement):
     _STEREO = "UAF::Traceability::Supports"
     _BASE_METACLASSES = ("Abstraction",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Abstraction this stereotype applies to.
+    'base_Abstraction': _Ref('base_Abstraction', U.Abstraction),
+    }
     CONSTRAINTS = (
         ("Supports.client",
          "Value for the client metaproperty must be stereotyped «Service» or its specializations."
@@ -3351,18 +4201,30 @@ class System(ResourceArchitecture, U.Class):
     _STEREO = "UAF::Taxonomy::System"
     _BASE_METACLASSES = ("Class",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Class this stereotype applies to.
+    'base_Class': _Ref('base_Class', U.Class),
+    }
 
 class Technology(ResourceArtifact, U.Class):
     """A sub type of ResourceArtifact that indicates a technology domain, i.e. nuclear, mechanical, electronic, mobile telephony etc."""
     _STEREO = "UAF::Roadmap::Technology"
     _BASE_METACLASSES = ("Class",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Class this stereotype applies to.
+    'base_Class': _Ref('base_Class', U.Class),
+    }
 
 class TemporalPart(U.Property, MeasurableElement):
     """Usage of a StrategicPhase in the context of another StrategicPhase. It asserts that one StrategicPhase is a spatial part of another. Creates a whole-part relationship that represents the temporal structure of the StrategicPhase."""
     _STEREO = "UAF::Structure::TemporalPart"
     _BASE_METACLASSES = ("Property",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Property this stereotype applies to.
+    'base_Property': _Ref('base_Property', U.Property),
+    }
     CONSTRAINTS = (
         ("TemporalPart.class",
          "Value for class metaproperty must be stereotyped «EnterprisePhase» or its specialization"
@@ -3380,6 +4242,8 @@ class ValueItem(StrategicAsset, MeasurementSet, U.DataType):
     _BASE_METACLASSES = ("DataType",)
     _ABSTRACT = False
     _DECL = {
+    # extension end: the stereotyped DataType this stereotype applies to.
+    'base_DataType': _Ref('base_DataType', U.DataType),
     # Captures the kind of ValueItem if the ValueItemKind has been set to "Other".
     'customKind': _Ref('customKind', str),
     # Captures the kind of ValueItem.
@@ -3391,12 +4255,20 @@ class ValueStream(ActualStrategicPhase, U.InstanceSpecification):
     _STEREO = "UAF::Processes::ValueStream"
     _BASE_METACLASSES = ("InstanceSpecification",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped InstanceSpecification this stereotype applies to.
+    'base_InstanceSpecification': _Ref('base_InstanceSpecification', U.InstanceSpecification),
+    }
 
 class VersionOfConfiguration(U.Property, MeasurableElement):
     """A property of a WholeLifeConfiguration, used in version control of a VersionedElement. It asserts that a VersionedElement is a version of a WholeLifeConfiguration."""
     _STEREO = "UAF::Roadmap::VersionOfConfiguration"
     _BASE_METACLASSES = ("Property",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Property this stereotype applies to.
+    'base_Property': _Ref('base_Property', U.Property),
+    }
     CONSTRAINTS = (
         ("VersionOfConfiguration.class",
          "Value for the class metaproperty must be stereotyped «WholeLifeConfiguration» or its spe"
@@ -3413,6 +4285,10 @@ class VersionSuccession(U.Dependency, MeasurableElement):
     _STEREO = "UAF::Roadmap::VersionSuccession"
     _BASE_METACLASSES = ("Dependency",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Dependency this stereotype applies to.
+    'base_Dependency': _Ref('base_Dependency', U.Dependency),
+    }
     CONSTRAINTS = (
         ("VersionSuccession.client",
          "Value for the client metaproperty must be stereotyped «VersionOfConfiguration» or its sp"
@@ -3430,6 +4306,8 @@ class View(sysml.View, U.Class, PropertySet):
     _BASE_METACLASSES = ("Class",)
     _ABSTRACT = False
     _DECL = {
+    # extension end: the stereotyped Class this stereotype applies to.
+    'base_Class': _Ref('base_Class', U.Class),
     # Relates the View to the Viewpoint that the View conforms to.
     'viewpoint': _Ref('viewpoint', 'Viewpoint'),
     }
@@ -3440,6 +4318,8 @@ class Viewpoint(sysml.Viewpoint, U.Class, PropertySet):
     _BASE_METACLASSES = ("Class",)
     _ABSTRACT = False
     _DECL = {
+    # extension end: the stereotyped Class this stereotype applies to.
+    'base_Class': _Ref('base_Class', U.Class),
     # Relates the Viewpoint to the Concerns that the Viewpoint addresses.
     'concern': _Ref('concern', 'Concern', multi=True, lo=0, hi='*'),
     # The languages used to express the Viewpoint.
@@ -3457,6 +4337,10 @@ class VisionStatement(MeasurableElement, U.Comment):
     _STEREO = "UAF::Taxonomy::VisionStatement"
     _BASE_METACLASSES = ("Comment",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped Comment this stereotype applies to.
+    'base_Comment': _Ref('base_Comment', U.Comment),
+    }
     CONSTRAINTS = (
         ("VisionStatement.ownedAttribute",
          "Values for annotatedElement metaproperty must be stereotyped «EnterpriseVision» or its s"
@@ -3470,6 +4354,8 @@ class WholeLifeConfiguration(sysml.Block, U.Class, PropertySet):
     _BASE_METACLASSES = ("Class",)
     _ABSTRACT = False
     _DECL = {
+    # extension end: the stereotyped Class this stereotype applies to.
+    'base_Class': _Ref('base_Class', U.Class),
     # Captures the kind of WholeLifeConfiguration.
     'kind': _Ref('kind', WholeLifeConfigurationKind),
     }
@@ -3479,6 +4365,10 @@ class WholeLifeEnterprise(ActualEnterprisePhase, U.InstanceSpecification):
     _STEREO = "UAF::Taxonomy::WholeLifeEnterprise"
     _BASE_METACLASSES = ("InstanceSpecification",)
     _ABSTRACT = False
+    _DECL = {
+    # extension end: the stereotyped InstanceSpecification this stereotype applies to.
+    'base_InstanceSpecification': _Ref('base_InstanceSpecification', U.InstanceSpecification),
+    }
 
 # ---------------------------------------------------------------------------
 # post-import assembly (mirror of uml25._finish for stereotype classes)
@@ -3748,5 +4638,14 @@ def _finish():
             d.owner_cls = c.__name__
         for n, d in decl.items():
             setattr(c, n, d)
+        # the uml25 contract: _props is the FLATTENED declaration map
+        # (inherited first, own declarations win). Without it a
+        # stereotype class is invisible to everything that reads
+        # _props -- derived.py, the OCL type checker, the query layer.
+        props = {}
+        for base in reversed(c.__mro__):
+            props.update(base.__dict__.get('_props') or {})
+        props.update(decl)
+        c._props = props
 _finish()
 

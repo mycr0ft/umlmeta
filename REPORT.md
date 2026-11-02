@@ -3786,3 +3786,64 @@ instead of being built speculatively.
 - `check_ocl_types.py`: 29 passed. The `implicit-it-receiver` code is retired;
   the suite keeps a zero-assertion as a regression guard.
 - Full sweep green (809 checks, 21 suites).
+
+
+# Part 63: the profile generator emits its extension ends
+
+Part 61's checker found that the profile modules carried no property
+descriptors at all: `sysml.Block._props == {}` while `_STEREO` survived, so
+every SysML v1 stereotype constraint that navigates `base_Class`,
+`base_Property`, `principal` was untypable (263 unknown-feature diagnostics in
+the `sysml` module alone).
+
+## Two generator changes
+
+1. **The extension ends are properties.** `generate_profiles.py` consumed the
+   `base_*` ends into class inheritance and dropped them. It now also emits
+   each one as a single-valued property typed by the base metaclass
+   (`'base_Class': _Ref('base_Class', U.Class)`), so `self.base_Class` is a
+   feature the type system can see and a v2 tool can navigate.
+
+2. **`_finish()` builds the flattened `_props`.** The stereotype classes got
+   their descriptors through `setattr` but no `_props` map, which is the
+   contract `uml25` uses (a flattened dict: inherited first, own declarations
+   win). Without it the classes stay invisible to everything that reads
+   `_props` — `derived.py`, the OCL checker, the query layer. The assembly now
+   computes `{inherited in MRO order} | {own _DECL}` per class, and sets it.
+
+Regeneration is idempotent: two consecutive runs produce byte-identical
+modules (checked for `sysml.py`; the other three regenerate from the same
+pass). `check_profiles.py` stays green at 60.
+
+## What it changed
+
+| | before | after |
+|---|---:|---:|
+| error-free bodies | 912 | 1022 |
+| bodies with errors | 254 | 227 → 144 |
+| `unknown-feature` diagnostics | 388 | 144 |
+| `unknown-feature` in the `sysml` module | 263 | 168 |
+
+`Block._props` now carries 51 properties: the inherited UML ones, the
+stereotype's own tagged values, and `base_Class`. `check_ocl_types.py` pins
+that structurally and keeps a regression guard on the `base_*` count (4
+remain: one is a corpus/model mismatch where `Probability` navigates
+`base_Parameter` although the stereotype extends `ActivityEdge`/`ParameterSet`,
+three are inference artifacts where a receiver ends up typed `Boolean`).
+
+## What it does not fix
+
+The reader still records stereotype applications as `_applied_stereotypes`
+triples and never materializes a stereotype object, so a stereotype body can
+now be *typed* but still not *evaluated*. That is itemized in the pathway's
+backlog with its trigger — it is the next real step for the SysML v1 side, and
+it would let the 168 remaining `sysml` diagnostics be evaluated rather than
+merely analysed.
+
+## Result
+
+- `check_profiles.py`: 60 passed (unchanged).
+- `check_ocl_types.py`: 30 passed (was 29; the base-property guard).
+- Full sweep green (810 checks, 21 suites; the mdzip corpus probe is
+  skipped because the corpora are not fetched).
+- Generator idempotence verified; `profile_stats.json` refreshed.

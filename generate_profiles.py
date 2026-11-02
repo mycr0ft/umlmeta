@@ -8,7 +8,11 @@ base_* extension ends) together with stereotype generalizations, and
 tagged values become _Ref descriptors reusing the uml25 machinery.
 
 Extension metadata (required vs optional, per metaclass) is carried as
-tables; base_* ends are consumed, not emitted as attributes.
+tables. The base_* extension ends are folded into the class's inheritance AND
+emitted as single-valued properties (`base_Class : uml25.Class`), because a
+stereotype constraint navigates them (`self.base_Class.ownedOperation`) and an
+OCL type checker has to see the feature even though the reader materializes
+applications as `_applied_stereotypes` triples rather than objects.
 
 Usage: <venv-with-lxml>/bin/python generate_profiles.py
 Writes: gen/profiles.py and profile_stats.json
@@ -518,8 +522,17 @@ def emit_module(d, metaclasses, warns):
         # abstract guard of a folded abstract metaclass (e.g. TestCase ->
         # U.Behavior is abstract in UML but the stereotype is concrete)
         w(f"    _ABSTRACT = {str(bool(s.abstract))}")
-        decls = [gen_tag(t, metaclasses, set(d["enums"]))
-                 for t in sorted(s.tags)]
+        # extension ends first: the stereotype's own view of the element it
+        # applies to (single-valued, typed by the base metaclass)
+        base_decls = []
+        for meta in s.bases_meta:
+            if hasattr(U, meta):
+                base_decls.append(
+                    f"    # extension end: the stereotyped {meta} this "
+                    f"stereotype applies to." "\n"
+                    f"    'base_{meta}': _Ref('base_{meta}', U.{meta}),")
+        decls = base_decls + [gen_tag(t, metaclasses, set(d["enums"]))
+                              for t in sorted(s.tags)]
         if decls:
             w("    _DECL = {")
             w("\n".join(decls))
@@ -556,6 +569,15 @@ def emit_module(d, metaclasses, warns):
     w("            d.owner_cls = c.__name__")
     w("        for n, d in decl.items():")
     w("            setattr(c, n, d)")
+    w("        # the uml25 contract: _props is the FLATTENED declaration map")
+    w("        # (inherited first, own declarations win). Without it a")
+    w("        # stereotype class is invisible to everything that reads")
+    w("        # _props -- derived.py, the OCL type checker, the query layer.")
+    w("        props = {}")
+    w("        for base in reversed(c.__mro__):")
+    w("            props.update(base.__dict__.get('_props') or {})")
+    w("        props.update(decl)")
+    w("        c._props = props")
     w("_finish()")
     w("")
 

@@ -8,6 +8,16 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- Profile modules: the generator consumed the `base_*` extension ends and
+  emitted no `_props` at all, so `sysml.Block._props` was empty and every
+  stereotype constraint navigating `base_Class` was untypable. The ends are
+  now emitted as single-valued properties and `_finish()` builds the
+  flattened `_props` map the uml25 contract expects (inherited first, own
+  declarations win). 388 -> 144 unknown-feature diagnostics on the OCL
+  corpus; 912 -> 1022 error-free bodies.
+
+### Fixed
+
 - OCL: an unqualified call inside an implicit-`it` iterator body now targets
   the element instead of `self`. 53 constraint bodies evaluated the wrong
   object (`incoming->exists(oclIsKindOf(Flow))` tested the owner, not the
