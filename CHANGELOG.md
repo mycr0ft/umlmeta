@@ -8,6 +8,16 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- `umlmeta.v2_triage` — the validation gate's findings as a ledger (every
+  violation and skip family with an owner: transform / engine / runtime /
+  unattributed; 96 rows, 39 attributed on the vehicle model) plus a
+  structure-consistency probe, which on the KerML AS reports
+  `ownedElement` as derived-by-rule rather than union-tabled.
+- `docs/v2-validation-triage.md` — the generated ledger.
+- `check_v1v2_validation.py`: 14 checks (+3).
+
+### Added
+
 - OCL `invalid`: reading a feature the runtime does not carry now yields an
   undetermined value whose boolean use raises, and the evaluator records it as
   a skip. A constraint can no longer answer False because the generated

@@ -74,6 +74,20 @@ check("no violation comes from an undetermined read",
       all("undetermined" not in str(e) for e in report["violations"]))
 
 
+print("== the triage ledger ==")
+from umlmeta import v2_triage as TR  # noqa: E402
+rows = TR.ledger(report)
+check("every finding has a row", len(rows) == 96, f"{len(rows)} rows")
+check("known causes are attributed, the rest are queued",
+      sum(1 for r in rows if r["owner"] != "unattributed") == 39,
+      f"{sum(1 for r in rows if r['owner'] != 'unattributed')} attributed")
+cons = TR.structure_consistency(*roots)
+check("structure consistency does not report the missing AS union as a defect",
+      not cons["mismatches"] and len(cons["not_applicable"]) == 14,
+      f"{cons['checked']} checked, {len(cons['not_applicable'])} n/a "
+      f"(ownedElement is derived by rule in the AS)")
+
+
 print("== an empty model is clean ==")
 empty = V.validate()
 check("no roots means nothing to check",

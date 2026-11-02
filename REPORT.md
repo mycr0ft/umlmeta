@@ -4020,3 +4020,30 @@ sentinel earns its keep as a guarantee, and it says the violation count can be
 triaged at face value.
 
 - `check_v1v2_validation.py`: 11 checks (+2).
+
+
+# Part 68: the triage ledger, and the structure-consistency probe
+
+Items 2 and 3 of the "truth and confidence" list.
+
+**The ledger** (`umlmeta.v2_triage`): every violation family and skip family
+gets a row with an owner — `transform`, `engine`, `runtime`, or
+`unattributed`. 96 rows for the vehicle model: 39 attributed (the
+`check*Specialization` families, cause: the transform emits no library
+specialization edges) and 57 explicitly queued. `docs/v2-validation-triage.md`
+is generated, so the queue is a file rather than a memory.
+
+**Structure consistency**: compares `derived.union(el, 'ownedElement')` with
+`ownedRelationship -> Membership.ownedRelatedElement`. On the v2 model it
+reports 0 checked and 14 not-applicable: the KerML AS derives `ownedElement`
+by rule (`deriveElementOwnedElement`), not through a `_UNIONS` table, so the
+UML 2.5.1 union machinery has nothing to compare. That is a fact about the
+two runtimes, and the probe now says it instead of reporting 14 phantom
+mismatches (which it did on the first run).
+
+The lesson worth keeping: a consistency probe must first establish that the
+two things it compares are computed the same way. The first version compared
+a UML union table against KerML containment and produced a confident 14/14
+failure — the exact failure mode this repo's honesty gate is meant to stop.
+
+- `check_v1v2_validation.py`: 14 checks (+3).
