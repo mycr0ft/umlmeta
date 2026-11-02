@@ -3650,3 +3650,72 @@ comments, 1 has a mangled quote escape.
 - 1166/1191 bodies parse; all 1166 round-trip through `to_ocl` and back.
 - Full sweep green (775 checks, 20 suites; the mdzip corpus probe is
   skipped because the corpora are not fetched).
+
+
+# Part 61: O2 — the type table and the checker that predicts the evaluator
+
+O2 is `umlmeta.ocl_types`: a type table built from the generated descriptors
+and a static checker over the O1 tree. No evaluation, no new metamodel.
+
+## The table
+
+`ModuleTable` reads `class._props[name].t/.multi/.lo/.hi/.derived/.union`
+plus `_UNIONS` and `_ENUMS`; `TypeTable` holds `uml25` (242 classes, 13
+enums), `sysml2` (175) and `sysml` (56) and resolves names module-first,
+because 25 metaclass names collide between `uml25` and `sysml2` (`Feature`,
+`Class`, `Element`, …). The OCL side is five frozen types: `ClassT`,
+`PrimT`, `CollT`, `TupleT`, `UnknownT` — `UnknownT` is a real value that
+stops a diagnostic chain instead of guessing.
+
+The profile modules needed a fallback: they carry no `_CLASSES` registry, so
+the table scans the module's own definitions. That fallback immediately paid
+for itself — see the findings.
+
+## The checker
+
+`Checker(table, self_cls).check(tree)` types the tree with a scope stack and
+emits diagnostics in two severities:
+
+- **error** — `unknown-feature` (the hierarchy has no such feature),
+  `unknown-type` (no such metaclass / literal, or a type test that cannot
+  hold in the static type);
+- **pending** — `derived-not-wired` (a property with no stored carrier that
+  `derived.py` already implements), `unsupported-operation` (the O4/O5
+  queue), `implicit-it-receiver`, `pre-state`.
+
+Three rules keep it honest rather than noisy. Ignorance is silent: arithmetic
+on an `UnknownT` operand reports nothing, only a known non-numeric does. OCL
+semantics are respected where they are not arithmetic: `+`/`-` on collections
+are union/difference, `+` on strings is concatenation (the KerML dialect
+concatenates). And a name argument of the KerML extension operations
+(`selectByKind(FeatureMembership)`) is checked as a *type*, never read as a
+feature.
+
+The keyword-renamed literals were a small trap: the generator emits
+`ParameterDirectionKind.in_` / `return_` because `in` and `return` are Python
+keywords, so the checker strips a trailing `_` on both sides.
+
+## What it found
+
+1166 bodies checked, 912 error-free, 254 carrying at least one error.
+
+| finding | bodies | reading |
+|---|---:|---|
+| `base_Class` | 42 | **the profile modules carry no property descriptors** — `sysml.Block._props == {}` and only `_STEREO` survives generation. Every stereotype constraint that navigates its base property is untypable, and this is why the v1→v2 layer has to read stereotypes through `_applied_stereotypes` instead of navigating them |
+| `base_Property` | 35 | same |
+| `owner` | 19 | implemented in `derived.py`, missing from `DERIVED_FUNCS`: the evaluator reads a non-existent attribute. One table entry closes all 19 (O3) |
+| implicit-`it` receiver | 90 | an unqualified call inside an `it` body lowers with `self` as receiver, so `incoming->exists(oclIsKindOf(ControlFlow))` tests self's type, not each edge's. Inherited from v0; the AST reproduces it for parity; O3 fixes it with real receiver scoping |
+| unsupported operations | 567 | `selectByKind` (194), `specializesFromLibrary` (146), helpers — the O4/O5 queue |
+
+The checker's value is the direction of the evidence. `check_ocl.py` reports
+`eval-unmapped: 'X' object has no attribute 'Y'` after the fact, on whatever
+objects its sample model happened to build. The checker says it beforehand,
+for every body, with a span — and the suite asserts the link: every
+AttributeError the evaluator raised on the model was predicted as a feature
+diagnostic.
+
+## Result
+
+- `check_ocl_types.py`: 29 checks (new suite).
+- `check_ocl.py` / `check_ocl_ast.py` unchanged and green.
+- Full sweep green (804 checks, 21 suites).

@@ -1,6 +1,7 @@
 # OCL engine pathway — parsing and evaluating OCL over the generated runtimes
 
-Status: O0 and O1 shipped (corpus measurement + the AST/parser); O2-O6 open.
+Status: O0, O1 and O2 shipped (corpus measurement, the AST/parser, the type
+checker); O3-O6 open.
 Every number below was produced by a command in this repo; the commands are
 listed so they can be re-run.
 
@@ -149,15 +150,30 @@ transcribing normative OCL from the formal text (clean-room, quoted per
 clause) and pinning it with oracles — the same discipline as the mapping
 waves. Machine-readable source does not exist for these.
 
-### (d) Type system — required, not optional
+### (d) Type system — shipped (O2)
 
-A real OCL evaluator needs, per metaclass: property type, multiplicity
-(collection vs single), derived/union status, subsetting/redefinition. All of
-it exists in the generated descriptors (`_props[name].type_name`,
-`.upper`, `.derived`, `.subsets`, `.redefines`, `_UNIONS`, `_OPPOSITES`), plus
-`_STEREO` for stereotypes. So the type table can be **derived from the
-runtime**, not hand-written — which is exactly why the engine should speak the
-class hierarchy rather than a separate metamodel object model.
+`ocl_types.py` builds the table straight off the generated descriptors
+(`_props[name].t/.multi/.lo/.hi/.derived/.union`, `_UNIONS`, the `_ENUMS`
+literal sets) and types a body against one self type. It resolved the way
+predicted — no second metamodel — and 25 metaclass names collide between
+`uml25` and `sysml2`, so resolution is module-first.
+
+What it found over the 1166 parsed bodies: 912 are error-free, 254 carry at
+least one error, and the errors are concentrated:
+
+| finding | bodies | meaning |
+|---|---:|---|
+| `base_*` unknown features | 42 (`base_Class`) + 35 (`base_Property`) + … | **the profile modules carry no property descriptors at all** — `sysml.Block._props == {}`, only `_STEREO`. Every SysML v1 stereotype constraint that navigates its base property is untypable until `generate_profiles.py` emits them |
+| `owner` derived-not-wired | 19 | `owner` is implemented in `derived.py` but absent from `DERIVED_FUNCS`, so the evaluator reads a non-existent attribute — one table entry fixes all 19 |
+| implicit-`it` receiver | 90 | an unqualified call inside an `it` body lowers with `self` as receiver, so `x->exists(oclIsKindOf(T))` tests **self's** type instead of each element's. Inherited from v0 (the AST reproduces it for parity); fixed when the interpreter owns receiver scoping (O3) |
+| unsupported operations | 567 diagnostics | `selectByKind`, `specializesFromLibrary`, the spec helper operations — the O4/O5 queue |
+
+The useful part is the direction of the check: `check_ocl.py` used to report
+`eval-unmapped: 'Port' object has no attribute 'encapsulatedClassifier'` after
+an attribute error, on whatever objects the sample model happened to build.
+The checker says it before anything runs, for every body, with a span — and
+`check_ocl_types.py` asserts that every AttributeError the evaluator actually
+raised was predicted.
 
 ### (e) Extent / scope
 
@@ -196,10 +212,13 @@ differs (so a source-level change shows up as a diff, not a mystery).
   Grammar added: `Tuple{}`, `expr@pre`, `->iterate`, real literals,
   qualified names at any depth (`A::B::lit`), qualified type arguments,
   `Set(T){}` literals, `--` line comments. Gate: `check_ocl_ast.py` (26).
-- **O2 — type system.** `ocl_types.py`: build the type table from the
-  generated descriptors; static-check each body (navigation vs feature,
-  arithmetic operand types, collection element types). *Exit:* every
-  translatable body type-checks; untypable ones are itemized by reason.
+- **O2 — type system.** *Shipped.* `ocl_types.py`: the table comes from the
+  descriptors; the checker types navigation (with implicit collect),
+  collection operators, iterator/`let` scopes, classification, arithmetic,
+  and distinguishes four verdicts — `unknown-feature` (error),
+  `unknown-type` (error), `derived-not-wired` / `unsupported-operation` /
+  `implicit-it-receiver` (pending queue). 1166 bodies checked, 912 clean.
+  Gate: `check_ocl_types.py` (29).
 - **O3 — interpreter + collection library.** `ocl_eval.py` over the AST with
   proper collection kinds and `invalid`; `ocl_ops.py` for the collection,
   String/Integer ops, `Tuple`, literals, `->iterate`/`->closure`/`->isUnique`/

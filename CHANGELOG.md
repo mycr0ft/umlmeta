@@ -8,6 +8,18 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- `umlmeta.ocl_types` — the OCL type system over the generated runtimes: a
+  type table built from the class descriptors (`_props`, `_UNIONS`, `_ENUMS`)
+  and a static checker for OCL bodies. Diagnostics split into errors
+  (unknown feature, unknown type) and the pending queue (derived-but-unwired,
+  unsupported operation, implicit-`it` receiver).
+- `check_ocl_types.py` — 29 checks: table construction, typing,
+  diagnostics, a static-vs-runtime cross-check (every AttributeError the
+  evaluator raised was predicted), and the corpus sweep (1166 bodies, 912
+  error-free).
+
+### Added
+
 - `umlmeta.ocl_ast` / `ocl_parse` / `ocl_emit` — an OCL abstract syntax tree,
   a tokenizer and recursive-descent parser that produce it (with source spans),
   and two backends: Python lowering (what `translate()` uses) and OCL printing
