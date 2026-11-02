@@ -91,6 +91,13 @@ DERIVED_FUNCS = {
     "selectByKind": ("local", "select_by_kind"),
     "selectAsKind": ("local", "select_as_kind"),
     "specializesFromLibrary": ("local", "specializes_from_library"),
+    # O4 helper operations, ordered by the gate skips each one unblocks
+    "effectiveName": ("local", "effective_name"),
+    "effectiveShortName": ("local", "effective_short_name"),
+    "escapedName": ("local", "escaped_name"),
+    "directionOf": ("local", "direction_of"),
+    "subSequence": ("local", "sub_sequence"),
+    "including": ("local", "including"),
 }
 
 # operations whose first argument names a metaclass or a library name rather

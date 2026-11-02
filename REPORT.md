@@ -4047,3 +4047,49 @@ a UML union table against KerML containment and produced a confident 14/14
 failure — the exact failure mode this repo's honesty gate is meant to stop.
 
 - `check_v1v2_validation.py`: 14 checks (+3).
+
+
+# Part 69: O4, first six — the gate's coverage goes to 59%
+
+Part 68's buckets said where the gate's blind spot is: 1375 of 1848 skips were
+helper operations the engine does not implement. This wave implements the six
+that unblock the most, transcribed from their spec definitions:
+
+| operation | definition |
+|---|---|
+| `effectiveName` / `effectiveShortName` | the name, else the short name / the short name only when unnamed |
+| `escapedName` | the effective name, quoted when it needs it |
+| `directionOf` | the feature's direction, or null |
+| `subSequence(lo, hi)` | OCL's 1-based inclusive slice |
+| `including(x)` | OCL's collection append |
+
+Each is a few lines against properties the AS already carries, plus one row in
+`ocl_symbols.DERIVED_FUNCS`.
+
+## Effect
+
+| | before | after |
+|---|---:|---:|
+| gate skips | 1848 | **1318** |
+| helper-operation skips | 1375 | **812** |
+| gate coverage | 51% | **59%** |
+| corpus lowering | 1002 | 1024 |
+| derivative evaluations | 4054 | 4584 |
+| violation families (rows) | 95 | 90 |
+
+530 skips cleared for six functions — the best yield of any change in this
+line of work, and it validates the ordering the buckets produced.
+
+## The bug that cost two turns
+
+`_DERIVED_FUNCS_LEGACY` and the `_EVAL_ENV` binding loop resolve local
+lowerings by name, and they sat *above* the function definitions. Adding a
+table entry for `effective_name` therefore raised `KeyError` at import. Both
+now build at the end of the module, after every local lowering exists — with
+a comment saying why, because the next such table will hit the same order.
+
+The second half of the same bug: the legacy oracle table must also be frozen
+against the new operations, or the differential silently starts measuring the
+new emitter against itself (it did, and `check_ocl_ast` reported 731 instead
+of 633 lowered-identically). `_LEGACY_EXCLUDED` now lists all nine
+post-v0 operations.

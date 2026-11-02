@@ -648,16 +648,10 @@ COLLECTION_OPS = SY.COLLECTION_OPS
 CLASSIFY_OPS = SY.CLASSIFY_OPS
 _LOCAL_BARE = SY.LOCAL_BARE
 
-# The v0 oracle must stay frozen: the extension operations added after it
-# (O5a) are exactly what a later wave makes lowerable, so the legacy table
-# deliberately excludes them.
-_LEGACY_EXCLUDED = {"selectByKind", "selectAsKind", "specializesFromLibrary"}
-
-_DERIVED_FUNCS_LEGACY = {
-    name: (kind, fnname if kind == "derived" else globals()[fnname])
-    for name, (kind, fnname) in SY.DERIVED_FUNCS.items()
-    if name not in _LEGACY_EXCLUDED
-}
+# `_DERIVED_FUNCS_LEGACY` and the eval-environment bindings are built at the
+# END of this module: they resolve local lowerings by name, and several of
+# those are defined further down (O4 helpers), so building them here would
+# raise KeyError at import.
 
 
 # --------------------------------------------------------------------------
@@ -1474,3 +1468,67 @@ def translate_all(pairs):
         except UnmappedFeature as ex:
             unmapped.append((cls, name, str(ex)))
     return translated, unmapped
+
+# --------------------------------------------------------------------------
+# O4 helper operations, transcribed from the spec's own definitions
+# --------------------------------------------------------------------------
+# Anything the model does not carry answers None; the sentinel turns that into
+# an undetermined skip rather than a False.
+
+def effective_name(el):
+    """KerML::effectiveName — the name, else the short name."""
+    return getattr(el, "name", None) or getattr(el, "shortName", None) \
+        or getattr(el, "declaredShortName", None)
+
+
+def effective_short_name(el):
+    """KerML::effectiveShortName — the short name only when there is no name."""
+    if getattr(el, "name", None):
+        return None
+    return getattr(el, "shortName", None) or getattr(el, "declaredShortName",
+                                                       None)
+
+
+def escaped_name(el):
+    """KerML::escapedName — the effective name, quoted when it needs it."""
+    name = effective_name(el)
+    if not name:
+        return name
+    bad = set(" \t\n()[]{}<>,.:;'\"+-*/%&|!=?@#$^~`\\")
+    return "'" + name + "'" if any(c in bad for c in name) else name
+
+
+def direction_of(feature):
+    """KerML::directionOf — the feature's direction, or null."""
+    d = getattr(feature, "direction", None)
+    return getattr(d, "value", d)
+
+
+def sub_sequence(coll, lo, hi):
+    """OCL Sequence::subSequence(lo, hi) — 1-based, inclusive."""
+    seq = list(coll or ())
+    return seq[max(int(lo) - 1, 0):int(hi)]
+
+
+def including(coll, element):
+    """OCL Collection::including(x)."""
+    return list(coll or ()) + [element]
+
+
+# -- tables built after every local lowering above exists ------------------
+# operations added after the v0 emitter retired: the oracle must not learn
+# them, or the differential stops measuring v0
+_LEGACY_EXCLUDED = {"selectByKind", "selectAsKind", "specializesFromLibrary",
+                    "effectiveName", "effectiveShortName", "escapedName",
+                    "directionOf", "subSequence", "including"}
+
+_DERIVED_FUNCS_LEGACY = {
+    name: (kind, fnname if kind == "derived" else globals().get(fnname))
+    for name, (kind, fnname) in SY.DERIVED_FUNCS.items()
+    if name not in _LEGACY_EXCLUDED and (kind == "derived"
+                                         or fnname in globals())
+}
+
+for _nm, (_kind, _fn) in SY.DERIVED_FUNCS.items():
+    if _kind == "local" and _fn in globals():
+        _EVAL_ENV.setdefault(_fn, globals()[_fn])

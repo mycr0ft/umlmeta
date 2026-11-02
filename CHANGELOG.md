@@ -8,6 +8,20 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- OCL helper operations: `effectiveName`, `effectiveShortName`, `escapedName`,
+  `directionOf`, `subSequence`, `including`. Gate coverage on transformed
+  models rises from 51% to 59% (skips 1848 -> 1318; helper-operation skips
+  1375 -> 812) and corpus lowering from 1002 to 1024.
+
+### Fixed
+
+- `_DERIVED_FUNCS_LEGACY` and the eval-environment bindings are built after the
+  local lowerings are defined (they resolved names that did not exist yet at
+  import), and the legacy oracle excludes every post-v0 operation so the
+  differential keeps measuring the v0 emitter.
+
+### Added
+
 - `umlmeta.v2_triage` — the validation gate's findings as a ledger (every
   violation and skip family with an owner: transform / engine / runtime /
   unattributed; 96 rows, 39 attributed on the vehicle model) plus a

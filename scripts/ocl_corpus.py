@@ -36,7 +36,7 @@ PINNED = {
     "total": 1215,
     "nospec": 24,
     "parse": 1167,
-    "lower": 1002,
+    "lower": 1024,
 }
 
 

@@ -1,6 +1,6 @@
 # v2 validation triage
 
-131 elements, 1898 checks (+4054 derivations), 284 violations, 1848 skipped, coverage 51%
+131 elements, 1898 checks (+4584 derivations), 284 violations, 1318 skipped, coverage 59%
 
 | kind | family | count | owner | note |
 |---|---|---:|---|---|
@@ -64,12 +64,8 @@
 | violation | `Association.validateAssociationRelatedTypes` | 1 | unattributed |  |
 | violation | `Association.checkAssociationSpecialization` | 1 | transform | the transform emits no library specialization edges (O6) |
 | violation | `Import.validateImportTopLevelVisibility` | 1 | unattributed |  |
-| skip | `eval-unmapped` | 231 | runtime |  |
+| skip | `eval-unmapped` | 264 | runtime |  |
 | skip | `operation specializes(` | 167 | engine |  |
-| skip | `operation directionOf(` | 165 | engine |  |
-| skip | `operation effectiveName(` | 131 | engine |  |
-| skip | `operation escapedName(` | 131 | engine |  |
-| skip | `operation effectiveShortName(` | 131 | engine |  |
 | skip | `operation libraryNamespace(` | 131 | engine |  |
 | skip | `expected ) at token ('eof', '')` | 123 | runtime |  |
 | skip | `operation isOwnedCrossFeature(` | 111 | engine |  |
@@ -87,7 +83,6 @@
 | skip | `operation oclIsKind(` | 16 | engine |  |
 | skip | `operation referencedFeatureTarget(` | 7 | engine |  |
 | skip | `operation isSubactionUsage(` | 7 | engine |  |
-| skip | `operation subSequence(` | 5 | engine |  |
 | skip | `operation contains(` | 4 | engine |  |
 | skip | `operation isSubstateUsage(` | 4 | engine |  |
 | skip | `undetermined comparison` | 4 | runtime |  |

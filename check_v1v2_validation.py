@@ -39,7 +39,7 @@ check("the transform produces one root package", len(roots) == 1)
 check("the extent reaches the whole model", report["elements"] == 131,
       f"{report['elements']} elements")
 check("checks and derivations are separated",
-      len(report["checks"]) == 1898 and len(report["derivations"]) == 4054,
+      len(report["checks"]) == 1898 and len(report["derivations"]) == 4584,
       f"{len(report['checks'])} checks, {len(report['derivations'])} derivations")
 check("no deriveXxx body is counted as a check",
       not any(e["constraint"].startswith("derive") for e in report["checks"]))
@@ -57,7 +57,7 @@ check("the dominant family is the missing library specialization edges",
 
 print("== skips are reported, not passed ==")
 check("skips are counted with reasons",
-      len(report["skipped"]) == 1848 and report["skip_reasons"],
+      len(report["skipped"]) == 1318 and report["skip_reasons"],
       str(report["skip_reasons"][:2]))
 check("the top skip reason is a known engine gap",
       report["skip_reasons"][0][0] in ("eval-unmapped",) or
@@ -77,9 +77,9 @@ check("no violation comes from an undetermined read",
 print("== the triage ledger ==")
 from umlmeta import v2_triage as TR  # noqa: E402
 rows = TR.ledger(report)
-check("every finding has a row", len(rows) == 95, f"{len(rows)} rows")
+check("every finding has a row", len(rows) == 90, f"{len(rows)} rows")
 check("known causes are attributed, the rest are queued",
-      sum(1 for r in rows if r["owner"] != "unattributed") == 78,
+      sum(1 for r in rows if r["owner"] != "unattributed") == 73,
       f"{sum(1 for r in rows if r['owner'] != 'unattributed')} attributed")
 cons = TR.structure_consistency(*roots)
 check("structure consistency does not report the missing AS union as a defect",
@@ -106,11 +106,11 @@ check("every skip is bucketed by cause",
       sum(report["skip_buckets"].values()) == len(report["skipped"]),
       str(dict(report["skip_buckets"])))
 check("the helper-operation library is the dominant skip class",
-      report["skip_buckets"]["helper-operation"] == 1375,
+      report["skip_buckets"]["helper-operation"] == 812,
       f"{report['skip_buckets']['helper-operation']} of "
       f"{len(report['skipped'])} skips")
 check("gate coverage is reported as a fraction",
-      V.coverage(report) == 0.5116 or abs(V.coverage(report) - 0.51) < 0.01,
+      abs(V.coverage(report) - 0.59) < 0.01,
       f"{V.coverage(report):.1%} of applicable checks run")
 
 
