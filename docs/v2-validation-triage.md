@@ -11,15 +11,15 @@
 | violation | `OccurrenceUsage.checkOccurrenceUsageSpecialization` | 16 | transform | the transform emits no library specialization edges (O6) |
 | violation | `Step.checkStepSpecialization` | 9 | transform | the transform emits no library specialization edges (O6) |
 | violation | `ActionUsage.checkActionUsageSpecialization` | 7 | transform | the transform emits no library specialization edges (O6) |
-| violation | `EndFeatureMembership.validateEndFeatureMembershipIsEnd` | 6 | unattributed |  |
+| violation | `EndFeatureMembership.validateEndFeatureMembershipIsEnd` | 6 | runtime | isEnd is derived from owningMembership, and the inverse is not maintained when a membership owns a feature |
 | violation | `ReferenceUsage.validateReferenceUsageIsReference` | 5 | transform | isReference computes (not isComposite) but the transform emits no featuring type, which the same rule requires of a composite usage |
 | violation | `ActionDefinition.checkActionDefinitionSpecialization` | 5 | transform | the transform emits no library specialization edges (O6) |
 | violation | `Behavior.checkBehaviorSpecialization` | 5 | transform | the transform emits no library specialization edges (O6) |
 | violation | `AttributeUsage.validateAttributeUsageIsReference` | 4 | transform | isReference computes (not isComposite) but the transform emits no featuring type, which the same rule requires of a composite usage |
 | violation | `AttributeUsage.checkAttributeUsageSpecialization` | 4 | transform | the transform emits no library specialization edges (O6) |
 | violation | `Connector.checkConnectorSpecialization` | 4 | transform | the transform emits no library specialization edges (O6) |
-| violation | `Connector.validateConnectorRelatedFeatures` | 4 | unattributed |  |
-| violation | `Expression.validateExpressionResultParameterMembership` | 3 | unattributed |  |
+| violation | `Connector.validateConnectorRelatedFeatures` | 4 | transform | ConnectionUsage carries no relatedFeature ends |
+| violation | `Expression.validateExpressionResultParameterMembership` | 3 | transform | LiteralInteger built without its ReturnParameterMembership |
 | violation | `Expression.checkExpressionSpecialization` | 3 | transform | the transform emits no library specialization edges (O6) |
 | violation | `EnumerationUsage.validateAttributeUsageIsReference` | 3 | transform | isReference computes (not isComposite) but the transform emits no featuring type, which the same rule requires of a composite usage |
 | violation | `EnumerationUsage.checkAttributeUsageSpecialization` | 3 | transform | the transform emits no library specialization edges (O6) |
@@ -30,40 +30,40 @@
 | violation | `PortUsage.validatePortUsageIsReference` | 2 | transform | isReference computes (not isComposite) but the transform emits no featuring type, which the same rule requires of a composite usage |
 | violation | `PortUsage.checkPortUsageSpecialization` | 2 | transform | the transform emits no library specialization edges (O6) |
 | violation | `EventOccurrenceUsage.validateEventOccurrenceUsageIsReference` | 2 | transform | isReference computes (not isComposite) but the transform emits no featuring type, which the same rule requires of a composite usage |
-| violation | `ParameterMembership.validateParameterMembershipOwningType` | 2 | unattributed |  |
+| violation | `ParameterMembership.validateParameterMembershipOwningType` | 2 | runtime | owningType is the inverse of owningMembership; not set |
 | violation | `ConnectionUsage.checkConnectionUsageSpecialization` | 2 | transform | the transform emits no library specialization edges (O6) |
 | violation | `PartUsage.checkPartUsageSpecialization` | 2 | transform | the transform emits no library specialization edges (O6) |
-| violation | `PartUsage.validatePartUsagePartDefinition` | 2 | unattributed |  |
+| violation | `PartUsage.validatePartUsagePartDefinition` | 2 | transform | ConnectionUsage is never typed by a PartDefinition |
 | violation | `ItemUsage.checkItemUsageSpecialization` | 2 | transform | the transform emits no library specialization edges (O6) |
-| violation | `ConnectorAsUsage.validateUsageIsReferential` | 2 | unattributed |  |
+| violation | `ConnectorAsUsage.validateUsageIsReferential` | 2 | transform | same missing featuring type as the other IsReference rules |
 | violation | `DataType.checkDataTypeSpecialization` | 2 | transform | the transform emits no library specialization edges (O6) |
 | violation | `PartDefinition.checkPartDefinitionSpecialization` | 2 | transform | the transform emits no library specialization edges (O6) |
 | violation | `StateUsage.checkStateUsageSpecialization` | 2 | transform | the transform emits no library specialization edges (O6) |
 | violation | `TransitionUsage.checkTransitionUsageSpecialization` | 2 | transform | the transform emits no library specialization edges (O6) |
-| violation | `TransitionUsage.validateTransitionUsageSuccession` | 2 | unattributed |  |
+| violation | `TransitionUsage.validateTransitionUsageSuccession` | 2 | transform | the succession edge the rule needs is not emitted |
 | violation | `TransitionUsage.checkTransitionUsageSuccessionSourceSpecialization` | 2 | transform | the transform emits no library specialization edges (O6) |
 | violation | `Succession.checkSuccessionSpecialization` | 2 | transform | the transform emits no library specialization edges (O6) |
 | violation | `UseCaseDefinition.checkUseCaseDefinitionSpecialization` | 2 | transform | the transform emits no library specialization edges (O6) |
 | violation | `CaseDefinition.checkCaseDefinitionSpecialization` | 2 | transform | the transform emits no library specialization edges (O6) |
-| violation | `CaseDefinition.validateCaseDefinitionSubjectParameterPosition` | 2 | unattributed |  |
+| violation | `CaseDefinition.validateCaseDefinitionSubjectParameterPosition` | 2 | transform | subject parameter emitted without its position |
 | violation | `CalculationDefinition.checkCalculationDefinitionSpecialization` | 2 | transform | the transform emits no library specialization edges (O6) |
-| violation | `Function.validateFunctionResultParameterMembership` | 2 | unattributed |  |
+| violation | `Function.validateFunctionResultParameterMembership` | 2 | transform | function result parameter membership not emitted |
 | violation | `Function.checkFunctionSpecialization` | 2 | transform | the transform emits no library specialization edges (O6) |
-| violation | `MultiplicityRange.validateMultiplicityRangeBounds` | 1 | unattributed |  |
+| violation | `MultiplicityRange.validateMultiplicityRangeBounds` | 1 | runtime | bound memberships carry no value; derived bound is null |
 | violation | `Multiplicity.checkMultiplicitySpecialization` | 1 | transform | the transform emits no library specialization edges (O6) |
-| violation | `EnumerationDefinition.validateEnumerationDefinitionIsVariation` | 1 | unattributed |  |
+| violation | `EnumerationDefinition.validateEnumerationDefinitionIsVariation` | 1 | transform | variation flag not emitted on an enumeration definition |
 | violation | `StateDefinition.checkStateDefinitionSpecialization` | 1 | transform | the transform emits no library specialization edges (O6) |
-| violation | `StateSubactionMembership.validateStateSubactionMembershipOwningType` | 1 | unattributed |  |
+| violation | `StateSubactionMembership.validateStateSubactionMembershipOwningType` | 1 | runtime | same inverse-maintenance gap |
 | violation | `UseCaseUsage.checkUseCaseUsageSpecialization` | 1 | transform | the transform emits no library specialization edges (O6) |
-| violation | `CaseUsage.validateCaseUsageSubjectParameterPosition` | 1 | unattributed |  |
+| violation | `CaseUsage.validateCaseUsageSubjectParameterPosition` | 1 | transform | same |
 | violation | `CaseUsage.checkCaseUsageSpecialization` | 1 | transform | the transform emits no library specialization edges (O6) |
 | violation | `CalculationUsage.checkCalculationUsageSpecialization` | 1 | transform | the transform emits no library specialization edges (O6) |
-| violation | `ConnectionDefinition.checkConnectionDefinitionSpecializations` | 1 | unattributed |  |
-| violation | `ConnectionDefinition.validateConnectionDefinitionIsSufficient` | 1 | unattributed |  |
+| violation | `ConnectionDefinition.checkConnectionDefinitionSpecializations` | 1 | transform | no library specialization edge (the O6 family) |
+| violation | `ConnectionDefinition.validateConnectionDefinitionIsSufficient` | 1 | transform | connection ends not sufficient: related features missing |
 | violation | `AssociationStructure.checkAssociationStructureSpecialization` | 1 | transform | the transform emits no library specialization edges (O6) |
-| violation | `Association.validateAssociationRelatedTypes` | 1 | unattributed |  |
+| violation | `Association.validateAssociationRelatedTypes` | 1 | transform | related types not emitted on the association |
 | violation | `Association.checkAssociationSpecialization` | 1 | transform | the transform emits no library specialization edges (O6) |
-| violation | `Import.validateImportTopLevelVisibility` | 1 | unattributed |  |
+| violation | `Import.validateImportTopLevelVisibility` | 1 | transform | import emitted without its visibility |
 | skip | `eval-unmapped` | 264 | runtime |  |
 | skip | `operation specializes(` | 167 | engine |  |
 | skip | `operation libraryNamespace(` | 131 | engine |  |

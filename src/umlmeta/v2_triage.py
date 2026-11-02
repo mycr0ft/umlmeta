@@ -30,6 +30,43 @@ DISPOSITIONS = {
         ("transform", "same: no library specialization edge on features"),
     "Class.checkClassSpecialization":
         ("transform", "same: no library specialization edge on classes"),
+    # -- worked 2026-11: the 17 families that were unattributed, each traced
+    # to its carrier. Two causes, both upstream of the engine.
+    "EndFeatureMembership.validateEndFeatureMembershipIsEnd":
+        ("runtime", "isEnd is derived from owningMembership, and the inverse "
+                    "is not maintained when a membership owns a feature"),
+    "ParameterMembership.validateParameterMembershipOwningType":
+        ("runtime", "owningType is the inverse of owningMembership; not set"),
+    "StateSubactionMembership.validateStateSubactionMembershipOwningType":
+        ("runtime", "same inverse-maintenance gap"),
+    "MultiplicityRange.validateMultiplicityRangeBounds":
+        ("runtime", "bound memberships carry no value; derived bound is null"),
+    "Connector.validateConnectorRelatedFeatures":
+        ("transform", "ConnectionUsage carries no relatedFeature ends"),
+    "PartUsage.validatePartUsagePartDefinition":
+        ("transform", "ConnectionUsage is never typed by a PartDefinition"),
+    "ConnectorAsUsage.validateUsageIsReferential":
+        ("transform", "same missing featuring type as the other IsReference rules"),
+    "TransitionUsage.validateTransitionUsageSuccession":
+        ("transform", "the succession edge the rule needs is not emitted"),
+    "Expression.validateExpressionResultParameterMembership":
+        ("transform", "LiteralInteger built without its ReturnParameterMembership"),
+    "Function.validateFunctionResultParameterMembership":
+        ("transform", "function result parameter membership not emitted"),
+    "CaseDefinition.validateCaseDefinitionSubjectParameterPosition":
+        ("transform", "subject parameter emitted without its position"),
+    "CaseUsage.validateCaseUsageSubjectParameterPosition":
+        ("transform", "same"),
+    "EnumerationDefinition.validateEnumerationDefinitionIsVariation":
+        ("transform", "variation flag not emitted on an enumeration definition"),
+    "ConnectionDefinition.checkConnectionDefinitionSpecializations":
+        ("transform", "no library specialization edge (the O6 family)"),
+    "ConnectionDefinition.validateConnectionDefinitionIsSufficient":
+        ("transform", "connection ends not sufficient: related features missing"),
+    "Association.validateAssociationRelatedTypes":
+        ("transform", "related types not emitted on the association"),
+    "Import.validateImportTopLevelVisibility":
+        ("transform", "import emitted without its visibility"),
     "Usage.validateUsageIsReferential":
         ("runtime", "isReference is derived in the KerML AS "
                     "(deriveUsageIsReference); the runtime stores it as None "

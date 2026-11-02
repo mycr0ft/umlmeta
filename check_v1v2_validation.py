@@ -78,8 +78,8 @@ print("== the triage ledger ==")
 from umlmeta import v2_triage as TR  # noqa: E402
 rows = TR.ledger(report)
 check("every finding has a row", len(rows) == 90, f"{len(rows)} rows")
-check("known causes are attributed, the rest are queued",
-      sum(1 for r in rows if r["owner"] != "unattributed") == 73,
+check("every finding now has an owner",
+      sum(1 for r in rows if r["owner"] != "unattributed") == 90,
       f"{sum(1 for r in rows if r['owner'] != 'unattributed')} attributed")
 cons = TR.structure_consistency(*roots)
 check("structure consistency does not report the missing AS union as a defect",
