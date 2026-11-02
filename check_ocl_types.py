@@ -228,8 +228,8 @@ for modname in ("uml25", "sysml2", "sysml"):
                 if x.code == "implicit-it-receiver":
                     it_bodies.add((modname, klass.__name__, name))
 
-check("every parsed body is type-checked", checked == 1166, f"{checked}")
-check("1022 bodies are error-free", clean == 1022,
+check("every parsed body is type-checked", checked == 1167, f"{checked}")
+check("1023 bodies are error-free", clean == 1023,
       f"{clean} clean, {with_errors} with errors")
 check("no body is flagged for arithmetic",
       code_counts["arithmetic-on-non-numeric"] == 0,

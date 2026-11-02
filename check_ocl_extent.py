@@ -124,8 +124,8 @@ for modname in ("uml25", "sysml2", "sysml"):
                 lowered += 1
             except Exception:                     # noqa: BLE001
                 continue
-check("1166 bodies parse", parsed == 1166, f"{parsed}")
-check("the two extensions lift lowering to 1001", lowered == 1001,
+check("1167 bodies parse", parsed == 1167, f"{parsed}")
+check("the two extensions lift lowering to 1002", lowered == 1002,
       f"{lowered} (was 676)")
 
 

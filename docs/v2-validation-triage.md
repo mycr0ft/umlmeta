@@ -1,6 +1,6 @@
 # v2 validation triage
 
-131 elements, 1898 checks (+4026 derivations), 284 violations, 1876 skipped
+
 
 | kind | family | count | owner | note |
 |---|---|---:|---|---|
@@ -84,7 +84,6 @@
 | skip | `expected name at token ('eof', '')` | 37 | runtime |  |
 | skip | `operation multiplicities(` | 37 | engine |  |
 | skip | `operation isFeaturingType(` | 37 | engine |  |
-| skip | `trailing tokens [('name', 'isComposite'), ('eof', ` | 28 | runtime |  |
 | skip | `operation oclIsKind(` | 16 | engine |  |
 | skip | `operation referencedFeatureTarget(` | 7 | engine |  |
 | skip | `operation isSubactionUsage(` | 7 | engine |  |

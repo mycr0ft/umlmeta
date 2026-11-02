@@ -261,6 +261,10 @@ class Parser:
 
     def unary(self):
         i0 = self.i
+        # `not` as an operand prefix: the KerML derivations are written
+        # `p = not q`, where the right side is not an OCL boolean context
+        if self.accept("name", "not"):
+            return self._s(Not(operand=self.unary()), i0)
         if self.accept("op", "-"):
             return self._s(Neg(operand=self.unary()), i0)
         return self.postfix()
