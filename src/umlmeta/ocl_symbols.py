@@ -78,6 +78,15 @@ DERIVED_FUNCS = {
     "compatibleWith": ("local", "ocl_compatible_with"),
     "incoming": ("local", "vertex_incoming"),
     "outgoing": ("local", "vertex_outgoing"),
+    # derived.py implementations that were never wired: a body using one
+    # lowered to an attribute read on an element that has no such attribute
+    "owner": ("derived", "owner"),
+    "inherit": ("derived", "inherit"),
+    "inheritableMembers": ("derived", "inheritable_members"),
+    "importMembers": ("derived", "import_members"),
+    "hasVisibilityOf": ("derived", "has_visibility_of"),
+    "makesVisible": ("derived", "makes_visible"),
+    "excludeCollisions": ("derived", "exclude_collisions"),
 }
 
 # bare (receiver-less) names that are computed, not stored: emitted as a
@@ -93,3 +102,55 @@ COLLECTION_TYPES = ("Sequence", "Set", "OrderedSet", "Bag", "Collection")
 CONSTANTS = {"true": "True", "false": "False",
              "null": "None", "invalid": "None",
              "OclInvalid": "None", "oclInvalid": "None"}
+
+
+# --------------------------------------------------------------------------
+# derived-only properties
+# --------------------------------------------------------------------------
+#
+# Some OCL properties have no stored carrier in the generated runtimes: the
+# generator drops derived ends it cannot compute, and `derived.py` implements
+# them as functions. A bare read (`self.owner`) must lower to the function
+# call, not to `getattr`, or the evaluator hits an attribute that does not
+# exist. The set is computed, not hand-listed: every `derived.py` function
+# whose camelCase name is a property of NO generated class.
+
+_DENY = {"union", "union_contributors", "union_names", "subsetting_context",
+         "parents", "inherit", "inheritable_members"}
+
+
+def camel(snake):
+    """snake_case -> the OCL camelCase name."""
+    head, *rest = snake.split("_")
+    return head + "".join(w[:1].upper() + w[1:] for w in rest)
+
+
+_DERIVED_ONLY = None
+
+
+def derived_only_props():
+    """{ocl name: derived.py function name} for carrier-less derived props."""
+    global _DERIVED_ONLY
+    if _DERIVED_ONLY is not None:
+        return _DERIVED_ONLY
+    import importlib
+    import inspect
+
+    from . import derived
+
+    stored = set()
+    for modname in ("uml25", "sysml2", "sysml"):
+        mod = importlib.import_module("umlmeta." + modname)
+        classes = getattr(mod, "_CLASSES", None) or [
+            v for v in vars(mod).values() if isinstance(v, type)]
+        for cls in classes:
+            stored.update(getattr(cls, "_props", {}) or {})
+    out = {}
+    for fname, fn in inspect.getmembers(derived, inspect.isfunction):
+        if fname.startswith("_") or fname in _DENY:
+            continue
+        ocl = camel(fname)
+        if ocl and ocl not in stored:
+            out[ocl] = fname
+    _DERIVED_ONLY = out
+    return out

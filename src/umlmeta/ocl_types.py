@@ -432,7 +432,6 @@ class Checker:
             return STRING
         if op == "oclIsUndefined":
             return BOOLEAN
-        self._note_implicit_receiver(n.receiver, env, op)
         found = self.table.resolve_class(n.type_name.split("::")[-1],
                                          self.prefer)
         if found is None:
@@ -467,21 +466,8 @@ class Checker:
             return
         self.type_of(node, {"self": UNKNOWN})
 
-    def _note_implicit_receiver(self, receiver, env, what):
-        """An unqualified call inside an implicit-`it` body is lowered with
-        `self` as receiver (the v0 behaviour the AST reproduces), so it
-        tests self instead of the element. Flagged, and left alone until the
-        interpreter owns receiver scoping (O3)."""
-        if env.get("_implicit_it") and isinstance(receiver, A.Var) \
-                and receiver.name == "self":
-            self.add("implicit-it-receiver",
-                     f"unqualified {what}(...) inside an `it` body keeps "
-                     f"self as receiver", None)
-        return receiver
-
     def _t_Call(self, n, env):
         if n.receiver is not None:
-            self._note_implicit_receiver(n.receiver, env, n.name)
             self.type_of(n.receiver, env)
         for i, a in enumerate(n.args):
             if n.name in self.TYPE_ARG_OPS and i == 0:
@@ -505,8 +491,6 @@ class Checker:
             if isinstance(a, A.Lambda):
                 inner = dict(env)
                 inner[a.var] = elem
-                if a.var == "it":
-                    inner["_implicit_it"] = True
                 self.type_of(a.body, inner)
             else:
                 self.type_of(a, env)

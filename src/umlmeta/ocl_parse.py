@@ -373,12 +373,20 @@ class Parser:
         return None
 
     def _rebind_it(self, node):
-        """Implicit-`it` rebind: unqualified lower-case names inside the
-        body belong to the iterator element (legacy `_shadow`, done on the
-        tree instead of on emitted source)."""
+        """Implicit-`it` rebind: inside an iterator body with no declared
+        variable, unqualified lower-case names AND unqualified calls belong
+        to the element, not to self.
+
+        The v0 emitter only rewrote property reads (`_g(self,'x')`), so an
+        unqualified call such as `incoming->exists(oclIsKindOf(Flow))` kept
+        `self` as the classification receiver and tested the wrong object.
+        """
         def fn(n):
             if isinstance(n, SelfProp) and n.name[:1].islower():
-                return Nav(receiver=Var(name="it"), feature=n.name, span=n.span)
+                return Nav(receiver=Var(name="it"), feature=n.name,
+                           span=n.span)
+            if isinstance(n, (Call, CollectOp, Classify)) and n.receiver is None:
+                return dc_replace(n, receiver=Var(name="it"))
             return n
         return ast_replace(node, fn)
 
@@ -413,6 +421,8 @@ class Parser:
                                acc_type=acc_type, acc_init=init, body=body), i0)
 
     def op_node(self, recv, name, args, i0):
+        """Build the call node. `recv is None` means an implicit call on
+        self (OCL's unqualified form)."""
         if name in SY.COLLECTION_OPS or name in SY.PENDING_OPS:
             return self._s(CollectOp(receiver=recv, op=name,
                                      args=tuple(args)), i0)
@@ -520,8 +530,11 @@ class Parser:
             return self._s(EnumLit(type_name="::".join(parts[:-1]),
                                    literal=parts[-1]), i0)
         if self.at("paren", "("):
-            recv = Var(name="self")
-            return self.call(recv, name, i0)
+            # no receiver node: an implicit call on self. Keeping it None
+            # (rather than Var('self')) is what lets the implicit-`it`
+            # rebind retarget it to the element without touching an
+            # explicit `self.f()`.
+            return self.call(None, name, i0)
         py = self._resolve(name)
         if py is not None:
             return self._s(Var(name=py), i0)

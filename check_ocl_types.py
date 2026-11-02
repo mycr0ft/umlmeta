@@ -200,7 +200,7 @@ print("== corpus sweep ==")
 checked, clean, with_errors = 0, 0, 0
 code_counts = collections.Counter()
 missing_features = collections.Counter()
-it_bodies = set()
+it_bodies = set()  # regression guard (code retired at O3a)
 for modname in ("uml25", "sysml2", "sysml"):
     mod = importlib.import_module("umlmeta." + modname)
     for klass in vars(mod).values():
@@ -241,8 +241,9 @@ check("unknown features are the dominant error class",
 top = missing_features.most_common(1)
 check("the profile modules' base properties are the top gap",
       top and top[0][0] == "base_Class" and top[0][1] == 42, str(top))
-check("the implicit-`it` receiver finding is itemized",
-      len(it_bodies) == 90, f"{len(it_bodies)} bodies")
+check("no body keeps `self` as the receiver of an implicit call",
+      len(it_bodies) == 0,
+      f"{len(it_bodies)} bodies still report implicit-it-receiver")
 
 print()
 print(f"RESULT: {len(PASS)} passed, {len(FAIL)} failed")

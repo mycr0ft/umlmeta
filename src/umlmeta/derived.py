@@ -180,8 +180,12 @@ def qualified_name(el):
     return _SEPARATOR.join([ns.name for ns in reversed(nss)] + [el.name])
 
 
-def separator():
-    """NamedElement::separator (§7.8.9.6): '::'."""
+def separator(_el=None):
+    """NamedElement::separator (§7.8.9.6): '::'.
+
+    Takes an optional element so an OCL body can read it as a property
+    (`self.separator` lowers to `_d('separator', self)`).
+    """
     return _SEPARATOR
 
 

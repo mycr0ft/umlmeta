@@ -6,6 +6,24 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- OCL: an unqualified call inside an implicit-`it` iterator body now targets
+  the element instead of `self`. 53 constraint bodies evaluated the wrong
+  object (`incoming->exists(oclIsKindOf(Flow))` tested the owner, not the
+  edges).
+- OCL: a property with no stored carrier is read through `derived.py`
+  (`owner`, `separator`, `mustBeOwned`, ...). `self.owner` returned `None`,
+  `self.separator` returned a bound method, and `self.mustBeOwned` returned a
+  method where a boolean belongs.
+
+### Added
+
+- `ocl_symbols.derived_only_props()` — the carrier-less derived-property
+  table, computed from `derived.py` against the generated descriptors.
+- `check_ocl.py`: five behaviour oracles for the derived route and the
+  implicit receiver.
+
 ### Added
 
 - `umlmeta.ocl_types` — the OCL type system over the generated runtimes: a

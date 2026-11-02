@@ -29,6 +29,7 @@ from umlmeta import derived as D  # noqa: E402
 from umlmeta import ocl_ast as A  # noqa: E402
 from umlmeta import ocl_emit as E  # noqa: E402
 from umlmeta import ocl_parse as P  # noqa: E402
+from umlmeta import ocl_symbols as SY  # noqa: E402
 from umlmeta import ocl_translator as T  # noqa: E402
 from umlmeta import uml25 as U  # noqa: E402
 
@@ -113,6 +114,42 @@ def _bound_names(tree):
     return names
 
 
+_DERIVED_ONLY = SY.derived_only_props()
+
+
+def _uses_derived_route(tree):
+    """The body reads a property that has no stored carrier, so the AST
+    routes it through derived.py (`_d(...)`) where v0 emitted a getattr."""
+    for node in A.walk(tree):
+        if isinstance(node, A.SelfProp) and node.name in _DERIVED_ONLY:
+            return True
+        if isinstance(node, A.Nav) and node.feature in _DERIVED_ONLY:
+            return True
+    return False
+
+
+def _retargets_implicit_receiver(tree):
+    """The body has an implicit-`it` body containing an unqualified call;
+    the AST retargets that call to the element, v0 left it on `self`."""
+    def scan(node, inside):
+        if isinstance(node, A.Lambda):
+            return scan(node.body, inside or node.var == "it")
+        if isinstance(node, (A.Call, A.CollectOp, A.Classify)) and inside \
+                and isinstance(node.receiver, A.Var) \
+                and node.receiver.name == "it":
+            return True
+        for f in __import__("dataclasses").fields(node):
+            v = getattr(node, f.name)
+            if isinstance(v, A.Node) and scan(v, inside):
+                return True
+            if isinstance(v, tuple):
+                for item in v:
+                    if isinstance(item, A.Node) and scan(item, inside):
+                        return True
+        return False
+    return scan(tree, False)
+
+
 def _v0_reads_bound_name_as_property(old_src, tree):
     """True when the v0 source reads a *bound* variable as a property."""
     return any(f"_g(self, {n!r})" in old_src or f"_g(it, {n!r})" in old_src
@@ -121,6 +158,7 @@ def _v0_reads_bound_name_as_property(old_src, tree):
 
 print("== differential: v0 source vs AST-emitted source ==")
 identical, renamed, defects, unexplained = 0, [], [], []
+derived_route, receivers = [], []
 legacy_only, newly_parsed, both_failed = [], [], 0
 for mod, cname, name, body in CORPUS:
     try:
@@ -141,6 +179,10 @@ for mod, cname, name, body in CORPUS:
         elif (mod, cname, name) in V0_EMITTER_DEFECTS \
                 and _v0_reads_bound_name_as_property(old, tree):
             defects.append((mod, cname, name))
+        elif _uses_derived_route(tree):
+            derived_route.append((mod, cname, name))
+        elif _retargets_implicit_receiver(tree):
+            receivers.append((mod, cname, name))
         else:
             unexplained.append((mod, cname, name, body))
     elif old is not None:
@@ -150,16 +192,19 @@ for mod, cname, name, body in CORPUS:
     else:
         both_failed += 1
 
-lowered = identical + len(renamed) + len(defects)
+lowered = identical + len(renamed) + len(defects) + len(derived_route) + \
+    len(receivers)
 check("every v0-translatable body also lowers through the AST",
       not legacy_only, str([f"{m}.{c}.{n}" for m, c, n, _ in legacy_only][:4]))
 check("AST lowers every body v0 lowered (633)", lowered == 633, f"{lowered}")
 check("no unexplained source difference", not unexplained,
       str([f"{m}.{c}.{n}" for m, c, n, _ in unexplained][:4]))
-check("differences are itemized (let-name numbering + v0 emitter defects)",
-      len(renamed) + len(defects) == 18,
+check("differences are itemized (names, v0 defects, derived routing, "
+      "receiver retarget)",
+      len(renamed) + len(defects) + len(derived_route) + len(receivers) == 75,
       f"identical {identical}, renamed {len(renamed)}, "
-      f"defects {len(defects)}, both-fail {both_failed}")
+      f"defects {len(defects)}, derived {len(derived_route)}, "
+      f"receivers {len(receivers)}, both-fail {both_failed}")
 check("every itemized defect body is pinned",
       all((m, c, n) in V0_EMITTER_DEFECTS for m, c, n in defects) and
       len(defects) == len(V0_EMITTER_DEFECTS),

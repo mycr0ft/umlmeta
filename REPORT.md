@@ -3719,3 +3719,70 @@ diagnostic.
 - `check_ocl_types.py`: 29 checks (new suite).
 - `check_ocl.py` / `check_ocl_ast.py` unchanged and green.
 - Full sweep green (804 checks, 21 suites).
+
+
+# Part 62: O3a — receiver scoping and the derived-property route
+
+O2's checker named two defects; O3a fixes both in the lowering rather than
+waiting for the interpreter.
+
+## The implicit receiver
+
+In OCL an unqualified call inside an implicit-`it` body
+(`incoming->exists(oclIsKindOf(ControlFlow))`) targets the *element*. The v0
+emitter built every bare call with `self` as receiver, and its textual
+`_shadow` rewrote only property reads — so 53 bodies tested self's type
+instead of each edge's: they ran, returned a boolean, and were wrong.
+
+The AST first had to be able to tell the two apart: a bare call now carries
+`receiver is None` (an implicit receiver), while an explicit `self.f()` keeps
+`Var('self')`. The implicit-`it` rebind retargets `None` to `Var('it')`.
+`check_ocl_ast.py` classifies the 53 bodies mechanically (an `it` body
+containing a receiver-less call) — a source diff that is explained, not
+tolerated.
+
+## Derived properties with no carrier
+
+`owner` is implemented in `derived.py` and stored nowhere: the generator drops
+derived ends it cannot compute, so the name never enters `_props`. A body
+reading `self.owner` lowered to `_dot(self, 'owner')` and got `None` —
+silently, which is the worst failure mode for a constraint.
+
+Two changes:
+
+- `ocl_symbols.derived_only_props()` computes the set: every `derived.py`
+  function whose camelCase name is a property of *no* generated class in any
+  module (16 of them — `owner`, `separator`, `mustBeOwned`,
+  `allOwnedElements`, `hasVisibilityOf`, …). Computed, so it cannot drift from
+  the descriptors.
+- `ocl_dot` falls back to that table when the attribute is absent — and also
+  when the attribute is a generated operation *stub*, because those are real
+  bound methods. `self.separator` was returning the method object instead of
+  `'::'`; `self.mustBeOwned` was returning a method where a boolean belongs.
+
+## Oracles
+
+`check_ocl.py` gained five value assertions: `owner` is the containing
+package, `separator` is `'::'`, `mustBeOwned` is `True`, and the receiver fix
+from both sides — `ownedAttribute->exists(oclIsKindOf(Property))` is True
+while the same test against `Class` is False, which is exactly what the v0
+lowering answered.
+
+## Why the interpreter itself is deferred
+
+The lowering evaluates the same typed tree the checker walks, so a
+tree-walking interpreter would produce the same values. What it adds is
+`invalid` (three-valued logic) and finer diagnostics — and the corpus never
+uses `isUnique`/`sortedBy`/`collectNested`, while `iterate` appears twice.
+Recorded as O3b to be picked up when `invalid` or user-authored OCL arrives,
+instead of being built speculatively.
+
+## Result
+
+- `check_ocl.py`: 24 passed (+5 behaviour oracles).
+- `check_ocl_ast.py`: 26 passed. The differential itemizes 75 source
+  differences: 5 `let`-name numbering, 12 v0 emitter defects, 5 derived-route,
+  53 receiver retargets; 558 bodies are byte-identical.
+- `check_ocl_types.py`: 29 passed. The `implicit-it-receiver` code is retired;
+  the suite keeps a zero-assertion as a regression guard.
+- Full sweep green (809 checks, 21 suites).

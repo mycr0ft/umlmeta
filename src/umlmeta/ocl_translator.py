@@ -107,15 +107,30 @@ def ocl_nav(v):
     return ocl_aslist(v)
 
 
+_MISSING = object()
+
+
 def ocl_dot(recv, attr):
     """Property navigation with implicit collect: over a single value
     this is getattr; over a collection it collects the attribute values
-    (OCL 2.4 §10.3.2 implicit collect)."""
+    (OCL 2.4 §10.3.2 implicit collect).
+
+    A property with no stored carrier (the generator drops derived ends it
+    cannot compute) resolves through `derived.py` instead of reading an
+    attribute that does not exist — `self.owner` is the common case.
+    """
     if isinstance(recv, (list, tuple)):
-        return ocl_collect([getattr(e, attr, None) for e in recv])
+        return ocl_collect([ocl_dot(e, attr) for e in recv])
     if recv is None:
         return None
-    return getattr(recv, attr, None)
+    v = getattr(recv, attr, _MISSING)
+    fn = SY.derived_only_props().get(attr)
+    # a generated operation stub is a bound method: reading it as a property
+    # would hand back the method object, so a derived implementation wins
+    if fn is not None and (v is _MISSING or callable(v)):
+        from . import derived as _derived
+        return getattr(_derived, fn)(recv)
+    return None if v is _MISSING else v
 
 
 def ocl_eq(a, b):

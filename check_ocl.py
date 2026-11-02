@@ -202,6 +202,28 @@ check("evaluator runs the majority of applicable bodies", True,
       f"({ran} evaluated over the sample model)")
 
 
+print("== derived properties and implicit receivers (O3a) ==")
+_p = U.Package(name="Outer")
+_k = U.Package(name="Inner")
+_p.packagedElement.append(_k)
+_c = U.Class(name="K")
+_k.packagedElement.append(_c)
+check("a carrier-less derived property reads through derived.py",
+      T.eval_body("self.owner", _c, D) is _k)
+check("a derived property shadowed by a generated operation stub computes",
+      T.eval_body("self.separator", _c, D) == "::")
+check("mustBeOwned computes instead of returning a method",
+      T.eval_body("self.mustBeOwned", _c, D) is True)
+_attr = U.Property(name="p")
+_c.ownedAttribute.append(_attr)
+check("an unqualified call inside an `it` body tests the ELEMENT",
+      T.eval_body("ownedAttribute->exists(oclIsKindOf(Property))", _c, D)
+      is True)
+check("...and would be False if it tested self (the v0 lowering)",
+      T.eval_body("ownedAttribute->exists(oclIsKindOf(Class))", _c, D)
+      is False)
+
+
 print()
 print(f"RESULT: {len(PASS)} passed, {len(FAIL)} failed")
 if FAIL:

@@ -69,6 +69,11 @@ def _py_var(n):
 
 
 def _py_selfprop(n):
+    # a derived-only property has no stored carrier: read it through
+    # derived.py instead of getattr (see ocl_symbols.derived_only_props)
+    fn = SY.derived_only_props().get(n.name)
+    if fn is not None:
+        return f"_d({fn!r}, self)"
     return f"_g(self, {n.name!r})"
 
 
@@ -211,7 +216,7 @@ def _chain(node):
 
 
 def _py_classify(n):
-    recv = to_python(n.receiver)
+    recv = to_python(n.receiver) if n.receiver is not None else "self"
     op = n.op
     if op == "oclIsKindOf":
         return f"_k({recv}, {n.type_name!r})"
@@ -344,10 +349,15 @@ def _ocl_call(n):
 
 def _ocl_collect(n):
     args = ", ".join(to_ocl(a) for a in n.args)
+    if n.receiver is None:
+        # the implicit form: a bare `op(args)` call on self
+        return f"{n.op}({args})"
     return f"{to_ocl(n.receiver)}->{n.op}({args})"
 
 
 def _ocl_classify(n):
+    if n.receiver is None:
+        return f"{n.op}({n.type_name})" if n.type_name else f"{n.op}()"
     return f"{to_ocl(n.receiver)}.{n.op}({n.type_name})"
 
 
@@ -359,7 +369,8 @@ def _ocl_lambda(n):
 
 def _ocl_iterate(n):
     acc = n.acc_name + (f" : {n.acc_type}" if n.acc_type else "")
-    return (f"{to_ocl(n.receiver)}->iterate({n.var} ; {acc} = "
+    recv = "" if n.receiver is None else f"{to_ocl(n.receiver)}->"
+    return (f"{recv}iterate({n.var} ; {acc} = "
             f"{to_ocl(n.acc_init)} | {to_ocl(n.body)})")
 
 

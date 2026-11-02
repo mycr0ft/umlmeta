@@ -1,7 +1,7 @@
 # OCL engine pathway — parsing and evaluating OCL over the generated runtimes
 
-Status: O0, O1 and O2 shipped (corpus measurement, the AST/parser, the type
-checker); O3-O6 open.
+Status: O0, O1, O2 and O3a shipped (corpus, AST/parser, type checker,
+receiver scoping + derived-property routing); O3b-O6 open.
 Every number below was produced by a command in this repo; the commands are
 listed so they can be re-run.
 
@@ -165,7 +165,7 @@ least one error, and the errors are concentrated:
 |---|---:|---|
 | `base_*` unknown features | 42 (`base_Class`) + 35 (`base_Property`) + … | **the profile modules carry no property descriptors at all** — `sysml.Block._props == {}`, only `_STEREO`. Every SysML v1 stereotype constraint that navigates its base property is untypable until `generate_profiles.py` emits them |
 | `owner` derived-not-wired | 19 | `owner` is implemented in `derived.py` but absent from `DERIVED_FUNCS`, so the evaluator reads a non-existent attribute — one table entry fixes all 19 |
-| implicit-`it` receiver | 90 | an unqualified call inside an `it` body lowers with `self` as receiver, so `x->exists(oclIsKindOf(T))` tests **self's** type instead of each element's. Inherited from v0 (the AST reproduces it for parity); fixed when the interpreter owns receiver scoping (O3) |
+| implicit-`it` receiver | 90 | an unqualified call inside an `it` body lowered with `self` as receiver, so `x->exists(oclIsKindOf(T))` tested **self's** type instead of each element's. **Fixed in O3a** (53 bodies change lowering) |
 | unsupported operations | 567 diagnostics | `selectByKind`, `specializesFromLibrary`, the spec helper operations — the O4/O5 queue |
 
 The useful part is the direction of the check: `check_ocl.py` used to report
@@ -219,11 +219,22 @@ differs (so a source-level change shows up as a diff, not a mystery).
   `unknown-type` (error), `derived-not-wired` / `unsupported-operation` /
   `implicit-it-receiver` (pending queue). 1166 bodies checked, 912 clean.
   Gate: `check_ocl_types.py` (29).
-- **O3 — interpreter + collection library.** `ocl_eval.py` over the AST with
-  proper collection kinds and `invalid`; `ocl_ops.py` for the collection,
-  String/Integer ops, `Tuple`, literals, `->iterate`/`->closure`/`->isUnique`/
-  `->sortedBy`. *Exit:* value-parity against the source-emitting path on every
-  body that both can run; the parser whitelist is gone.
+- **O3a — scope and routing.** *Shipped.* Two defects the checker found are
+  fixed in the lowering: (a) an unqualified call inside an implicit-`it` body
+  now targets the element (`receiver is None` in the AST, retargeted by the
+  rebind), which moves 53 bodies from testing `self` to testing the element;
+  (b) a property with no stored carrier is routed through `derived.py`
+  (`owner`, `separator`, `mustBeOwned`, … — 16 names computed from the
+  descriptor table, not hand-listed), including the case where a generated
+  operation *stub* shadows the property read. Both are asserted by value in
+  `check_ocl.py` and by source class in `check_ocl_ast.py`.
+- **O3b — the interpreter.** `ocl_eval.py` over the AST with proper collection
+  kinds and three-valued `invalid`; the collection library (`->iterate`,
+  `->isUnique`, `->sortedBy`, `->collectNested`). Deferred deliberately: the
+  lowering evaluates the same typed tree, so an interpreter buys `invalid`
+  semantics and finer diagnostics, not different answers — and the corpus
+  never uses `isUnique`/`sortedBy`/`collectNested`, while `iterate` appears
+  twice. It becomes worth doing when `invalid` or user-authored OCL arrives.
 - **O4 — helper-operation library.** The 22 UML (+~30 SysML) operations,
   transcribed from the formal text with anchors, replacing their `derived.py`
   counterparts one at a time (derived stays as the fast path). *Exit:* the 41
