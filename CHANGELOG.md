@@ -6,6 +6,18 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `umlmeta.stereotype` — materializes stereotype applications as objects: the
+  generated stereotype class is instantiated, its `base_<Metaclass>` end set
+  to the stereotyped element, its tagged values applied with their declared
+  types, and the instance attached to the element. `stereotype.check(model)`
+  evaluates every applied stereotype's constraints with `self` bound to the
+  instance (1113 evaluations over the 61 DoDAF applications).
+- `check_stereotype.py` — 15 checks: profile index and resolution, a
+  hand-written XMI application, the DoDAF corpus, and evaluation oracles that
+  fail when they should.
+
 ### Fixed
 
 - Profile modules: the generator consumed the `base_*` extension ends and

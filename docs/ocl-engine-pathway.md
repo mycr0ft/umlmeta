@@ -1,8 +1,7 @@
 # OCL engine pathway — parsing and evaluating OCL over the generated runtimes
 
-Status: O0, O1, O2, O3a and the profile-property fix shipped (corpus,
-AST/parser, type checker, receiver scoping + derived routing, stereotype
-base properties); O3b-O6 open. Deferrals are itemized in §7.
+Status: O0, O1, O2, O3a, the profile-property fix and S1 (stereotype
+instances) shipped; O3b-O6 open. Deferrals are itemized in §7.
 Every number below was produced by a command in this repo; the commands are
 listed so they can be re-run.
 
@@ -275,3 +274,27 @@ artifact (a library model) and therefore the one to schedule last.
 4. **Evaluate user OCL** carried in models (`Constraint.specification` bodies
    read by `xmi21.py`), which is what a v1→v2 "constraint carries" mapping
    would need before it can even be attempted.
+
+## 7. Backlog (deferred, with the trigger that revives it)
+
+Itemized so a later session does not have to re-derive why these are open.
+
+| item | state / why it is deferred | trigger to pick it up |
+|---|---|---|
+| **O3b — the tree-walking interpreter** | deferred: the lowering already evaluates the same typed tree, so an interpreter buys `invalid` semantics and finer diagnostics, not different answers | the first body that needs three-valued `invalid`, or the first user-authored OCL (the corpus never uses `isUnique`/`sortedBy`/`collectNested`; `iterate` appears twice) |
+| **stereotype instances** | **shipped (S1, `umlmeta.stereotype`)** — applications materialize the generated stereotype class with its `base_*` end and typed tagged values; 1113 constraint evaluations run over the DoDAF corpus | — |
+| **type-scoped calls** | `UML::Behavior.allInstances()` lowers to the empty extent stub; anything else on a type name (`UML::X.f()`) refuses | O2/O5 — falls out of the extent work |
+| **`selectByKind` / `specializesFromLibrary`** | 194 + 146 bodies; metaclass filtering and a library index | O5 (extent + library resolution) |
+| **the spec helper operations** | 60 skipped evaluations in the DoDAF run alone (`isConsistentWith` first); their bodies exist only in the formal PDF (`UML.xmi` carries zero `bodyCondition`) | O4, one operation per anchor |
+| **`@pre`** | parses, prints, refuses to lower | O3b, with the rest of the postcondition context |
+| **4 residual `base_*` diagnostics** | one is a real corpus/model mismatch (`Probability` navigates `base_Parameter` but the stereotype extends `ActivityEdge`/`ParameterSet`); three are checker inference artifacts where a receiver ends up typed `Boolean` | cheap once the checker types boolean-producing expressions better |
+
+## 8. Non-goals
+
+- Byte-parity round-trip of v1 XMI through the pair (structural parity is the
+  gate).
+- A general v2 → v1 reverse transformation (the mapping is not invertible;
+  elisions guarantee it).
+- Automatic resolution of semantic conflicts (conflicts are surfaced and
+  recorded; a human decides).
+- Tool-specific dialects beyond UML 2.x/2.5.1 XMI and the SysML v1 profile.

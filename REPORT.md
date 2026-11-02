@@ -3847,3 +3847,54 @@ merely analysed.
 - Full sweep green (810 checks, 21 suites; the mdzip corpus probe is
   skipped because the corpora are not fetched).
 - Generator idempotence verified; `profile_stats.json` refreshed.
+
+
+# Part 64: S1 — stereotype applications become objects
+
+The backlog's top entry was that stereotype constraints could be typed but not
+evaluated: the reader recorded applications as `(profile, stereotype, app_id)`
+triples and never built an object to be `self`. `umlmeta.stereotype` closes
+that.
+
+## What it does
+
+`materialize(model)` walks `model.apps` and, per application:
+
+- resolves the generated class by `(profile, stereotype)` against the four
+  profile modules (617 stereotypes, 355 distinct names) — by name alone when
+  the file's profile prefix has no match;
+- instantiates it and sets the `base_<Metaclass>` end named by
+  `model.app_metas[app_id]` to the stereotyped element;
+- applies `model.app_tags[app_id]` with the declared types (the descriptors
+  carry the target as a Python type in `_Ref.t`, so `"true"` becomes `True`);
+- attaches the instance to the base element (`_stereotype_instances`) beside
+  the applications the reader already recorded.
+
+Nothing is invented: an application whose stereotype class is not in the tree
+lands in `unresolved`, a tag with no property in `untagged` (with the reason),
+and neither is guessed.
+
+`check(model, derived)` then runs `ocl_translator.check_constraints` with
+`self` bound to each instance and aggregates the results.
+
+## What it produces on real input
+
+| corpus | applications | resolved | constraint evaluations | skipped |
+|---|---:|---:|---:|---:|
+| DoDAF library (UPDM) | 61 | 61 | 1113 | 408 |
+
+The skip reasons are the backlog, measured: 106 no-specification
+placeholders, 61 `->iterate` (O3b), 60 `isConsistentWith` and the rest the
+spec helper operations (O4). Nothing is skipped silently.
+
+The semantic oracles in `check_stereotype.py` use `Requirement` on a
+constructed class: `1_no_operation` passes, fails once an operation is added,
+and `2_no_attribute` fails once an attribute is added — so the evaluation is
+proven to read through `base_Class` into the real element rather than
+returning a vacuous True.
+
+## Result
+
+- `check_stereotype.py`: 15 checks (new suite).
+- `check_ocl.py` / `check_ocl_ast.py` / `check_ocl_types.py`: unchanged, green.
+- Full sweep green (825 checks, 22 suites).
