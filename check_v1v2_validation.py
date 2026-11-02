@@ -39,7 +39,7 @@ check("the transform produces one root package", len(roots) == 1)
 check("the extent reaches the whole model", report["elements"] == 131,
       f"{report['elements']} elements")
 check("checks and derivations are separated",
-      len(report["checks"]) == 1898 and len(report["derivations"]) == 4030,
+      len(report["checks"]) == 1898 and len(report["derivations"]) == 4026,
       f"{len(report['checks'])} checks, {len(report['derivations'])} derivations")
 check("no deriveXxx body is counted as a check",
       not any(e["constraint"].startswith("derive") for e in report["checks"]))
@@ -57,12 +57,22 @@ check("the dominant family is the missing library specialization edges",
 
 print("== skips are reported, not passed ==")
 check("skips are counted with reasons",
-      len(report["skipped"]) == 1872 and report["skip_reasons"],
+      len(report["skipped"]) == 1876 and report["skip_reasons"],
       str(report["skip_reasons"][:2]))
 check("the top skip reason is a known engine gap",
       report["skip_reasons"][0][0] in ("eval-unmapped",) or
       report["skip_reasons"][0][0].startswith("operation "),
       str(report["skip_reasons"][0]))
+
+print("== undetermined is a skip, never a False ==")
+und = [s for s in report["skipped"]
+       if s["reason"].startswith("undetermined")]
+check("a feature the runtime lacks is recorded as undetermined",
+      len(und) == 4, f"{len(und)} skips, e.g. "
+      f"{und[0]['reason'] if und else None}")
+check("no violation comes from an undetermined read",
+      all("undetermined" not in str(e) for e in report["violations"]))
+
 
 print("== an empty model is clean ==")
 empty = V.validate()

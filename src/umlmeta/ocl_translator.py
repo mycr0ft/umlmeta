@@ -108,6 +108,30 @@ def ocl_nav(v):
     return ocl_aslist(v)
 
 
+class Undetermined(Exception):
+    """An evaluation that cannot answer yes or no (a feature the runtime
+    does not carry). Recorded as a skip, never as False."""
+
+
+class _Undefined:
+    """A read of a feature this runtime does not have.
+
+    OCL's `invalid`: any boolean use raises, so `all()`/`any()`/`if` cannot
+    silently turn "I cannot tell" into False.
+    """
+
+    __slots__ = ("feature",)
+
+    def __init__(self, feature):
+        self.feature = feature
+
+    def __bool__(self):
+        raise Undetermined(f"undetermined: no feature {self.feature!r}")
+
+    def __repr__(self):
+        return f"<undetermined {self.feature!r}>"
+
+
 _MISSING = object()
 
 
@@ -131,10 +155,17 @@ def ocl_dot(recv, attr):
     if fn is not None and (v is _MISSING or callable(v)):
         from . import derived as _derived
         return getattr(_derived, fn)(recv)
-    return None if v is _MISSING else v
+    if v is _MISSING:
+        # the runtime has no such feature: undetermined, not None
+        return _Undefined(attr)
+    return v
 
 
 def ocl_eq(a, b):
+    if isinstance(a, _Undefined) or isinstance(b, _Undefined):
+        raise Undetermined(
+            f"undetermined comparison: "
+            f"{getattr(a, 'feature', a)!r} vs {getattr(b, 'feature', b)!r}")
     """OCL =: for two collections, set equality; scalar = scalar is
     plain equality; a collected multi-valued read (list) against a
     scalar (None / literal / enum) follows the UML constraint-bodies'
@@ -1350,6 +1381,9 @@ def check_constraints(obj, derived, only=None):
                 val = eval_body(body, obj, derived)
             except UnmappedFeature as ex:
                 skipped.append((cname, body, str(ex)))
+                continue
+            except Undetermined as ex:
+                skipped.append((cname, body, str(ex)[:80]))
                 continue
             except (AttributeError, TypeError, KeyError) as ex:
                 # the body navigates an end the generated runtime does

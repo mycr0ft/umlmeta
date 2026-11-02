@@ -3998,3 +3998,25 @@ own output — and it is the concrete case for O6 (a resolved library model).
 
 - `check_v1v2_validation.py`: 9 checks (new suite).
 - Full sweep green (851 checks, 24 suites).
+
+
+# Part 67: `invalid` — an undetermined read is a skip, never a False
+
+The gate's first truth defect: `_dot` returned `None` for a feature the
+runtime does not carry, and `None` is falsy, so a body could answer False
+because the *runtime* lacks a property rather than because the model violates
+the constraint.
+
+`ocl_translator` now has OCL's distinction: a missing read yields
+`_Undefined`, whose `__bool__` raises `Undetermined`, and `check_constraints`
+records that as a skip. `all()`/`any()`/`if` therefore cannot silently turn
+"cannot tell" into False, and `_eq` refuses to compare an undetermined side.
+
+Measured on the vehicle model: 4 evaluations move from check to skip, and the
+violation count stays 284. That is the useful part of the answer — the
+silent-false class in this model is *small* (4), not the large fraction I
+feared, so the 284 violations are not artifacts of missing attributes. The
+sentinel earns its keep as a guarantee, and it says the violation count can be
+triaged at face value.
+
+- `check_v1v2_validation.py`: 11 checks (+2).

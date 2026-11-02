@@ -8,6 +8,14 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- OCL `invalid`: reading a feature the runtime does not carry now yields an
+  undetermined value whose boolean use raises, and the evaluator records it as
+  a skip. A constraint can no longer answer False because the generated
+  runtime lacks an attribute (`_dot` used to return `None`).
+- `check_v1v2_validation.py`: 11 checks (+2, the undetermined class).
+
+### Added
+
 - `umlmeta.v2_validate` — the semantic gate for a transformed SysML v2 model:
   runs the KerML/SysML constraint bodies over the AS with an extent bound,
   separating derivations from checks and reporting violations and skips
