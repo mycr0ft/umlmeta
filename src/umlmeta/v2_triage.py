@@ -44,8 +44,9 @@ def _classify(family):
     edge, and the transform emits none: one cause, many family names.
     """
     if family.endswith("IsReference"):
-        return ("runtime", "isReference is derived in the KerML AS "
-                          "(deriveUsageIsReference); the runtime stores None")
+        return ("transform", "isReference computes (not isComposite) but the "
+                             "transform emits no featuring type, which the "
+                             "same rule requires of a composite usage")
     if family.endswith("Specialization") and ".check" in family:
         return ("transform",
                 "the transform emits no library specialization edges (O6)")

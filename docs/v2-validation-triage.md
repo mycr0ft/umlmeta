@@ -12,24 +12,24 @@
 | violation | `Step.checkStepSpecialization` | 9 | transform | the transform emits no library specialization edges (O6) |
 | violation | `ActionUsage.checkActionUsageSpecialization` | 7 | transform | the transform emits no library specialization edges (O6) |
 | violation | `EndFeatureMembership.validateEndFeatureMembershipIsEnd` | 6 | unattributed |  |
-| violation | `ReferenceUsage.validateReferenceUsageIsReference` | 5 | runtime | isReference is derived in the KerML AS (deriveUsageIsReference); the runtime stores None |
+| violation | `ReferenceUsage.validateReferenceUsageIsReference` | 5 | transform | isReference computes (not isComposite) but the transform emits no featuring type, which the same rule requires of a composite usage |
 | violation | `ActionDefinition.checkActionDefinitionSpecialization` | 5 | transform | the transform emits no library specialization edges (O6) |
 | violation | `Behavior.checkBehaviorSpecialization` | 5 | transform | the transform emits no library specialization edges (O6) |
-| violation | `AttributeUsage.validateAttributeUsageIsReference` | 4 | runtime | isReference is derived in the KerML AS (deriveUsageIsReference); the runtime stores None |
+| violation | `AttributeUsage.validateAttributeUsageIsReference` | 4 | transform | isReference computes (not isComposite) but the transform emits no featuring type, which the same rule requires of a composite usage |
 | violation | `AttributeUsage.checkAttributeUsageSpecialization` | 4 | transform | the transform emits no library specialization edges (O6) |
 | violation | `Connector.checkConnectorSpecialization` | 4 | transform | the transform emits no library specialization edges (O6) |
 | violation | `Connector.validateConnectorRelatedFeatures` | 4 | unattributed |  |
 | violation | `Expression.validateExpressionResultParameterMembership` | 3 | unattributed |  |
 | violation | `Expression.checkExpressionSpecialization` | 3 | transform | the transform emits no library specialization edges (O6) |
-| violation | `EnumerationUsage.validateAttributeUsageIsReference` | 3 | runtime | isReference is derived in the KerML AS (deriveUsageIsReference); the runtime stores None |
+| violation | `EnumerationUsage.validateAttributeUsageIsReference` | 3 | transform | isReference computes (not isComposite) but the transform emits no featuring type, which the same rule requires of a composite usage |
 | violation | `EnumerationUsage.checkAttributeUsageSpecialization` | 3 | transform | the transform emits no library specialization edges (O6) |
 | violation | `ItemDefinition.checkItemDefinitionSpecialization` | 3 | transform | the transform emits no library specialization edges (O6) |
 | violation | `Structure.checkStructureSpecialization` | 3 | transform | the transform emits no library specialization edges (O6) |
 | violation | `LiteralInteger.checkLiteralIntegerSpecialization` | 2 | transform | the transform emits no library specialization edges (O6) |
 | violation | `LiteralExpression.checkLiteralExpressionSpecialization` | 2 | transform | the transform emits no library specialization edges (O6) |
-| violation | `PortUsage.validatePortUsageIsReference` | 2 | runtime | isReference is derived in the KerML AS (deriveUsageIsReference); the runtime stores None |
+| violation | `PortUsage.validatePortUsageIsReference` | 2 | transform | isReference computes (not isComposite) but the transform emits no featuring type, which the same rule requires of a composite usage |
 | violation | `PortUsage.checkPortUsageSpecialization` | 2 | transform | the transform emits no library specialization edges (O6) |
-| violation | `EventOccurrenceUsage.validateEventOccurrenceUsageIsReference` | 2 | runtime | isReference is derived in the KerML AS (deriveUsageIsReference); the runtime stores None |
+| violation | `EventOccurrenceUsage.validateEventOccurrenceUsageIsReference` | 2 | transform | isReference computes (not isComposite) but the transform emits no featuring type, which the same rule requires of a composite usage |
 | violation | `ParameterMembership.validateParameterMembershipOwningType` | 2 | unattributed |  |
 | violation | `ConnectionUsage.checkConnectionUsageSpecialization` | 2 | transform | the transform emits no library specialization edges (O6) |
 | violation | `PartUsage.checkPartUsageSpecialization` | 2 | transform | the transform emits no library specialization edges (O6) |
