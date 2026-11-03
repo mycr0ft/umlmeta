@@ -2490,30 +2490,85 @@ def _library_definition(index, qname):
     return t
 
 
+def _spec_library_bases():
+    """The required library bases, read out of the spec itself: every
+    sysml2 CONSTRAINTS entry whose body is a bare
+    ``specializesFromLibrary('<qname>')`` is an unconditional
+    check*Specialization rule, i.e. exactly what v2_validate evaluates."""
+    import re as _re
+    table = {}
+    for name in dir(S2):
+        cls = getattr(S2, name)
+        if not isinstance(cls, type):
+            continue
+        for _cname, body in getattr(cls, "CONSTRAINTS", ()):
+            m = _re.fullmatch(r"specializesFromLibrary\('([^']+)'\)",
+                              " ".join(body.split()))
+            if m:
+                table.setdefault(cls.__name__, []).append(m.group(1))
+    return table
+
+
+_SPEC_LIBRARY_BASES = _spec_library_bases()
+
+
 def _add_library_specialization(index, v2obj):
-    """Attach the KerML library base for this object's class, if the table
-    names one. The rule bodies test specializesFromLibrary, which resolves
-    qualified names through the extent."""
+    """Attach the KerML library bases for this object's whole MRO: every
+    bare check*Specialization rule the spec puts on the object's metaclass
+    chain, plus the hand table's conditional bases (Occurrences::Life and
+    friends). No break on the first MRO hit — a Class is also a Feature and
+    both rules must hold. The rule bodies test specializesFromLibrary,
+    which resolves qualified names through the extent."""
     if v2obj is None:
         return
-    # every Type gets Base::Anything in addition to its specific base: the
+    # every Type gets Base::Anything in addition to the specific bases: the
     # MRO-level checkTypeSpecialization rule asks for exactly that
     qnames = ["Base::Anything"]
-    for cls in type(v2obj).__mro__:
-        if cls.__name__ in _LIBRARY_BASES:
-            qnames.append(_LIBRARY_BASES[cls.__name__])
-            break
-    for qname in qnames:
+    for table in (_SPEC_LIBRARY_BASES, _LIBRARY_BASES):
+        for cls in type(v2obj).__mro__:
+            vals = table.get(cls.__name__, ())
+            # the hand table maps to a single string, the spec table to a
+            # list — never extend() a string (that iterates characters)
+            qnames.append(vals) if isinstance(vals, str) \
+                else qnames.extend(vals)
+    for qname in dict.fromkeys(qnames):
         _attach_one_base(index, v2obj, qname)
     # and keep the stubs referenced-but-not-contained reachable for the JSON
     # serializer by remembering them on the index root
     index.setdefault("_lib_stubs", []).extend(
-        _library_definition(index, q) for q in qnames)
+        _library_definition(index, q) for q in dict.fromkeys(qnames))
+
+
+def _backfill_library_bases(index, root):
+    """Walk the emitted AS graph the way link._walk does (composite ends in
+    full, since ownedSpecialization is composite storage) and attach any
+    required library bases the creation paths missed."""
+    seen = set()
+    stack = [root]
+    while stack:
+        el = stack.pop()
+        if el is None or id(el) in seen or not hasattr(el, "_props"):
+            continue
+        seen.add(id(el))
+        _add_library_specialization(index, el)
+        for name, d in el._props.items():
+            if not d.composite:
+                continue
+            v = el._vals.get(name)
+            items = v if isinstance(v, (list, tuple)) else ((v,) if v else ())
+            for ch in items:
+                if ch is not None and hasattr(ch, "_props"):
+                    stack.append(ch)
 
 
 def _attach_one_base(index, v2obj, qname):
     if not hasattr(v2obj, "ownedSpecialization"):
         return
+    # idempotent: a base already attached (by the transform or this pass)
+    # is left alone
+    for sc in v2obj.ownedSpecialization or ():
+        if getattr(sc._vals.get("general"), "_library_qname", None) == qname:
+            return
     base = _library_definition(index, qname)
     sc = S2.Subclassification()
     sc.general = base
@@ -2596,6 +2651,11 @@ def transform_packages(pkgs, side_channel=False):
     # conformance index and the v1 root rather than re-deriving them:
     # provenance needs {id(v1 element): v2 element} and the v1 tree.
     elisions = index.pop("_elisions", [])
+    # O6 backfill: nested usages created by population helpers never pass
+    # transform_v1_element, so sweep the whole emitted graph and attach the
+    # required library bases to anything that missed the hook. Idempotent.
+    for _pkg, out in pairs:
+        _backfill_library_bases(index, out)
     for pkg, out in pairs:
         out._v1_index = index
         out._v1_root = pkg

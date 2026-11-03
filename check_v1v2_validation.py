@@ -48,12 +48,13 @@ print("== the finding ==")
 families = collections.Counter(f"{e['class']}.{e['constraint']}"
                                for e in report["violations"])
 check("the gate reports violations on transformed output",
-      len(report["violations"]) == 189 and not report["clean"],
+      len(report["violations"]) == 50 and not report["clean"],
       f"{len(report['violations'])} violations in "
       f"{len(families)} families")
 top = families.most_common(1)[0]
-check("the dominant remaining family is a *Specialization rule still failing",
-      top[0].endswith("Specialization") and top[1] >= 30, str(top))
+check("the check*Specialization family is down to conditional Binary rules",
+      top[0] == "Connector.checkConnectorBinarySpecialization" and top[1] == 4
+      and top[1] == max(families.values()), str(top))
 
 print("== skips are reported, not passed ==")
 check("skips are counted with reasons",
@@ -77,9 +78,9 @@ check("no violation comes from an undetermined read",
 print("== the triage ledger ==")
 from umlmeta import v2_triage as TR  # noqa: E402
 rows = TR.ledger(report)
-check("every finding has a row", len(rows) == 73, f"{len(rows)} rows")
+check("every finding has a row", len(rows) == 38, f"{len(rows)} rows")
 check("every finding now has an owner",
-      sum(1 for r in rows if r["owner"] != "unattributed") == 73,
+      sum(1 for r in rows if r["owner"] != "unattributed") == 38,
       f"{sum(1 for r in rows if r['owner'] != 'unattributed')} attributed")
 cons = TR.structure_consistency(*roots)
 check("structure consistency does not report the missing AS union as a defect",
