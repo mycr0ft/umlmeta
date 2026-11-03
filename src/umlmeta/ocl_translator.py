@@ -50,6 +50,7 @@ from __future__ import annotations
 import re
 
 from . import extent as extent_mod
+from . import derived as D
 from . import ocl_ast, ocl_emit, ocl_parse
 from . import ocl_symbols as SY
 from . import uml25 as U
@@ -74,9 +75,14 @@ def enum_val(v):
 
 
 def ocl_is_kind_of(obj, tname):
-    """obj.oclIsKindOf(T): obj's dynamic type conforms to metaclass T."""
+    """obj.oclIsKindOf(T): obj's dynamic type conforms to metaclass T.
+    Module-first lookup (like the extent's), with an uml25 fallback so
+    a sysml2 element still answers against the UML hierarchy."""
     if obj is None:
         return False
+    cls = extent_mod.metaclass(tname, getattr(_EXTENT, "prefer", None))
+    if cls is not None and isinstance(obj, cls):
+        return True
     return isinstance(obj, U.metaclass(tname))
 
 
@@ -265,14 +271,29 @@ def ocl_get(obj, name):
 
 
 def derived_read(obj, prop):
-    """Value of a derived property, or _MISSING when there is no rule."""
+    """Value of a derived property, or _MISSING when there is no rule.
+
+    Rule order: a `derive<Base><Prop>` OCL constraint in the class MRO, then
+    a structural rule (_AS_STRUCTURAL), then — new in O4b — a `derived.py`
+    function registered in DERIVED_FUNCS as ("derived", fn) even when the
+    generator kept the (derived, readonly) end, e.g. NamedElement.
+    qualifiedName: the stored end is derived+readonly with no derive
+    constraint, so without this last hop every read returned null."""
     try:
         src = _derivation_source(type(obj), prop)
     except Exception:                              # noqa: BLE001
         return _MISSING
     if src is None:
         fn = _AS_STRUCTURAL.get(prop)
-        return fn(obj) if fn is not None else _MISSING
+        if fn is not None:
+            return fn(obj)
+        entry = SY.DERIVED_FUNCS.get(prop)
+        if entry is not None and entry[0] == "derived":
+            try:
+                return getattr(D, entry[1])(obj)
+            except Exception:                      # noqa: BLE001
+                return _MISSING
+        return _MISSING
     guard = (id(obj), prop)
     if guard in _DERIV_BUSY:
         return _MISSING
@@ -405,6 +426,7 @@ def is_mult(me, lo, hi):
 
 
 _EXTENT = None
+_SELF = None
 
 
 def set_extent(extent):
@@ -417,6 +439,20 @@ def set_extent(extent):
 
 def current_extent():
     return _EXTENT
+
+
+def set_self(obj):
+    """Bind the constraint's `self` for the duration of an evaluation.
+    Nested evaluations (`_iterate` over a body that itself iterates)
+    read it through `current_self()`."""
+    global _SELF
+    previous = _SELF
+    _SELF = obj
+    return previous
+
+
+def current_self():
+    return _SELF
 
 
 def all_instances(tname):
@@ -1517,10 +1553,12 @@ def eval_body(body, self_obj, derived, extent=None):
     g = dict(_EVAL_BUILTINS)
     g.update(env)
     previous = set_extent(extent)
+    prev_self = set_self(self_obj)
     try:
         return eval(src, g, {})  # noqa: S307
     finally:
         set_extent(previous)
+        set_self(prev_self)
 
 
 def check_constraints(obj, derived, only=None):
@@ -1615,9 +1653,1541 @@ def sub_sequence(coll, lo, hi):
     return seq[max(int(lo) - 1, 0):int(hi)]
 
 
+def sub_ordered_set(coll, lo, hi):
+    """OCL OrderedSet::subOrderedSet(lo, hi) — 1-based, inclusive."""
+    return sub_sequence(coll, lo, hi)
+
+
+def ocl_concat(s, other):
+    """OCL String::concat(s2): string concatenation; null propagates
+    (a null operand yields null, not a crash)."""
+    if s is None or other is None:
+        return None
+    return str(s) + str(other)
+
+
+def _iterate(coll, var, acc, init, body_src):
+    """`x->iterate(v; acc = init | body)` (OCL 2.4 §10.3.6): fold
+    `body` over the elements, the accumulator starting at `init`.
+    `body_src` is the lowered Python source of the body, evaluated once
+    per element with `var` and `acc` bound — the parser already renamed
+    them to plain names, so a two-name eval env does the binding."""
+    env = dict(_EVAL_ENV)
+    env["_d"] = _derived_call(D)
+    env["all_instances"] = all_instances
+    env["self"] = current_self()
+    g = dict(_EVAL_BUILTINS)
+    g.update(env)
+    result = init
+    for elem in (coll or ()):
+        g[var] = elem
+        g[acc] = result
+        result = eval(body_src, g, {})  # noqa: S307
+    return result
+
+
 def including(coll, element):
     """OCL Collection::including(x)."""
     return list(coll or ()) + [element]
+
+
+# --------------------------------------------------------------------------
+# O5b: KerML/SysML v2 (sysml2) helper operations, transcribed from the
+# corpus bodies that call them. Anything the runtime does not carry
+# answers None (undetermined -> a skip), never a guessed False.
+# --------------------------------------------------------------------------
+
+def _as_list(v):
+    if v is None:
+        return ()
+    if isinstance(v, (list, tuple)):
+        return v
+    return (v,)
+
+
+def _extent():
+    """The bound extent, or an empty one (never None — the lookup then
+    honestly answers "not found")."""
+    return _EXTENT if _EXTENT is not None else extent_mod.Extent()
+
+
+def _qualified(el):
+    from . import derived as D
+    try:
+        return D.qualified_name(el)
+    except Exception:                              # noqa: BLE001
+        return None
+
+
+def _specializes(el, target):
+    """Direct/indirect specialization (KerML Specialization graph plus
+    the v1 generalization chain), cycle-guarded."""
+    if el is None or target is None:
+        return False
+    seen = set()
+    stack = [el]
+    while stack:
+        cur = stack.pop()
+        if cur is None or id(cur) in seen:
+            continue
+        seen.add(id(cur))
+        if cur is target:
+            return True
+        for attr in ("specializes", "general", "subtype"):
+            for t in _as_list(getattr(cur, attr, None)):
+                if t is not None and t is target:
+                    return True
+                stack.append(t)
+        # the owned specializations point the other way: specific -> general
+        for attr in ("ownedSpecialization", "ownedSubclassification",
+                     "generalization"):
+            for rel in _as_list(getattr(cur, attr, None)):
+                g = getattr(rel, "general", None)
+                if g is not None:
+                    if g is target:
+                        return True
+                    stack.append(g)
+    return False
+
+
+def _redefines(el, target):
+    """Direct/indirect Redefinition chain: el (transitively) redefines
+    target via its ownedRedefinition.redefinedFeature. The runtime
+    stores ownedRedefinition as a derived select, so the chain is walked
+    through the OCL read when it is not directly populated."""
+    if el is None or target is None:
+        return False
+    seen = set()
+    stack = [el]
+    while stack:
+        cur = stack.pop()
+        if cur is None or id(cur) in seen:
+            continue
+        seen.add(id(cur))
+        if cur is target:
+            return True
+        rels = _as_list(getattr(cur, "ownedRedefinition", None))
+        if not rels:
+            # derived end not populated on the raw object: read it the
+            # way the evaluator does (derive-on-read)
+            try:
+                rels = _as_list(derived_read(cur, "ownedRedefinition"))
+            except Exception:                      # noqa: BLE001
+                rels = ()
+        for rel in rels:
+            rf = getattr(rel, "redefinedFeature", None)
+            if rf is not None:
+                if rf is target:
+                    return True
+                stack.append(rf)
+    return False
+
+
+def redefines_from_library(el, qname):
+    """KerML `redefinesFromLibrary('Pkg::El')`: does `el` redefine the
+    library element, answered from the model's own redefinition graph
+    (like specializesFromLibrary but via Redefinition)."""
+    if el is None:
+        return False
+    if _qualified(el) == qname:
+        return True
+    ext = _extent()
+    target = ext.qualified(qname)
+    if target is None:
+        return False
+    return _redefines(el, target)
+
+
+def _range_bounds(m):
+    """(lower, upper) of a MultiplicityRange: the values carried by its
+    lowerBound/upperBound Expressions (their literal `value`, read the
+    way the evaluator reads them — derive-on-read — when the raw
+    storage is empty)."""
+    def val(e):
+        if e is None:
+            return None
+        for r in _as_list(ocl_dot(e, "result")):
+            v = getattr(r, "value", None)
+            if v is not None:
+                return v
+        # the bound's literal is often owned directly through an
+        # OwningMembership as ownedMemberElement; read that too
+        for rel in _as_list(getattr(e, "ownedRelationship", None) or ()):
+            for m in _as_list(getattr(rel, "ownedMemberElement", None) or ()):
+                v = getattr(m, "value", None)
+                if v is not None:
+                    return v
+            for m in _as_list(getattr(rel, "ownedRelatedElement", None) or ()):
+                v = getattr(m, "value", None)
+                if v is not None:
+                    return v
+        return getattr(e, "value", None)
+    try:
+        lo = val(ocl_dot(m, "lowerBound"))
+        hi = val(ocl_dot(m, "upperBound"))
+        if lo is None or hi is None:
+            # bounds may be owned without memberName (order: lower, upper)
+            owned = []
+            for rel in _as_list(getattr(m, "ownedRelationship", None) or ()):
+                for x in _as_list(getattr(rel, "ownedRelatedElement", None)
+                                  or getattr(rel, "ownedMemberElement", None)
+                                  or ()):
+                    owned.append(x)
+            if lo is None and len(owned) >= 1:
+                lo = getattr(owned[0], "value", None)
+            if hi is None and len(owned) >= 2:
+                hi = getattr(owned[1], "value", None)
+            for rel in _as_list(getattr(m, "ownedRelationship", None) or ()):
+                nm = getattr(rel, "memberName", None)
+                if nm == "lowerBound" and lo is None:
+                    lo = val(_as_list(getattr(rel, "ownedRelatedElement", None)
+                                or getattr(rel, "ownedMemberElement", None)
+                                or [None])[0])
+                if nm == "upperBound" and hi is None:
+                    hi = val(_as_list(getattr(rel, "ownedRelatedElement", None)
+                                or getattr(rel, "ownedMemberElement", None)
+                                or [None])[0])
+    except Exception:                              # noqa: BLE001
+        return None, None
+    return lo, hi
+
+
+def has_bounds(m, lo, hi, _self=None):
+    """MultiplicityRange::hasBounds(lower, upper): the range's
+    lowerBound/upperBound Expression results equal the given values
+    (upper '*' matches unbounded)."""
+    if m is None:
+        return False
+    glo, ghi = _range_bounds(m)
+    if glo is None and ghi is None:
+        return None
+    def un(v):
+        return "*" if v == "*" or v is None else int(v)
+    lo_ok = glo is not None and un(glo) == un(lo)
+    if ghi is None:
+        hi_ok = lo_ok          # no upperBound: lower defaults to upper
+    else:
+        hi_ok = un(ghi) == un(hi)
+    return bool(lo_ok and hi_ok)
+
+
+def multiplicity_has_bounds(m, lo, hi, _self=None):
+    """KerML `multiplicityHasBounds(m, lo, hi)` — the multiplicity `m`
+    has exactly the bounds lo..hi."""
+    return has_bounds(m, lo, hi)
+
+
+def subsets_chain(a, b):
+    """KerML `subsetsChain(a, b)`: true when `a` transitively subsets
+    `b` through the Subsetting chain (a == b counts). The runtime
+    stores ownedSubsetting as a derived select, so the chain is walked
+    through the OCL read when the raw storage is empty."""
+    if a is None or b is None:
+        return False
+    seen = set()
+    stack = [a]
+    while stack:
+        cur = stack.pop()
+        if cur is None or id(cur) in seen:
+            continue
+        seen.add(id(cur))
+        if cur is b:
+            return True
+        rels = _as_list(getattr(cur, "ownedSubsetting", None))
+        if not rels:
+            try:
+                rels = _as_list(derived_read(cur, "ownedSubsetting"))
+            except Exception:                      # noqa: BLE001
+                rels = ()
+        for rel in rels:
+            sf = getattr(rel, "subsettedFeature", None)
+            if sf is not None:
+                stack.append(sf)
+        # also the direct subsetting targets carried on the element
+        for f in _as_list(getattr(cur, "subsettedFeature", None)):
+            stack.append(f)
+    return False
+
+
+def owned_cross_feature(f):
+    """KerML Feature::ownedCrossFeature(): if this Feature is an end
+    Feature of its owningType, the first ownedMember that is a Feature,
+    not a Multiplicity/MetadataFeature, whose owningMembership is NOT a
+    FeatureMembership — else null."""
+    from . import sysml2 as _S2
+    if f is None:
+        return None
+    ot = ocl_dot(f, "owningType")
+    if ot is None or getattr(f, "owner", None) is None:
+        return None
+    try:
+        ends = _as_list(ocl_dot(ot, "endFeature")) 
+    except Exception:                              # noqa: BLE001
+        ends = ()
+    if not ends:
+        # endFeature derives from feature->select(isEnd); isEnd is
+        # structural — compute it directly from the owning memberships
+        ends = [m for rel in _as_list(getattr(ot, "ownedRelationship", None)
+                                      or ())
+                for m in _as_list(getattr(rel, "ownedRelatedElement", None)
+                                  or ())
+                if getattr(m, "owningMembership", None) is rel
+                and isinstance(rel, _S2.EndFeatureMembership)]
+    if f not in ends:
+        return None
+    for rel in _as_list(ocl_dot(f, "ownedRelationship")):
+        if not isinstance(rel, _S2.OwningMembership):
+            continue
+        if isinstance(rel, _S2.FeatureMembership):
+            continue
+        for m in _as_list(getattr(rel, "ownedRelatedElement", None)):
+            if isinstance(m, _S2.Feature) and \
+                    not isinstance(m, (_S2.Multiplicity,)) and \
+                    not type(m).__name__.startswith("Metadata"):
+                return m
+    return None
+
+
+def is_owned_cross_feature(f):
+    """KerML Feature::isOwnedCrossFeature(): ownedCrossFeature() exists."""
+    return owned_cross_feature(f) is not None
+
+
+def _featuring_types(f):
+    from . import sysml2 as _S2
+    out = []
+    for t in _as_list(ocl_dot(f, "featuringType")):
+        if isinstance(t, _S2.Type):
+            out.append(t)
+    return out
+
+
+def is_featured_within(f, t):
+    """KerML Feature::isFeaturedWithin(type): the featuringTypes of `f`
+    are compatible with `type`; null checks featuring by Anything
+    (here: having any featuringType counts); isVariable also features
+    within the owningType."""
+    if f is None:
+        return False
+    fts = _featuring_types(f)
+    ot = ocl_dot(f, "owningType") if ocl_dot(f, "owningType") is not None \
+        else getattr(f, "owningType", None)
+    if t is None:
+        return len(fts) > 0 or ot is not None
+    for ft in fts:
+        if ft is t or _specializes(ft, t) or _specializes(t, ft):
+            return True
+    # a non-variable feature is featured within its owningType by default;
+    # "within" means the owning type specializes the argument's type OR is
+    # the same — the argument type is an upper bound
+    if ot is not None and (ot is t or _specializes(ot, t)):
+        return True
+    if getattr(f, "isVariable", None):
+        if ot is not None and (ot is t or _specializes(ot, t)):
+            return True
+    return False
+
+
+def ocl_is_type(obj, tname):
+    """KerML `oclIsType(T)`: exact dynamic-type test (like oclIsTypeOf)."""
+    return ocl_is_type_of(obj, tname)
+
+
+def ocl_is_kind(obj, tname):
+    """KerML `oclIsKind(T)`: kind test (like oclIsKindOf)."""
+    return ocl_is_kind_of(obj, tname)
+
+
+def resolve_global(qname, _self=None):
+    """KerML `resolveGlobal('Pkg::El')`: the extent's qualified lookup;
+    None when no extent is bound or the name is unknown. Accepts the
+    receiver as a second positional because a bare call lowers with self
+    prepended."""
+    if not isinstance(qname, str):
+        _self, qname = qname, _self   # receiver came first
+    ext = _extent()
+    if ext is None:
+        return None
+    hit = ext.qualified(qname)
+    if hit is not None:
+        return hit
+    # qualified names are None on hand-built ownerless models; fall back to
+    # matching the last segment against element names
+    leaf = qname.rsplit("::", 1)[-1]
+    for el in ext.elements():
+        if getattr(el, "name", None) == leaf or getattr(el, "declaredName", None) == leaf:
+            return el
+    return None
+
+
+def imported_memberships(ns, excluded=None):
+    """KerML Namespace::importedMemberships(excluded): the Memberships
+    imported by this Namespace's owned Imports. The runtime carries
+    ownedImport (NamespaceImport -> importedNamespace membership,
+    MembershipImport -> importedMembership); visibility filtering is
+    not carried, so isImportAll=false still yields the imported set
+    (stated: the visible-filter is not modeled)."""
+    from . import sysml2 as _S2
+    if ns is None:
+        return []
+    out, seen = [], set()
+    excluded_ids = {id(e) for e in _as_list(excluded)}
+    # ownedImport is derived; read the union, then fall back to scanning
+    # ownedRelationship for Import memberships
+    imps = _as_list(ocl_get(ns, "ownedImport")) or \
+        _as_list(getattr(ns, "ownedImport", None)) or \
+        [r for r in _as_list(getattr(ns, "ownedRelationship", None) or ())
+         if "Import" in type(r).__name__]
+    for imp in imps:
+        if id(imp) in excluded_ids or id(imp) in seen:
+            continue
+        seen.add(id(imp))
+        if isinstance(imp, _S2.MembershipImport):
+            for m in _as_list(getattr(imp, "importedMembership", None)):
+                if m is not None and id(m) not in seen:
+                    seen.add(id(m))
+                    out.append(m)
+        elif isinstance(imp, _S2.NamespaceImport):
+            tgt = getattr(imp, "importedNamespace", None)
+            if tgt is None:
+                tgt = imp._vals.get("importedNamespace")
+            if tgt is None:
+                continue
+            # ownedMembership is a derived select over ownedRelationship
+            rels = _as_list(ocl_get(tgt, "ownedMembership")) or \
+                _as_list(getattr(tgt, "ownedMembership", None)) or \
+                [r for r in _as_list(getattr(tgt, "ownedRelationship", None) or ())
+                 if isinstance(r, _S2.Membership)]
+            for rel in rels:
+                if id(rel) in seen:
+                    continue
+                seen.add(id(rel))
+                out.append(rel)
+            if getattr(imp, "isRecursive", None):
+                for sub in _as_list(getattr(tgt, "ownedRelationship", None)):
+                    pass  # recursion needs the sub-namespaces' imports
+    return out
+
+
+def _transition_feature_memberships_of_owner(owner, kind):
+    from . import sysml2 as _S2
+    out = []
+    for rel in _as_list(getattr(owner, "ownedRelationship", None)):
+        if isinstance(rel, _S2.TransitionFeatureMembership) and \
+                enum_val(getattr(rel, "kind", None)) == kind:
+            for m in _as_list(getattr(rel, "ownedRelatedElement", None)):
+                out.append(m)
+    return out
+
+
+def is_trigger_action(a):
+    """KerML AcceptActionUsage::isTriggerAction(): this AcceptActionUsage
+    is the triggerAction of a TransitionUsage. The runtime carries the
+    forward end (TransitionUsage.triggerAction); answer from the extent
+    when bound, else scan the owner chain — without either the answer
+    is unknown (None)."""
+    from . import sysml2 as _S2
+    if a is None or not isinstance(a, _S2.AcceptActionUsage):
+        return None
+    ext = _EXTENT
+    if ext is not None:
+        for t in ext.of_kind("TransitionUsage"):
+            # triggerAction derives from TransitionFeatureMembership kind=trigger
+            for rel in _as_list(getattr(t, "ownedRelationship", None) or ()):
+                if type(rel).__name__ == "TransitionFeatureMembership" and \
+                        str(getattr(rel, "kind", "")).endswith("trigger"):
+                    for m in _as_list(getattr(rel, "ownedRelatedElement", None)
+                                      or ()):
+                        if m is a:
+                            return True
+            for ta in _as_list(ocl_dot(t, "triggerAction")):
+                if ta is a:
+                    return True
+        return False
+    # no extent: walk owners looking for a TransitionUsage carrying it
+    o = getattr(a, "owner", None)
+    while o is not None:
+        if isinstance(o, _S2.TransitionUsage):
+            for ta in _as_list(ocl_dot(o, "triggerAction")):
+                if ta is a:
+                    return True
+        o = getattr(o, "owner", None)
+    return None
+
+
+def instantiated_type_op(expr):
+    """KerML InstantiationExpression::instantiatedType(): the Type being
+    instantiated — the type of the first argument's result when present,
+    else the stored/derived instantiatedType, else null (the runtime
+    carries no template-binding input here)."""
+    from . import sysml2 as _S2
+    if expr is None:
+        return None
+    stored = ocl_dot(expr, "instantiatedType")
+    if stored is not None and not isinstance(stored, _Undefined):
+        return stored
+    args = _as_list(ocl_dot(expr, "argument"))
+    for a in args:
+        for r in _as_list(ocl_dot(a, "result")):
+            for t in _as_list(ocl_dot(r, "type")):
+                if isinstance(t, _S2.Type):
+                    return t
+    return None
+
+
+def is_substate_usage(u, is_parallel=None):
+    """KerML StateUsage::isSubstateUsage(isParallel): composite, owned by
+    a StateDefinition/StateUsage, and not an entry/do/exit action. The
+    runtime carries owningMembership; the StateSubactionMembership kind
+    distinguishes the action cases."""
+    from . import sysml2 as _S2
+    if u is None or not isinstance(u, _S2.StateUsage):
+        return False
+    if not getattr(u, "isComposite", None):
+        return False
+    ot = ocl_dot(u, "owningType")
+    if hasattr(_S2, "StateDefinition") and ot is not None and \
+            not isinstance(ot, (_S2.StateDefinition, _S2.StateUsage)):
+        return False
+    om = ocl_dot(u, "owningMembership")
+    if isinstance(om, _S2.StateSubactionMembership):
+        return False        # entry/do/exit action, not a substate
+    return True
+
+
+def library_namespace(el):
+    """KerML Element::libraryNamespace(): the nearest owning Namespace
+    that is a library element (isLibraryElement), else null. The
+    runtime does not mark library models, so an element with no
+    library-marked ancestor answers None — stated, not guessed."""
+    o = getattr(el, "owningNamespace", None) or getattr(el, "owner", None)
+    seen = set()
+    while o is not None and id(o) not in seen:
+        seen.add(id(o))
+        if getattr(o, "isLibraryElement", None):
+            return o
+        o = getattr(o, "owningNamespace", None) or getattr(o, "owner", None)
+    return None
+
+
+def inherited_memberships(ns, excluded=None, owned=None, filter_union=None):
+    """KerML Type::inheritedMemberships(...): the Memberships inherited
+    via the specialization chain — for each owned/general Type, its
+    ownedMemberships (and recursively). The runtime carries
+    ownedSpecialization.general; the answer is computed from that graph.
+    Signature matches the corpus call inheritedMemberships(Set{}, Set{},
+    false)."""
+    from . import sysml2 as _S2
+    if ns is None:
+        return []
+    out, seen = [], set()
+    excluded_ids = {id(e) for e in _as_list(excluded)}
+
+    def memberships_of(t):
+        for rel in _as_list(getattr(t, "ownedRelationship", None)):
+            if isinstance(rel, _S2.Membership) and id(rel) not in seen \
+                    and id(rel) not in excluded_ids:
+                seen.add(id(rel))
+                out.append(rel)
+
+    stack = []
+    for rel in _as_list(getattr(ns, "ownedSpecialization", None)):
+        g = getattr(rel, "general", None)
+        if g is not None:
+            stack.append(g)
+    # v1 shape: general / ownedGeneralization
+    for g in _as_list(getattr(ns, "general", None)):
+        stack.append(g)
+    while stack:
+        cur = stack.pop()
+        if cur is None or id(cur) in seen:
+            continue
+        memberships_of(cur)
+        for rel in _as_list(getattr(cur, "ownedSpecialization", None)):
+            g = getattr(rel, "general", None)
+            if g is not None:
+                stack.append(g)
+        for g in _as_list(getattr(cur, "general", None)):
+            stack.append(g)
+    return out
+
+
+def multiplicities(t):
+    """KerML Type::multiplicities(): the Multiplicity members owned by
+    this Type (its multiplicity plus owned Multiplicity members,
+    read through the OCL machinery so derived ends compute)."""
+    from . import sysml2 as _S2
+    if t is None:
+        return []
+    out, seen = [], set()
+    m = ocl_dot(t, "multiplicity")
+    if isinstance(m, _S2.Multiplicity) and id(m) not in seen:
+        seen.add(id(m))
+        out.append(m)
+    for e in _as_list(ocl_dot(t, "ownedMember")):
+        if isinstance(e, _S2.Multiplicity) and id(e) not in seen:
+            seen.add(id(e))
+            out.append(e)
+    return out
+
+
+def is_featuring_type(f, t):
+    """KerML Feature::isFeaturingType(type): for a non-variable Feature
+    the owningType must be a featuringType; for a variable one the
+    snapshots of the owningType."""
+    if f is None or t is None:
+        return False
+    ot = ocl_dot(f, "owningType")
+    if getattr(f, "isVariable", None):
+        return ot is not None and (ot is t or _specializes(ot, t))
+    fts = _featuring_types(f)
+    return ot is t or any(ft is t or _specializes(ft, t) for ft in fts)
+
+
+def parameter_direction(pm):
+    """KerML ParameterMembership::parameterDirection(): the required
+    direction of the ownedMemberParameter — 'in' by default."""
+    p = ocl_dot(pm, "ownedMemberParameter")
+    if p is None:
+        # ownedMemberParameter is derived; fall back to the owned member element
+        for rel in (list(_as_list(getattr(pm, "ownedRelationship", None) or ()))
+                    + list(_as_list(getattr(pm, "ownedMemberElement", None) or ()))
+                    + [pm]):
+            if rel is pm:
+                for m in _as_list(getattr(pm, "ownedMemberElement", None) or ()):
+                    if type(m).__name__ in ("Feature", "Parameter"):
+                        p = m
+                        break
+                continue
+            for m in _as_list(getattr(rel, "ownedMemberElement", None)
+                              or getattr(rel, "ownedRelatedElement", None)
+                              or ()):
+                if type(m).__name__ in ("Feature", "Parameter"):
+                    p = m
+                    break
+    if p is None:
+        return "in"          # an unparametered membership defaults to in
+    d = getattr(p, "direction", None)
+    if d is None:
+        d = p._vals.get("direction")
+    return enum_val(d) or "in"
+
+
+def ocl_contains(coll, x):
+    """OCL Collection::contains(x) — dot-form includes."""
+    return x in (coll or ())
+
+
+def model_level_evaluable(x, visited=None):
+    """KerML Expression::modelLevelEvaluable(visited): a stored flag when
+    the runtime carries one; literal expressions are always evaluable;
+    otherwise unknown (None)."""
+    if x is None:
+        return None
+    from . import sysml2 as _S2
+    if isinstance(x, _S2.LiteralExpression):
+        return True
+    v = getattr(x, "isModelLevelEvaluable", None)
+    if v is not None:
+        return bool(v)
+    return None
+
+
+def ocl_prepend(coll, element):
+    """OCL Sequence::prepend(x): element + the sequence."""
+    return [element] + list(coll or ())
+
+
+def can_access(f, other, _self=None):
+    """KerML Feature::canAccess(feature): the other feature is featured
+    within one of the direct or indirect featuringTypes of this
+    Feature."""
+    if f is None or other is None:
+        return False
+    # a feature is featured within its own owningType, so anything featured
+    # in the same type is accessible
+    ot_f = ocl_dot(f, "owningType") or getattr(f, "owningType", None)
+    ot_o = ocl_dot(other, "owningType") or getattr(other, "owningType", None)
+    if ot_f is not None and ot_f is ot_o:
+        return True
+    for ft in _featuring_types(f):
+        if is_featured_within(other, ft):
+            return True
+    # indirect: featuringTypes of featuringTypes
+    seen = set()
+    stack = list(_featuring_types(f))
+    while stack:
+        cur = stack.pop()
+        if cur is None or id(cur) in seen:
+            continue
+        seen.add(id(cur))
+        if is_featured_within(other, cur):
+            return True
+        for ft in _as_list(getattr(cur, "featuringType", None)):
+            stack.append(ft)
+    return False
+
+
+def owning_type_op(el):
+    """KerML Element::owningType(): the owning Type. as_inverses sets it
+    for membership-owned elements; otherwise fall back to the owner
+    chain (the first owner that is a Type)."""
+    from . import sysml2 as _S2
+    if el is None:
+        return None
+    v = ocl_dot(el, "owningType")
+    if v is not None and not isinstance(v, _Undefined):
+        return v
+    o = getattr(el, "owner", None)
+    while o is not None:
+        if isinstance(o, _S2.Type):
+            return o
+        o = getattr(o, "owner", None)
+    return None
+
+
+def value_of(expr, _self=None):
+    """KerML `valueOf(e)`: the model-level value of an Expression — a
+    Literal's carried value, else its result's value (derive-on-read),
+    else null."""
+    if expr is None:
+        return None
+    v = getattr(expr, "value", None)
+    if v is not None:
+        return v
+    for r in _as_list(ocl_dot(expr, "result")):
+        rv = getattr(r, "value", None)
+        if rv is not None:
+            return rv
+    return None
+
+
+def ocl_exits(coll, pred):
+    """OCL Collection::exits(lambda) — KerML spelling: exists an element
+    satisfying the predicate. `pred` arrives as a lowered lambda body
+    source evaluated per element via _exits_pred."""
+    return any(bool(pred(e)) for e in (coll or ()))
+
+
+def referenced_feature_target(el):
+    """KerML `referencedFeatureTarget()`: per the AS body, the
+    featureTarget of the referencedFeature of the owned
+    ReferenceSubsetting, else null. The generated Usage class carries a
+    `referencedFeatureTarget` stub method, so a callable getattr is not a
+    stored value — it must not be returned."""
+    from . import sysml2 as _S2
+    if el is None:
+        return None
+    v = getattr(el, "referencedFeatureTarget", None)
+    if v is not None and not callable(v):
+        return v
+    # ownedReferenceSubsetting is a derived end on the AS runtime: read
+    # it through the same derivation the evaluator uses, not raw getattr
+    for rel in _as_list(ocl_get(el, "ownedReferenceSubsetting")):
+        rf = getattr(rel, "referencedFeature", None)
+        if rf is not None:
+            # featureTarget of the referenced feature comes from its
+            # FeatureChaining (chainingFeature); the runtime stores chains
+            # as ownedRelationships, so walk them
+            target = None
+            for ch in _as_list(getattr(rf, "ownedRelationship", None) or ()):
+                if type(ch).__name__ == "FeatureChaining":
+                    target = getattr(ch, "chainingFeature", None)
+                    if target is not None:
+                        return target
+            return rf
+    rf = ocl_get(el, "referencedFeature")
+    if isinstance(rf, _Undefined):
+        rf = None
+    if rf is not None and not callable(rf):
+        return rf
+    return None
+
+
+
+# --------------------------------------------------------------------------
+# O6: UML 2.5.1 (formal/2017-12-05) helper operations, transcribed from
+# the spec's own bodies. Anything the model does not carry answers
+# None/False per the body, never a guess.
+# --------------------------------------------------------------------------
+
+def open_end(action):
+    """ReadLinkAction::openEnd (§16.14.38.5):
+    `endData->select(value=null).end->asOrderedSet()` — the ends whose
+    LinkEndData carries no value InputPin."""
+    out, seen = [], set()
+    for ed in getattr(action, "endData", None) or ():
+        if getattr(ed, "value", None) is not None:
+            continue
+        e = getattr(ed, "end", None)
+        if e is not None and id(e) not in seen:
+            seen.add(id(e))
+            out.append(e)
+    return out
+
+
+def includes_multiplicity(me, m):
+    """MultiplicityElement::includesMultiplicity (§7.8.8.7):
+    `self.lowerBound() <= M.lowerBound() and self.upperBound() >=
+    M.upperBound()`; '*' is unbounded. Partial-honest: with a bound
+    unset (the spec body's precondition) there is no answer."""
+    from .derived import lower_bound, upper_bound
+    if me is None or m is None:
+        return False
+    sl, su = lower_bound(me), upper_bound(me)
+    ml, mu = lower_bound(m), upper_bound(m)
+    if sl is None or su is None or ml is None or mu is None:
+        return None
+    def un(v):
+        return None if v == "*" else int(v)
+    sl_i, su_i, ml_i, mu_i = int(sl), un(su), int(ml), un(mu)
+    lower_ok = sl_i <= ml_i
+    upper_ok = su_i is None or (mu_i is not None and su_i >= mu_i)
+    return lower_ok and upper_ok
+
+
+def is_compatible_with(el, p):
+    """ParameterableElement::isCompatibleWith (§7.8.13.5), with the
+    Property/ValueSpecification redefinitions (§9.9.17 / §8.3.5):
+    `self.oclIsKindOf(p.oclType()) and (p.oclIsKindOf(TypedElement)
+    implies self.type.conformsTo(p.type))`. oclType() is the dynamic
+    type, so self is compatible when its metaclass is a subtype of p's."""
+    if el is None or p is None:
+        return False
+    # self.oclIsKindOf(p.oclType()): self's dynamic kind subtypes p's
+    if type(p) not in type(el).__mro__:
+        return False
+    # p a TypedElement -> self.type must conform to p's type (the
+    # Property/ValueSpecification redefinitions); for plain
+    # ParameterableElements the kind check is the whole body
+    if isinstance(p, U.TypedElement):
+        from .derived import conforms_to
+        st = getattr(el, "type", None)
+        pt = getattr(p, "type", None)
+        if st is None or pt is None:
+            return None
+        return conforms_to(st, pt)
+    return True
+
+
+def is_substitutable_for(cl, contract):
+    """Classifier::isSubstitutableFor (§9.9.4.7):
+    `substitution.contract->includes(contract)`."""
+    for s in getattr(cl, "substitution", None) or ():
+        if getattr(s, "contract", None) is contract:
+            return True
+    return False
+
+
+def _message_end_union(message):
+    """message.messageEnd — the runtime does not carry the declared
+    `messageEnd` union on Message (sendEvent/receiveEvent subset it but
+    the generator dropped the derived end), so collect both ends."""
+    out = []
+    for attr in ("sendEvent", "receiveEvent"):
+        v = getattr(message, attr, None)
+        if v is None:
+            continue
+        out.extend(v if isinstance(v, (list, tuple)) else [v])
+    return out
+
+
+# MessageEnd.message has no opposite hook in the runtime (the ends are
+# stored on the Message as sendEvent/receiveEvent), so gate queries that
+# navigate `self.message` or `oppositeEnd()` resolve the message through
+# this registry, populated by _note_message_ends when a model graph is
+# scanned (the bound extent) or when a test assigns message ends.
+_END_MESSAGES = {}
+
+
+def _register_message_end(message, end):
+    ends = _END_MESSAGES.setdefault(id(message), [])
+    if all(e is not end for e, _ in ends):
+        ends.append((end, message))
+
+
+def _note_message_ends(message):
+    for e in _message_end_union(message):
+        _register_message_end(message, e)
+
+
+def _scan_messages_for(end):
+    """Register `end`'s message from the bound extent, if any."""
+    ext = _EXTENT
+    if ext is None:
+        return None
+    for m in ext.of_kind("Message"):
+        if end in _message_end_union(m):
+            _register_message_end(m, end)
+            return m
+    return None
+
+
+def _scan_messages_for_all(end):
+    """Every bound-extent Message naming `end`, registered and returned."""
+    ext = _EXTENT
+    if ext is None:
+        return []
+    out = []
+    for m in ext.of_kind("Message"):
+        if end in _message_end_union(m):
+            _register_message_end(m, end)
+            out.append(m)
+    return out
+
+
+def _end_message(end):
+    """The Message carrying `end` as sendEvent or receiveEvent. The
+    runtime has no opposite hook for MessageEnd.message, so: the
+    registry, then the bound extent's Messages, then end.message."""
+    for _mid, ends in _END_MESSAGES.items():
+        for e, m in ends:
+            if e is end:
+                return m
+    m = _scan_messages_for(end)
+    if m is not None:
+        return m
+    return getattr(end, "message", None)
+
+
+def _message_end_opposite_end(end, message=None):
+    """MessageEnd::oppositeEnd (§17.12.9.4):
+    `message->asSet().messageEnd->asSet()->excluding(self)`. The
+    runtime stores one single-valued sendEvent/receiveEvent per Message
+    (two different Messages may share a gate), so the opposite end is
+    collected from every message naming this end, not just the first."""
+    ms = [message] if message is not None else []
+    if message is None:
+        for _mid, ends in _END_MESSAGES.items():
+            for e, m in ends:
+                if e is end and all(m is not x for x in ms):
+                    ms.append(m)
+        m0 = getattr(end, "message", None)
+        if m0 is not None and all(m0 is not x for x in ms):
+            ms.append(m0)
+        scanned = _scan_messages_for_all(end)
+        for m in scanned:
+            if all(m is not x for x in ms):
+                ms.append(m)
+    out, seen = [], set()
+    for m in ms:
+        for e in _message_end_union(m):
+            if e is not end and id(e) not in seen:
+                seen.add(id(e))
+                out.append(e)
+    return out
+
+
+def _gate_combined_fragment(gate):
+    """Gate.combinedFragment: the runtime does not carry the inverse of
+    A_cfragmentGate_combinedFragment, so ownership supplies it
+    (cfragmentGate subsets ownedElement)."""
+    o = getattr(gate, "owner", None)
+    while o is not None:
+        if isinstance(o, U.CombinedFragment):
+            return o
+        o = getattr(o, "owner", None)
+    return None
+
+
+def _operand_cf(operand):
+    """InteractionOperand.combinedFragment — not a stored end either;
+    the operand's owner is the CombinedFragment (operand subsets
+    ownedElement)."""
+    o = getattr(operand, "owner", None) if operand is not None else None
+    return o if isinstance(o, U.CombinedFragment) else None
+
+
+def _gate_is_send(gate):
+    m = _end_message(gate)
+    if m is None:
+        return False
+    v = getattr(m, "sendEvent", None)
+    ends = list(v) if isinstance(v, (list, tuple)) else ([] if v is None else [v])
+    return gate in ends
+
+
+def gate_is_actual(gate):
+    """Gate::isActual (§17.12.9.4): `interactionUse->notEmpty()`. The runtime
+    does not carry the inverse of A_actualGate_interactionUse, so the honest
+    structural answer is composite ownership the other way: an actual gate is
+    owned by an InteractionUse (actualGate subsets ownedElement)."""
+    return isinstance(getattr(gate, "owner", None), U.InteractionUse)
+
+
+def _gate_get_name(gate):
+    """Gate::getName (§17.12.9.4): the explicit name, else the
+    constructed 'out_'/'in_' prefix on message.name."""
+    name = getattr(gate, "name", None)
+    if name:
+        return name
+    m = _end_message(gate)
+    mname = getattr(m, "name", None) if m is not None else None
+    if mname is None:
+        return None
+    is_send = _gate_is_send(gate)
+    if gate_is_outside_cf(gate) or gate_is_actual(gate):
+        prefix = "out_" if is_send else "in_"
+    else:
+        prefix = "in_" if is_send else "out_"
+    return prefix + mname
+
+
+def gate_matches(gate, gate_to_match):
+    """Gate::matches (§17.12.9.4): same getName() and message name, same
+    messageSort, same signature, send/receive correspond."""
+    if gate is None or gate_to_match is None:
+        return False
+    if _gate_get_name(gate) != _gate_get_name(gate_to_match):
+        return False
+    ma = _end_message(gate)
+    mb = _end_message(gate_to_match)
+    if ma is None or mb is None:
+        return None
+    if getattr(ma, "name", None) != getattr(mb, "name", None):
+        return False
+    if enum_val(getattr(ma, "messageSort", None)) != \
+            enum_val(getattr(mb, "messageSort", None)):
+        return False
+    if getattr(ma, "signature", None) is not getattr(mb, "signature", None):
+        return False
+    a_send = _gate_is_send(gate)
+    b_send = _gate_is_send(gate_to_match)
+    if a_send == b_send:
+        # both send or both receive: the spec requires opposite roles
+        return False
+    return True
+
+
+def gate_is_inside_cf(gate):
+    """Gate::isInsideCF (§17.12.9.4): attached to a CombinedFragment
+    boundary and the opposite end is inside an operand of the same
+    CombinedFragment. A gate with no boundary CF answers False (the
+    spec body's implication is vacuous without combinedFragment)."""
+    cf = _gate_combined_fragment(gate)
+    opp = _message_end_opposite_end(gate)
+    if cf is None or not opp:
+        return False
+    opp_end = opp[0]
+    if isinstance(opp_end, U.MessageOccurrenceSpecification):
+        return _operand_cf(getattr(opp_end, "enclosingOperand", None)) is cf
+    if isinstance(opp_end, U.Gate):
+        oc = _gate_combined_fragment(opp_end)
+        eo = getattr(oc, "enclosingOperand", None) if oc is not None else None
+        return _operand_cf(eo) is cf
+    return False
+
+
+def gate_is_outside_cf(gate):
+    """Gate::isOutsideCF (§17.12.9.4): attached to a CombinedFragment
+    boundary and the opposite end is outside the same
+    CombinedFragment (same enclosing interaction/operand)."""
+    cf = _gate_combined_fragment(gate)
+    opp = _message_end_opposite_end(gate)
+    if cf is None or not opp:
+        return False
+    opp_end = opp[0]
+    if isinstance(opp_end, U.MessageOccurrenceSpecification):
+        oi = getattr(opp_end, "enclosingInteraction", None)
+        oo = getattr(opp_end, "enclosingOperand", None)
+    elif isinstance(opp_end, U.Gate):
+        oc = _gate_combined_fragment(opp_end)
+        if oc is None:
+            return False
+        oi = getattr(oc, "enclosingInteraction", None)
+        oo = getattr(oc, "enclosingOperand", None)
+    else:
+        return False
+    return oi is not None and oi is getattr(cf, "enclosingInteraction", None) or \
+        oo is not None and oo is getattr(cf, "enclosingOperand", None)
+
+
+def start_object_behavior(action):
+    """StartObjectBehaviorAction::behavior (§16.14.53.5): the type of
+    the object InputPin when it is a Behavior, else the
+    classifierBehavior of that type when it is a BehavioredClassifier,
+    else null."""
+    pin = getattr(action, "object", None)
+    t = getattr(pin, "type", None) if pin is not None else None
+    if t is None:
+        return None
+    if isinstance(t, U.Behavior):
+        return t
+    if isinstance(t, U.BehavioredClassifier):
+        return getattr(t, "classifierBehavior", None)
+    return None
+
+
+# --------------------------------------------------------------------------
+# UML 2.5.1 one-off helper operations (O4b) — local functions, each with
+# its clause number quoted from formal/2017-12-05.
+# --------------------------------------------------------------------------
+
+def _aslist(v):
+    return ocl_aslist(v)
+
+
+def is_consistent_with(redefined, redefining):
+    """RedefinableElement::isConsistentWith (§9.9.18.7): "By default, this
+    is false; this operation must be overridden for subclasses".
+
+    The metamodel's concrete overrides (§9.9.11.6 Operation, §9.9.17.7
+    Property, §9.9.19.5 RedefinableTemplateSignature, §14.5.1.5
+    ConnectionPointReference, §14.5.2.4 FinalState, §14.5.6.6
+    Pseudostate, §14.5.8.4 Region, §14.5.9.x State, §14.5.10.x
+    Transition, §15.7.2.7 ActivityEdge, §15.7.5.x ActivityNode,
+    §14.5.3.x StateMachine) are dispatched here on the redefined
+    element's class; everything else takes the base body `false`."""
+    if redefining is None:
+        return False
+    if isinstance(redefined, U.Operation):
+        # §9.9.11.6: same parameter count; per parameter equal
+        # uniqueness/ordering/direction, conforming types (either way),
+        # and direction-dependent multiplicity compatibility.
+        if not isinstance(redefining, U.Operation):
+            return False
+        op = redefining
+        mine = list(_aslist(getattr(redefined, "ownedParameter", None)))
+        theirs = list(_aslist(getattr(op, "ownedParameter", None)))
+        if len(mine) != len(theirs):
+            return False
+        for rp, dp in zip(mine, theirs):
+            if enum_val(getattr(rp, "isUnique", None)) != \
+                    enum_val(getattr(dp, "isUnique", None)):
+                return False
+            if enum_val(getattr(rp, "isOrdered", None)) != \
+                    enum_val(getattr(dp, "isOrdered", None)):
+                return False
+            if enum_val(getattr(dp, "direction", None)) != \
+                    enum_val(getattr(rp, "direction", None)):
+                return False
+            dt, rt = getattr(dp, "type", None), getattr(rp, "type", None)
+            if dt is not None and rt is not None and \
+                    not (D.conforms_to(dt, rt) or D.conforms_to(rt, dt)):
+                return False
+            d = enum_val(getattr(dp, "direction", None))
+            if d == "inout" and not (ocl_compatible_with(rp, dp)
+                                     and ocl_compatible_with(dp, rp)):
+                return False
+            if d == "in" and not ocl_compatible_with(rp, dp):
+                return False
+            if d in ("out", "return") and not ocl_compatible_with(dp, rp):
+                return False
+        return True
+    if isinstance(redefined, U.Property):
+        # §9.9.17.7: redefining type conforms to the redefined type,
+        # the redefining multiplicity (when specified) is contained in
+        # the redefined one, and composite-ness is preserved.
+        if not isinstance(redefining, U.Property):
+            return False
+        prop = redefining
+        rt, dt = getattr(redefined, "type", None), getattr(prop, "type", None)
+        if rt is not None and dt is not None and not D.conforms_to(dt, rt):
+            return False
+        if getattr(prop, "lowerValue", None) is not None and \
+                getattr(redefined, "lowerValue", None) is not None and \
+                ocl_compatible_with(redefined, prop) is False:
+            return False
+        if D.is_composite(redefined) and not D.is_composite(prop):
+            return False
+        return True
+    if isinstance(redefined, U.RedefinableTemplateSignature):
+        # §9.9.19.5: always consistent (redefinition only adds formals)
+        return isinstance(redefining, U.RedefinableTemplateSignature)
+    if isinstance(redefined, U.ConnectionPointReference):
+        # §14.5.1.5: only a ConnectionPointReference
+        return isinstance(redefining, U.ConnectionPointReference)
+    if isinstance(redefined, U.FinalState):
+        # §14.5.2.4: only a FinalState
+        return isinstance(redefining, U.FinalState)
+    if isinstance(redefined, U.Pseudostate):
+        # §14.5.6.6: a Pseudostate of the same kind
+        return isinstance(redefining, U.Pseudostate) and \
+            enum_val(getattr(redefining, "kind", None)) == \
+            enum_val(getattr(redefined, "kind", None))
+    if isinstance(redefined, U.Region):
+        # §14.5.8.4: any Region (consistency = valid redefinition context)
+        return isinstance(redefining, U.Region)
+    if isinstance(redefined, U.State):
+        # §14.5.9.x: the redefining State must redefine the submachine
+        if not isinstance(redefining, U.State):
+            return False
+        if getattr(redefined, "submachine", None) is None:
+            return True
+        sm = getattr(redefining, "submachine", None)
+        if sm is None:
+            return False
+        return getattr(redefined, "submachine", None) in \
+            _aslist(getattr(sm, "extendedStateMachine", None))
+    if isinstance(redefined, U.Transition):
+        # §14.5.10.x: the redefining Transition's source redefines the
+        # redefined Transition's source
+        if not isinstance(redefining, U.Transition):
+            return False
+        src = getattr(redefined, "source", None)
+        rsrc = getattr(redefining, "source", None)
+        if src is None or rsrc is None:
+            return False
+        return src in _aslist(getattr(rsrc, "redefinedElement", None))
+    if isinstance(redefined, U.ActivityEdge):
+        # §15.7.2.7: only an ActivityEdge
+        return isinstance(redefining, U.ActivityEdge)
+    if isinstance(redefined, U.ActivityNode):
+        # §15.7.5.x: only an ActivityNode
+        return isinstance(redefining, U.ActivityNode)
+    if isinstance(redefined, U.StateMachine):
+        # §14.5.3.x: consistent whenever the redefinition context is valid
+        return is_redefinition_context_valid(redefining, redefined)
+    # §9.9.18.7 base body: false
+    return False
+
+
+def is_redefinition_context_valid(redefining, redefined):
+    """RedefinableElement::isRedefinitionContextValid (§9.9.18.7):
+    body: redefinitionContext->exists(c | c.allParents()
+    ->includesAll(redefinedElement.redefinitionContext)).
+
+    The Region (§14.5.8.5), StateMachine (§14.5.3.x) and Vertex
+    (§14.5.1.x) overrides are dispatched on the receiver's class."""
+    if redefined is None:
+        return False
+    if isinstance(redefining, U.Region) and isinstance(redefined, U.Region):
+        # §14.5.8.5 body
+        sm = getattr(redefining, "stateMachine", None)
+        if sm is not None:
+            ext = _aslist(getattr(sm, "extendedStateMachine", None))
+            return any(redefined in _aslist(getattr(e, "region", None))
+                       for e in ext)
+        st = getattr(redefining, "state", None)
+        if st is None:
+            return False
+        return any(redefined in _aslist(getattr(rs, "region", None))
+                   for rs in _aslist(getattr(st, "redefinedState", None)))
+    if isinstance(redefining, U.StateMachine) and \
+            isinstance(redefined, U.StateMachine):
+        # §14.5.3.x: the context BehavioredClassifier of the redefining
+        # machine must specialize the redefined machine's context
+        parent_ctx = getattr(redefined, "context", None)
+        ctx = getattr(redefining, "context", None)
+        if ctx is None:
+            return parent_ctx is None and \
+                redefined in D.all_parents(redefining)
+        return parent_ctx is not None and parent_ctx in D.all_parents(ctx)
+    if isinstance(redefining, U.Vertex) and isinstance(redefined, U.Vertex):
+        # §14.5.1.x: the owner of the redefining Vertex redefines the
+        # owner of the redefined Vertex
+        owner = getattr(redefining, "owner", None)
+        other_owner = getattr(redefined, "owner", None)
+        if owner is None or other_owner is None:
+            return False
+        return other_owner in _aslist(getattr(owner, "redefinedElement", None))
+    # base body: one of self's redefinition contexts specializes
+    # (allParents includes) all of the redefined element's contexts
+    mine = _aslist(getattr(redefining, "redefinitionContext", None))
+    theirs = _aslist(getattr(redefined, "redefinitionContext", None))
+    if not theirs:
+        return False
+    for c in mine:
+        anc = [c] + (D.all_parents(c) if isinstance(c, U.Classifier) else [])
+        if all(t in anc for t in theirs):
+            return True
+    return False
+
+
+def members_are_distinguishable(ns):
+    """Namespace::membersAreDistinguishable (§7.8.10.6):
+    member->forAll(memb | member->excluding(memb)->forAll(other |
+    memb.isDistinguishableFrom(other, self)))."""
+    from .derived import member, is_distinguishable_from
+    mem = list(member(ns))
+    for i, memb in enumerate(mem):
+        for other in mem[i + 1:]:
+            if not is_distinguishable_from(memb, other, ns):
+                return False
+    return True
+
+
+def may_specialize_type(cl, c):
+    """Classifier::maySpecializeType (§9.2.4.6):
+    body: self.oclIsKindOf(c.oclType()) — self's kind is a subtype of
+    the argument's dynamic type."""
+    if c is None:
+        return False
+    return isinstance(cl, type(c))
+
+
+def is_accessible_by(var, action):
+    """Variable::isAccessibleBy (§15.7.25.6):
+    body: if scope<>null then scope.allOwnedNodes()->includes(a)
+    else a.containingActivity()=activityScope endif."""
+    if action is None:
+        return False
+    scope = getattr(var, "scope", None)
+    if scope is not None:
+        return action in all_owned_nodes(scope)
+    return containing_activity(action) is getattr(var, "activityScope", None)
+
+
+def source_nodes(san):
+    """StructuredActivityNode::sourceNodes (§16.12.x):
+    body: node->union(input.oclAsType(ActivityNode)->asSet())->
+    union(node->select(oclIsKindOf(Action)).oclAsType(Action).output)
+    ->asSet(). (The LoopNode override adds loopVariable; LoopNode is a
+    separate metaclass, so this is the base body.)"""
+    out, seen = [], set()
+    # `node` is stored as a plain list but the runtime's generated union
+    # tables are what the spec body reads, so go through ocl_get (derived
+    # route) first and fall back to the stored list
+    nodes = _aslist(ocl_get(san, "node")) or _aslist(getattr(san, "node", None))
+    for n in nodes:
+        if id(n) not in seen:
+            seen.add(id(n)); out.append(n)
+    for p in _aslist(ocl_get(san, "input")):
+        if isinstance(p, U.ActivityNode) and id(p) not in seen:
+            seen.add(id(p)); out.append(p)
+    for n in nodes:
+        if isinstance(n, U.Action):
+            raw = _aslist(getattr(n, "output", None)) or _aslist(n._vals.get("output") or ())
+            outs = _aslist(ocl_get(n, "output")) or raw
+            for o in outs + [x for x in raw if x not in outs]:
+                if id(o) not in seen:
+                    seen.add(id(o)); out.append(o)
+    return out
+
+
+def metaclass_end(ext):
+    """Extension::metaclassEnd (§12.4.1.6):
+    body: memberEnd->reject(p | ownedEnd->includes(
+    p.oclAsType(ExtensionEnd)))->any(true) — the member end that is not
+    the owned (stereotype) end."""
+    owned = _aslist(getattr(ext, "ownedEnd", None))
+    for p in _aslist(getattr(ext, "memberEnd", None)):
+        if not any(o is p for o in owned):
+            return p
+    return None
+
+
+def has_all_datatype_attributes(d):
+    """FunctionBehavior::hasAllDataTypeAttributes(d) (§13.4.6.4):
+    body: d.ownedAttribute->forAll(a | a.type.oclIsKindOf(DataType) and
+    hasAllDataTypeAttributes(a.type.oclAsType(DataType))) — recursive,
+    so DataType attributes may only nest other DataTypes."""
+    if d is None:
+        return False
+    for a in _aslist(getattr(d, "ownedAttribute", None)):
+        t = getattr(a, "type", None)
+        if not isinstance(t, U.DataType):
+            return False
+        if not has_all_datatype_attributes(t):
+            return False
+    return True
+
+
+def gate_is_formal(gate):
+    """Gate::isFormal (§17.12.9.4): `interaction->notEmpty()` — a formal
+    gate's owner is the Interaction (formalGate subsets ownedElement,
+    composite)."""
+    return isinstance(getattr(gate, "owner", None), U.Interaction)
+
+
+def enclosing_fragment(end):
+    """MessageEnd::enclosingFragment (§17.12.19.6): the set including
+    the enclosing InteractionFragment — for a MessageOccurrence-
+    Specification the enclosingInteraction, else the enclosingOperand.
+    (The Gate branch of the spec body routes through
+    isOutsideCF/isInsideCF/isFormal/isActual, implemented above.)"""
+    if end is None:
+        return []
+    ei = getattr(end, "enclosingInteraction", None)
+    if ei is not None:
+        return [ei]
+    eo = getattr(end, "enclosingOperand", None)
+    if eo is not None:
+        return [eo]
+    return []
+
+
+def all_owning_packages(el):
+    """NamedElement::allOwningPackages (§7.8.9.6): the enclosing
+    Namespaces that are Packages, working outwards, up to the first
+    non-Package. Spec body: namespace.oclIsKindOf(Package) ->
+    owningPackage->union(owningPackage.allOwningPackages())."""
+    out, seen = [], set()
+    ns = getattr(el, "namespace", None)
+    while isinstance(ns, U.Package):
+        if id(ns) in seen:
+            break
+        seen.add(id(ns))
+        out.append(ns)
+        ns = getattr(ns, "namespace", None)
+    return out
+
+
+def protocol_transition_referred(pt):
+    """ProtocolTransition::/referred (§14.5.5.5 derivation):
+    trigger->collect(event)->select(oclIsKindOf(CallEvent))->
+    collect(oclAsType(CallEvent).operation)->asSet()."""
+    out, seen = [], set()
+    for trg in _aslist(getattr(pt, "trigger", None)):
+        ev = getattr(trg, "event", None)
+        if isinstance(ev, U.CallEvent):
+            op = getattr(ev, "operation", None)
+            if op is not None and id(op) not in seen:
+                seen.add(id(op))
+                out.append(op)
+    return out
+
+
+def belongs_to_psm(region):
+    """Region::belongsToPSM (§14.5.8.5):
+    body: if stateMachine <> null then
+    stateMachine.oclIsKindOf(ProtocolStateMachine)
+    else state <> null implies state.container.belongsToPSM() endif."""
+    sm = getattr(region, "stateMachine", None)
+    if sm is not None:
+        return isinstance(sm, U.ProtocolStateMachine)
+    st = getattr(region, "state", None)
+    if st is None:
+        return False
+    container = getattr(st, "container", None)
+    if container is None:
+        return False
+    return belongs_to_psm(container)
+
+
+# --------------------------------------------------------------------------
+# O7: the six KerML/SysML v2 (sysml2 AS) helper operations. The generated
+# classes carry them as `raise NotImplementedError` stubs, so `ocl_dot`
+# would hand back the bound method — these local lowerings replace the
+# stub at eval time. Semantics follow the AS operation docs in sysml2.py.
+# --------------------------------------------------------------------------
+
+def sysml2_specializes(el, target):
+    """KerML Type::specializes(supertype): direct or indirect
+    specialization. Reuses the same chain walk as specializesFromLibrary
+    (Specialization graph + v1 generalization), between two elements."""
+    if target is None:
+        return None
+    if isinstance(target, str):
+        # a quoted library name: resolve through the bound extent
+        t = _extent().qualified(target)
+        if t is None:
+            return False
+        target = t
+    return _specializes(el, target)
+
+
+def sysml2_redefines(el, target):
+    """KerML Feature::redefines(redefinedFeature): DIRECT redefinition.
+    The AS `Redefinition` relationship is owned by the redefining feature
+    (owningType/owningFeature) and points at the redefined one; the
+    runtime's derived ownedRedefinition end does not compute, so walk
+    ownedSpecialization for Redefinition relationships."""
+    if el is None or target is None:
+        return False
+    if isinstance(target, str):
+        t = _extent().qualified(target)
+        if t is None:
+            return False
+        target = t
+    from . import sysml2 as _S2
+    for rel in _aslist(getattr(el, "ownedSpecialization", None)):
+        if not isinstance(rel, _S2.Redefinition):
+            continue
+        if getattr(rel, "redefinedFeature", None) is target:
+            return True
+        # subsettingFeature may carry the redefining end instead
+        if getattr(rel, "subsettingFeature", None) is el and \
+                getattr(rel, "redefinedFeature", None) is target:
+            return True
+    # v1 spelling: RedefinableElement.redefinedElement
+    for r in _aslist(getattr(el, "redefinedElement", None)):
+        if r is target:
+            return True
+    return False
+
+
+def _sysml2_input_features(step):
+    """The in/inout parameters of a Step/Behavior: the owned
+    ParameterMembership features whose direction is in/inout. The derived
+    `parameter` end does not compute in the runtime, so select from the
+    owned memberships directly (the same rule as the AS
+    deriveTypeDirectedFeature / Behavior.parameter bodies)."""
+    from . import sysml2 as _S2
+    out, seen = [], set()
+    for rel in _aslist(getattr(step, "ownedRelationship", None)):
+        if not isinstance(rel, _S2.ParameterMembership):
+            continue
+        for f in _aslist(getattr(rel, "ownedRelatedElement", None)):
+            if not isinstance(f, _S2.Feature) or id(f) in seen:
+                continue
+            if direction_of(f) in ("in", "inout"):
+                seen.add(id(f))
+                out.append(f)
+    return out
+
+
+def input_parameter_n(step, i):
+    """KerML ActionUsage::inputParameter(i): the i-th (1-based) owned
+    input parameter, or null when there are fewer."""
+    if step is None or i is None:
+        return None
+    params = _sysml2_input_features(step)
+    idx = int(i) - 1
+    if idx < 0 or idx >= len(params):
+        return None
+    return params[idx]
+
+
+def sysml2_argument(step, i):
+    """KerML ActionUsage::argument(i): the i-th argument Expression — the
+    `value` of the FeatureValue on the i-th owned input parameter, else
+    null. The task brief's shorter reading (the element's own `argument`
+    property when present) wins when the element carries a real
+    `argument` list (an InstantiationExpression's end); the generated
+    ActionUsage stub method is callable and therefore not a stored
+    list, so it falls through to the FeatureValue rule."""
+    if step is None or i is None:
+        return None
+    own = getattr(step, "argument", None)
+    if own is not None and not callable(own):
+        args = _aslist(own)
+        idx = int(i) - 1
+        if 0 <= idx < len(args):
+            return args[idx]
+        return None
+    param = input_parameter_n(step, i)
+    if param is None:
+        return None
+    from . import sysml2 as _S2
+    for rel in _aslist(getattr(param, "ownedRelationship", None)):
+        if isinstance(rel, _S2.FeatureValue):
+            v = getattr(rel, "value", None)
+            if v is not None:
+                return v
+    return None
+
+
+def is_subaction_usage(au):
+    """KerML ActionUsage::isSubactionUsage(): composite and owningType is
+    an ActionDefinition or ActionUsage, but the owning membership is not
+    a StateSubactionMembership (entry/do/exit) of a StateDefinition/
+    StateUsage. The runtime does not wire owningFeatureMembership, so the
+    membership is found through owningRelationship."""
+    from . import sysml2 as _S2
+    if au is None:
+        return False
+    if not getattr(au, "isComposite", None):
+        return False
+    ot = getattr(au, "owningType", None)
+    if ot is None:
+        return False
+    if not isinstance(ot, (_S2.ActionDefinition, _S2.ActionUsage)):
+        return False
+    for rel in _aslist(getattr(au, "owningRelationship", None)):
+        if isinstance(rel, _S2.StateSubactionMembership):
+            return False
+    return True
 
 
 # -- tables built after every local lowering above exists ------------------
@@ -1625,7 +3195,22 @@ def including(coll, element):
 # them, or the differential stops measuring v0
 _LEGACY_EXCLUDED = {"selectByKind", "selectAsKind", "specializesFromLibrary",
                     "effectiveName", "effectiveShortName", "escapedName",
-                    "directionOf", "subSequence", "including"}
+                    "directionOf", "subSequence", "including",
+                    # O6 uml25 helper operations (learned after v0 retired)
+                    "openEnd", "includesMultiplicity", "isCompatibleWith",
+                    "isSubstitutableFor", "matches", "isInsideCF",
+                    "isOutsideCF", "behavior",
+                    # O4b uml25 one-off helpers (learned after v0 retired)
+                    "isConsistentWith", "isRedefinitionContextValid",
+                    "membersAreDistinguishable", "maySpecializeType",
+                    "isAccessibleBy", "sourceNodes", "metaclassEnd",
+                    "hasAllDataTypeAttributes", "isFormal", "isActual",
+                    "enclosingFragment", "allOwningPackages", "referred",
+                    "belongsToPSM",
+                    # O7 sysml2 helper operations (learned after v0 retired)
+                    "specializes", "redefines", "argument",
+                    "referencedFeatureTarget", "referencedFeaureTarget",
+                    "isSubactionUsage", "inputParameter"}
 
 _DERIVED_FUNCS_LEGACY = {
     name: (kind, fnname if kind == "derived" else globals().get(fnname))
@@ -1637,3 +3222,6 @@ _DERIVED_FUNCS_LEGACY = {
 for _nm, (_kind, _fn) in SY.DERIVED_FUNCS.items():
     if _kind == "local" and _fn in globals():
         _EVAL_ENV.setdefault(_fn, globals()[_fn])
+
+# built last: _iterate is defined above the O6 section, after _EVAL_ENV
+_EVAL_ENV["_iterate"] = _iterate

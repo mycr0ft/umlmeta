@@ -159,6 +159,8 @@ def _py_collect(n):
         return f"(len({recv}) > 0)"
     if op in ("asSet", "asSequence", "asOrderedSet", "asBag"):
         return recv
+    if op == "iterate":
+        return _py_iterate(n)
     if op == "includes":
         return f"(({to_python(args[0])}) in {recv})"
     if op == "excludes":
@@ -298,7 +300,17 @@ def _py_pre(n):
 
 
 def _py_iterate(n):
-    raise UnmappedFeature("->iterate has no lowering yet (O3)")
+    """`x->iterate(v; acc : T = init | body)` — the accumulator form
+    (OCL 2.4 §10.3.6): fold the body over the receiver's elements,
+    starting from the accumulator initializer. Lowered to a call on a
+    runtime helper so the accumulator variable binds inside the body
+    exactly once, however deeply the body nests."""
+    recv = to_python(n.receiver) if n.receiver is not None else "self"
+    recv = f"_nav({recv})"
+    body = to_python(n.body)
+    init = to_python(n.acc_init)
+    return (f"_iterate({recv}, {n.var!r}, {n.acc_name!r}, "
+            f"({init}), {body!r})")
 
 
 def _py_lambda(n):

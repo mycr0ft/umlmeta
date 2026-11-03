@@ -31,7 +31,7 @@ CLASSIFY_OPS = {"oclIsKindOf", "oclIsTypeOf", "oclAsType", "oclIsUndefined",
 
 # OCL extension operations the AST understands but the emitter has no
 # Python lowering for yet (O3): they parse, and evaluation raises.
-PENDING_OPS = {"collectNested", "isUnique", "sortedBy", "iterate"}
+PENDING_OPS = {"collectNested", "isUnique", "sortedBy"}
 
 DERIVED_FUNCS = {
     "allNamespaces": ("derived", "all_namespaces"),
@@ -98,13 +98,76 @@ DERIVED_FUNCS = {
     "directionOf": ("local", "direction_of"),
     "subSequence": ("local", "sub_sequence"),
     "including": ("local", "including"),
+    # O6: UML 2.5.1 helper operations implemented in ocl_translator
+    "openEnd": ("local", "open_end"),
+    "includesMultiplicity": ("local", "includes_multiplicity"),
+    "isCompatibleWith": ("local", "is_compatible_with"),
+    "isSubstitutableFor": ("local", "is_substitutable_for"),
+    "matches": ("local", "gate_matches"),
+    "isInsideCF": ("local", "gate_is_inside_cf"),
+    "isOutsideCF": ("local", "gate_is_outside_cf"),
+    "behavior": ("local", "start_object_behavior"),
+    # O4b: ->iterate support + the remaining UML 2.5.1 one-off helpers
+    "subOrderedSet": ("local", "sub_ordered_set"),
+    "concat": ("local", "ocl_concat"),
+    "isConsistentWith": ("local", "is_consistent_with"),
+    "isRedefinitionContextValid": ("local", "is_redefinition_context_valid"),
+    "membersAreDistinguishable": ("local", "members_are_distinguishable"),
+    "maySpecializeType": ("local", "may_specialize_type"),
+    "isAccessibleBy": ("local", "is_accessible_by"),
+    "sourceNodes": ("local", "source_nodes"),
+    "metaclassEnd": ("local", "metaclass_end"),
+    "hasAllDataTypeAttributes": ("local", "has_all_datatype_attributes"),
+    "isFormal": ("local", "gate_is_formal"),
+    "isActual": ("local", "gate_is_actual"),
+    "enclosingFragment": ("local", "enclosing_fragment"),
+    "allOwningPackages": ("local", "all_owning_packages"),
+    "referred": ("local", "protocol_transition_referred"),
+    "belongsToPSM": ("local", "belongs_to_psm"),
+    # KerML/SysML v2 (sysml2) helper operations, second batch (O5b)
+    "redefinesFromLibrary": ("local", "redefines_from_library"),
+    "multiplicityHasBounds": ("local", "multiplicity_has_bounds"),
+    "subsetsChain": ("local", "subsets_chain"),
+    "isOwnedCrossFeature": ("local", "is_owned_cross_feature"),
+    "isFeaturedWithin": ("local", "is_featured_within"),
+    "oclIsType": ("local", "ocl_is_type"),
+    "resolveGlobal": ("local", "resolve_global"),
+    "importedMemberships": ("local", "imported_memberships"),
+    "isTriggerAction": ("local", "is_trigger_action"),
+    "instantiatedType": ("local", "instantiated_type_op"),
+    "isSubstateUsage": ("local", "is_substate_usage"),
+    "libraryNamespace": ("local", "library_namespace"),
+    "inheritedMemberships": ("local", "inherited_memberships"),
+    "ownedCrossFeature": ("local", "owned_cross_feature"),
+    "multiplicities": ("local", "multiplicities"),
+    "isFeaturingType": ("local", "is_featuring_type"),
+    "oclIsKind": ("local", "ocl_is_kind"),
+    "parameterDirection": ("local", "parameter_direction"),
+    "contains": ("local", "ocl_contains"),
+    "modelLevelEvaluable": ("local", "model_level_evaluable"),
+    "prepend": ("local", "ocl_prepend"),
+    "canAccess": ("local", "can_access"),
+    "owningType": ("local", "owning_type_op"),
+    "valueOf": ("local", "value_of"),
+    "exits": ("local", "ocl_exits"),
+    "hasBounds": ("local", "has_bounds"),
+    # 1-count typo variants present verbatim in the corpus
+    "specializesFromLibary": ("local", "specializes_from_library"),
+    "referencedFeaureTarget": ("local", "referenced_feature_target"),
+    # O7: the six KerML/SysML v2 helper operations from the AS bodies
+    "specializes": ("local", "sysml2_specializes"),
+    "redefines": ("local", "sysml2_redefines"),
+    "argument": ("local", "sysml2_argument"),
+    "referencedFeatureTarget": ("local", "referenced_feature_target"),
+    "isSubactionUsage": ("local", "is_subaction_usage"),
+    "inputParameter": ("local", "input_parameter_n"),
 }
 
 # operations whose first argument names a metaclass or a library name rather
 # than a value: the emitter quotes it instead of reading it as a feature
 TYPE_ARG_OPS = {"selectByKind", "selectAsKind", "oclIsType", "specializes",
                 "redefines", "redefinesFromLibrary", "specializesFromLibrary",
-                "isType", "isKindOf"}
+                "specializesFromLibary", "isType", "isKindOf", "oclIsKind"}
 
 # bare (receiver-less) names that are computed, not stored: emitted as a
 # call on self rather than a property read

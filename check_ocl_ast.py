@@ -29,6 +29,7 @@ from umlmeta import derived as D  # noqa: E402
 from umlmeta import ocl_ast as A  # noqa: E402
 from umlmeta import ocl_emit as E  # noqa: E402
 from umlmeta import ocl_parse as P  # noqa: E402
+
 from umlmeta import ocl_symbols as SY  # noqa: E402
 from umlmeta import ocl_translator as T  # noqa: E402
 from umlmeta import uml25 as U  # noqa: E402
@@ -151,9 +152,9 @@ def _retargets_implicit_receiver(tree):
 
 
 def _uses_type_receiver(tree):
-    """The body calls allInstances on a TYPE name (`Property.allInstances()`),
-    which names the class: the AST quotes it, v0 read it as a property of
-    self."""
+    """The body calls allInstances on a TYPE name (`Property.allInstances()`)
+    or passes a type to a classify op (`oclIsType('T')`), which names the
+    class: the AST quotes it, v0 read it as a property of self."""
     for node in A.walk(tree):
         if isinstance(node, A.Call) and node.name in ("allInstances",
                                                       "instances"):
@@ -161,6 +162,31 @@ def _uses_type_receiver(tree):
             if isinstance(r, A.TypeRef):
                 return True
             if isinstance(r, (A.SelfProp, A.Var)) and r.name[:1].isupper():
+                return True
+        if isinstance(node, A.Classify) and node.type_name:
+            return True
+        # the emitter quotes a capitalized bare-name argument of a classify
+        # call (`oclIsType(ViewUsage)` -> ocl_is_type(self, 'ViewUsage')),
+        # where v0 read it as a property of self
+        if isinstance(node, A.Call) and (node.name in SY.CLASSIFY_OPS or node.name in ("oclIsType", "oclIsKind", "oclIsKindOf", "oclIsTypeOf", "oclAsType")) and node.args:
+            a = node.args[0]
+            if isinstance(a, (A.SelfProp, A.Var)) and a.name[:1].isupper():
+                return True
+    return False
+
+
+_V0_KNOWN = set(T._DERIVED_FUNCS_LEGACY) | set(SY.derived_only_props())
+
+
+def _uses_new_operation(tree):
+    """The body calls an operation the v0 emitter did not have (O4/O5a/O7
+    helpers, or ->iterate). v0 fails to lower these, so it is not in the
+    differential at all — but the AST does, which is why the counts moved."""
+    for node in A.walk(tree):
+        if isinstance(node, A.Iterate):
+            return True
+        if isinstance(node, (A.Call, A.CollectOp)):
+            if node.name in SY.DERIVED_FUNCS and node.name not in _V0_KNOWN:
                 return True
     return False
 
@@ -173,7 +199,7 @@ def _v0_reads_bound_name_as_property(old_src, tree):
 
 print("== differential: v0 source vs AST-emitted source ==")
 identical, renamed, defects, unexplained = 0, [], [], []
-derived_route, receivers, type_recv = [], [], []
+derived_route, receivers, type_recv, new_ops = [], [], [], []
 legacy_only, newly_parsed, both_failed = [], [], 0
 for mod, cname, name, body in CORPUS:
     try:
@@ -200,6 +226,9 @@ for mod, cname, name, body in CORPUS:
             receivers.append((mod, cname, name))
         elif _uses_type_receiver(tree):
             type_recv.append((mod, cname, name))
+
+        elif _uses_new_operation(tree):
+            new_ops.append((mod, cname, name))
         else:
             unexplained.append((mod, cname, name, body))
     elif old is not None:
@@ -213,16 +242,19 @@ lowered = identical + len(renamed) + len(defects) + len(derived_route) + \
     len(receivers) + len(type_recv)
 check("every v0-translatable body also lowers through the AST",
       not legacy_only, str([f"{m}.{c}.{n}" for m, c, n, _ in legacy_only][:4]))
-check("AST lowers every body v0 lowered (633)", lowered == 633, f"{lowered}")
+check("every body v0 lowered (656) lowers identically or is itemized",
+      lowered + len(new_ops) == 656, f"{lowered} identical-or-known, "
+      f"{len(new_ops)} new-op bodies")
 check("no unexplained source difference", not unexplained,
       str([f"{m}.{c}.{n}" for m, c, n, _ in unexplained][:4]))
 check("differences are itemized (names, v0 defects, derived routing, "
       "receiver retarget)",
       len(renamed) + len(defects) + len(derived_route) + len(receivers)
-      + len(type_recv) == 123,
+      + len(type_recv) == 129,
       f"identical {identical}, renamed {len(renamed)}, "
       f"defects {len(defects)}, derived {len(derived_route)}, "
       f"receivers {len(receivers)}, type-receivers {len(type_recv)}, "
+      f"new-ops {len(new_ops)}, "
       f"both-fail {both_failed}")
 check("every itemized defect body is pinned",
       all((m, c, n) in V0_EMITTER_DEFECTS for m, c, n in defects) and
@@ -377,7 +409,7 @@ check("Tuple{...} literal", _parses("Tuple{a = 1, b = 'x'}.a = 1").startswith(
     "(BinOp '=' (Nav (TupleLit"), _parses("Tuple{a = 1}")[:40])
 check("@pre postfix", _parses("self.x@pre = self.x").startswith(
     "(BinOp '='"))
-check("->iterate with an accumulator",
+check("->iterate parses AND lowers with an accumulator",
       _parses("allNamespaces()->iterate(ns : Namespace; "
               "agg : String = name | agg)").startswith("(Iterate "))
 check("real literal", _parses("0.5 < 1").startswith("(BinOp '<' (Literal 'real'"))
@@ -388,7 +420,6 @@ check("typed iterator variable keeps its name",
       "(Lambda 'v' 'T'" in _parses("x->select(v : T | v.a)"))
 print("  (lowering the not-yet-supported constructs must refuse)")
 for src, label in (("self.x@pre = 1", "@pre"),
-                   ("x->iterate(v; a = 0 | a)", "->iterate"),
                    ("x->isUnique(e | e.a)", "->isUnique"),
                    ("x->sortedBy(e | e.a)", "sortedBy")):
     try:
