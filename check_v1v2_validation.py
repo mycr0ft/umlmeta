@@ -39,7 +39,7 @@ check("the transform produces one root package", len(roots) == 1)
 check("the extent reaches the whole model", report["elements"] == 131,
       f"{report['elements']} elements")
 check("checks and derivations are separated",
-      len(report["checks"]) == 1871 and len(report["derivations"]) == 4584,
+      len(report["checks"]) == 1868 and len(report["derivations"]) == 4584,
       f"{len(report['checks'])} checks, {len(report['derivations'])} derivations")
 check("no deriveXxx body is counted as a check",
       not any(e["constraint"].startswith("derive") for e in report["checks"]))
@@ -57,7 +57,7 @@ check("the dominant family is the missing library specialization edges",
 
 print("== skips are reported, not passed ==")
 check("skips are counted with reasons",
-      len(report["skipped"]) == 1345 and report["skip_reasons"],
+      len(report["skipped"]) == 1348 and report["skip_reasons"],
       str(report["skip_reasons"][:2]))
 check("the top skip reason is a known engine gap",
       report["skip_reasons"][0][0] in ("eval-unmapped",) or

@@ -25,13 +25,20 @@ def _rel_kind(rel):
 def _set(el, prop, value):
     """Set a property if the runtime carries one; ignore if it does not."""
     props = getattr(type(el), "_props", None)
-    if props is not None and prop in props:
-        try:
-            setattr(el, prop, value)
+    if props is None or prop not in props:
+        return False
+    d = props[prop]
+    try:
+        if getattr(d, "derived", False):
+            # a derived property has no setter (`_check_set` refuses), but the
+            # value we are writing IS what its derivation would produce, so it
+            # belongs in the same store the setter uses
+            el._vals[prop] = value
             return True
-        except Exception:                          # noqa: BLE001
-            return False
-    return False
+        setattr(el, prop, value)
+        return True
+    except Exception:                              # noqa: BLE001
+        return False
 
 
 def repair(*roots):
