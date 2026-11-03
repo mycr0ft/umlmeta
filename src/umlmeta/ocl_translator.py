@@ -191,12 +191,70 @@ def _owned_member_feature(obj):
 _AS_STRUCTURAL["ownedMemberFeature"] = _owned_member_feature
 
 
+def _owned_feature(obj):
+    """Type::ownedFeature — the owned members that are Features. A membership
+    subtype owns its member as a feature: EndFeatureMembership IS a
+    FeatureMembership, and the connector's end memberships are exactly what
+    makes its ends visible here."""
+    from . import sysml2 as _S2
+    feats = list(getattr(obj, "ownedFeature", None) or ())
+    for rel in (getattr(obj, "ownedRelationship", None) or ()):
+        if isinstance(rel, _S2.FeatureMembership):
+            for m in (getattr(rel, "ownedRelatedElement", None) or ()):
+                if isinstance(m, _S2.Feature) and m not in feats:
+                    feats.append(m)
+    return feats
+
+
+def _owned_end_feature(obj):
+    """Type::ownedEndFeature — ownedFeature->select(isEnd). Reachable now:
+    isEnd computes structurally and owningMembership is set by as_inverses."""
+    return [f for f in _owned_feature(obj) if _is_end(f)]
+
+
+def _connector_end(obj):
+    """Connector::connectorEnd — the connector's own end features."""
+    return _owned_end_feature(obj)
+
+
+_AS_STRUCTURAL["ownedEndFeature"] = _owned_end_feature
+_AS_STRUCTURAL["connectorEnd"] = _connector_end
+
+
+def _owned_reference_subsetting(obj):
+    """Feature::ownedReferenceSubsetting — ownedRelationship->selectByKind
+    (ReferenceSubsetting). The generated runtime declares the end derived,
+    so it never stores it; the rule is the select over ownedSubsetting."""
+    from . import sysml2 as _S2
+    return [rel for rel in (getattr(obj, "ownedRelationship", None) or ())
+            if isinstance(rel, _S2.ReferenceSubsetting)]
+
+
+def _subsetted_feature(obj):
+    """Subsetting::subsettedFeature — whatever the subsetting points at."""
+    return getattr(obj, "referencedFeature", None)
+
+
+_AS_STRUCTURAL["ownedReferenceSubsetting"] = _owned_reference_subsetting
+_AS_STRUCTURAL["subsettedFeature"] = _subsetted_feature
+
+
+def _needs_derivation(obj, name, v):
+    """A derived property whose stored value is empty still needs its rule:
+    a multi-valued derived end reads as an empty list, not as None."""
+    d = (getattr(type(obj), "_props", {}) or {}).get(name)
+    if d is None or not getattr(d, "derived", False):
+        return False
+    return v is None or (isinstance(v, (list, tuple)) and not v)
+
+
+
 def ocl_get(obj, name):
     """A bare property read (`ownedMemberFeature`), with the derivation and
     sentinel rules applied — the `_dot` fallback's counterpart, without which
     an unqualified name never reaches either."""
     v = getattr(obj, name, _MISSING)
-    if v is not _MISSING and v is not None:
+    if v is not _MISSING and not _needs_derivation(obj, name, v):
         return v
     d = derived_read(obj, name)
     if d is not _MISSING:
@@ -227,7 +285,14 @@ def derived_read(obj, prop):
         env["all_instances"] = all_instances
         g = dict(_EVAL_BUILTINS)
         g.update(env)
-        return eval(src, g, {})                    # noqa: S307
+        val = eval(src, g, {})
+        # a body that exists but evaluates to None because its own input is
+        # missing must not shadow the structural rule
+        if val is None:
+            fn = _AS_STRUCTURAL.get(prop)
+            if fn is not None:
+                return fn(obj)
+        return val                    # noqa: S307
     except Exception:                              # noqa: BLE001
         return _MISSING
     finally:
@@ -254,7 +319,7 @@ def ocl_dot(recv, attr):
     if fn is not None and (v is _MISSING or callable(v)):
         from . import derived as _derived
         return getattr(_derived, fn)(recv)
-    if v is _MISSING or v is None:
+    if v is _MISSING or v is None or _needs_derivation(recv, attr, v):
         derived = derived_read(recv, attr)
         if derived is not _MISSING:
             return derived

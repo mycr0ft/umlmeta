@@ -768,6 +768,20 @@ def _populate_class(v1cls, v2def, index, pending):
             if len(roles) >= 2:
                 cu.source.append(roles[0])
                 cu.target.append(roles[1])
+        # each connector end is an isEnd ReferenceUsage owned through an
+        # EndFeatureMembership — KerML's own shape, so the derived
+        # connectorEnd/relatedFeature chain can see it (isEnd computes
+        # structurally; as_inverses sets owningMembership at the end of the
+        # transform)
+        for i, role in enumerate(roles, start=1):
+            ru = S2.ReferenceUsage(declaredName=f"end{i}")
+            ru.isEnd = True
+            fm = S2.EndFeatureMembership()
+            fm.ownedRelatedElement.append(ru)
+            cu.ownedRelationship.append(fm)
+            rs = S2.ReferenceSubsetting()
+            rs.referencedFeature = role
+            ru.ownedRelationship.append(rs)
         _feature_membership(v2def, cu)
     for nested in getattr(v1cls, "nestedClassifier", ()):
         nv2 = transform_v1_element(nested)
