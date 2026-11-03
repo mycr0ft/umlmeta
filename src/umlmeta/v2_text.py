@@ -146,7 +146,13 @@ def _supers(el):
         g = spec._vals.get("general")
         if isinstance(g, list):
             g = g[0] if g else None
-        if g is not None and _name(g):
+        if g is None:
+            continue
+        if getattr(g, "_library_qname", None):
+            # a name-only library base: render it as the qualified name,
+            # unquoted — it is a reference, not a literal
+            out.append(g._library_qname)
+        elif _name(g):
             out.append(_q(_name(g)))
     return out
 

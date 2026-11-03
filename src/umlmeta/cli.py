@@ -119,7 +119,8 @@ def cmd_sync(args):
                      f"(found {len(v1_roots)})")
     result = S.merge(v1_roots[0], side, model)
     out = Path(args.output or args.model)
-    _write_json(out, J.to_json(result.root))
+    _write_json(out, J.to_json(result.root,
+                                ids=L.assign_element_ids(result.root)))
     if args.sidecar_out:
         L.write_sidecar(args.sidecar_out, L.sidecar(result.root))
     print(f"merged -> {out}: {result.report}")

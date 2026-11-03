@@ -62,7 +62,16 @@ def _ser_scalar(v):
 
 def _ser(v):
     if hasattr(v, "_props"):
-        return {"@id": v._vals.get("elementId")}
+        eid = v._vals.get("elementId")
+        if not eid:
+            # a name-only library stub: reference it by its synthetic id
+            lq = getattr(v, "_library_qname", None)
+            if lq:
+                eid = "lib:" + lq
+                v._vals["elementId"] = eid
+            else:
+                return None
+        return {"@id": eid}
     if isinstance(v, (list, tuple)):
         return [_ser(x) for x in v]
     return _ser_scalar(v)
@@ -96,6 +105,24 @@ def to_json(root, ids=None):
     graph = []
     seen = set()
     stack = [root]
+    # library stubs are referenced by general but not contained; include them
+    stubs = []
+    for eid, el in (ids or {}).items():
+        if getattr(el, "_library_qname", None) or \
+                (isinstance(eid, str) and eid.startswith("lib:")):
+            stubs.append(el)
+    def _collect_stubs(el):
+        for sc in (getattr(el, "ownedSpecialization", None) or ()):
+            g = sc._vals.get("general") if hasattr(sc, "_vals") else None
+            if g is not None and hasattr(g, "_props") and \
+                    getattr(g, "_library_qname", None):
+                stubs.append(g)
+        for _f, ch in contained(el):
+            _collect_stubs(ch)
+    _collect_stubs(root)
+    for s in stubs:
+        if id(s) not in seen:
+            stack.append(s)
     while stack:
         el = stack.pop()
         if id(el) in seen:
@@ -104,6 +131,19 @@ def to_json(root, ids=None):
         graph.append(_node(el))
         for _feat, ch in reversed(contained(el)):
             stack.append(ch)
+        # composite ends beyond ownedRelationship: ownedSpecialization etc.
+        # (link.contained skips subset/derived composite ends, which is an
+        # identity bug for serialization — include them here)
+        for name, d in getattr(el, "_props", {}).items():
+            if not d.composite:
+                continue
+            if name == "ownedRelationship":
+                continue
+            v = el._vals.get(name)
+            items = v if isinstance(v, (list, tuple)) else ((v,) if v else ())
+            for ch in items:
+                if ch is not None and hasattr(ch, "_props"):
+                    stack.append(ch)
     return {"format": FORMAT, "@context": dict(CONTEXT),
             "@id": root._vals.get("elementId"), "@graph": graph}
 
@@ -153,6 +193,8 @@ def from_json(doc):
             raise JsonError(f"unknown metaclass {tn!r}")
         obj = cls()
         obj._vals["elementId"] = eid
+        if isinstance(eid, str) and eid.startswith("lib:"):
+            obj._library_qname = eid[4:]
         objs[eid] = obj
     for node in graph:
         obj = objs[node["@id"]]

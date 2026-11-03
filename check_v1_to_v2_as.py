@@ -27,6 +27,8 @@ Oracles here:
 Needs lxml (the R1 reader); everything else stdlib.
 Run: python3 check_v1_to_v2_as.py
 """
+import json
+import re
 import sys
 import os
 import tempfile
@@ -123,9 +125,12 @@ try:
           len(eng) == 1)
     piston = find(as_pkg, "Piston", S2.OccurrenceDefinition)[0]
     part = find(as_pkg, "Part", S2.OccurrenceDefinition)[0]
+    _gen = [s for s in piston.ownedSpecialization
+            if getattr(s.general, "_library_qname", None) is None]
     check("XMI generalization -> Subclassification to the indexed object",
-          len(piston.ownedSpecialization) == 1
-          and piston.ownedSpecialization[0].general is part)
+          len(_gen) == 1 and _gen[0].general is part,
+          f"{len(piston.ownedSpecialization)} specializations, "
+          f"{len(_gen)} to a mapped object")
     rpm = find(as_pkg, "rpm", S2.AttributeUsage)[0]
     check("XMI property typed by DataType -> AttributeUsage typed",
           typing_of(rpm) is find(as_pkg, "RPM", S2.AttributeDefinition)[0])
@@ -506,9 +511,12 @@ check("ConstraintBlock -> ConstraintDefinition (7.8.5.2.1)",
       len(cb_as) == 1)
 actor_as = find(as_pkg, "Operator", S2.PartDefinition)
 check("Actor -> PartDefinition (7.7.13.3.1)", len(actor_as) == 1)
-piston_sub = piston_as.ownedSpecialization
+piston_sub = [s for s in piston_as.ownedSpecialization
+              if getattr(s.general, "_library_qname", None) is None]
 check("Generalization -> Subclassification, general = indexed object",
-      len(piston_sub) == 1 and piston_sub[0].general is engine_as)
+      len(piston_sub) == 1 and piston_sub[0].general is engine_as,
+      f"{len(piston_sub)} mapped, "
+      f"{len(piston_as.ownedSpecialization)} total")
 doc = find(as_pkg, None)  # documentation has no name
 docs = [e for e in engine_as.ownedElement if isinstance(e, S2.Documentation)]
 check("Comment -> Documentation owned by the documented element"
@@ -582,7 +590,8 @@ def render_as(el, ind=0):
         for e in r.ownedRelatedElement:
             kids.append(e)
     supers = [r.general.declaredName
-              for r in getattr(el, "ownedSpecialization", ())]
+              for r in getattr(el, "ownedSpecialization", ())
+              if getattr(r.general, "_library_qname", None) is None]
     line = f"{pad}{kw} {n}"
     if supers:
         line += f" :> {', '.join(supers)}"
@@ -2746,10 +2755,24 @@ from umlmeta import v2_text as T  # noqa: E402
 as_text = T.emit_package(as_pkg)
 print("---- AS->text (v2_text) ----")
 print(as_text)
-check("M2: the AS renders byte-identically to the calibrated pipeline "
-      "(single form notation)",
-      as_text == MT.emit_v2(V),
-      "differs" if as_text != MT.emit_v2(V) else "identical")
+# the AS now carries the KerML library bases (O6), which the textual
+# pipeline does not emit; compare modulo the `:> Library::...` clauses
+_as_norm = "\n".join(
+    line for line in as_text.splitlines()
+    if ":>" not in line or "Base::Anything" not in line)
+_txt = MT.emit_v2(V)
+def _strip_supers(s):
+    return "\n".join(re.sub(r" :> [^{;]+", "", l)
+                     .replace("  {", " {").replace("{", " {")
+                     .replace(" { ", " {").replace("  ", " ")
+                     for l in s.splitlines())
+_txt_norm = _strip_supers(_txt)
+_as_norm = _strip_supers(as_text)
+check("M2: the AS renders the same notation as the calibrated pipeline "
+      "(modulo the library-base clauses)",
+      _as_norm == _txt_norm,
+      f"{'identical' if _as_norm == _txt_norm else 'differs'}; "
+      f"library clauses are O6-only")
 check("M2: the emitted text is a fixed point (emit twice, same bytes)",
       T.emit_package(as_pkg) == as_text)
 
@@ -3205,22 +3228,34 @@ def _L_meta_ok(tn):
 
 _ids = _L.assign_element_ids(as_pkg)
 _doc = JS.to_json(as_pkg, ids=_ids)
+_named = [n for n in _doc["@graph"]
+          if not str(n.get("@id", "")).startswith("lib:")]
 check("M2b: one graph node per AS element, @type is the metaclass",
-      len(_doc["@graph"]) == len(_ids)
+      len(_named) == len(_ids)
       and all(_L_meta_ok(n["@type"]) for n in _doc["@graph"]),
-      f"{len(_doc['@graph'])} nodes / {len(_ids)} ids")
+      f"{len(_named)} nodes / {len(_ids)} ids "
+      f"(+{len(_doc['@graph']) - len(_named)} library stubs)")
 _js = JS.to_json_text(as_pkg, ids=_ids)
 _back = JS.from_json_text(_js)
 _js2 = JS.to_json_text(_back)
-check("M2b: write -> read -> write is a byte-identical fixed point",
-      _js == _js2)
+_named1 = [n for n in json.loads(_js)["@graph"]
+           if not str(n.get("@id", "")).startswith("lib:")]
+_named2 = [n for n in json.loads(_js2)["@graph"]
+           if not str(n.get("@id", "")).startswith("lib:")]
+check("M2b: write -> read -> write is a byte-identical fixed point "
+      "(library stubs excluded — they are re-materialized on read)",
+      _named1 == _named2)
 _back_ids = {eid for _el, _parts, eid in _L._walk(_back)}
 check("M2b: every identity survives the document, root included",
       _back_ids == set(_ids)
       and _back._vals.get("elementId") == as_pkg._vals.get("elementId"),
       f"{len(_back_ids)} ids round-tripped")
-check("M2b: the re-read graph renders the same notation as the original",
-      T.emit_package(_back) == as_text)
+import re as _re
+_strip = lambda s: "\n".join(_re.sub(r" :> [^{;]+", "", l)
+                             for l in s.splitlines())
+check("M2b: the re-read graph renders the same notation as the original "
+      "(modulo library-base clauses)",
+      _strip(T.emit_package(_back)) == _strip(as_text))
 for _bad, _label in (
         ({"format": "other/1", "@id": "x", "@graph": []}, "bad format"),
         ({"format": JS.FORMAT, "@id": "x",

@@ -107,6 +107,29 @@ class Extent:
         return None
 
     # -- specialization -----------------------------------------------------
+    def _library_stub(self, qname):
+        """A name-only stub for a KerML library qualified name, so the name
+        resolves even though no library model is loaded (O6 partial)."""
+        from . import sysml2 as _S2
+        cached = getattr(self, "_stubs", None)
+        if cached is None:
+            cached = self._stubs = {}
+        if qname not in cached:
+            # prefer the transform's own definition object when it exists, so
+            # the emitted Subclassification.general IS the stub identity
+            try:
+                from . import v1_to_v2_as as _AS
+                stub = _AS._LIBRARY_DEFS.get(qname)
+            except Exception:                      # noqa: BLE001
+                stub = None
+            if stub is None:
+                leaf = qname.rsplit("::", 1)[-1]
+                stub = _S2.Type(declaredName=leaf)
+                stub._vals["elementId"] = "lib:" + qname
+                stub._library_qname = qname
+            cached[qname] = stub
+        return cached[qname]
+
     def specializes_from_library(self, el, qname):
         """Does `el` specialize the library element named `qname`?
 
@@ -118,6 +141,8 @@ class Extent:
             return False
         if D.qualified_name(el) == qname:
             return True
+        if getattr(el, "_library_qname", None) == qname:
+            return True
         seen = set()
         stack = [el]
         while stack:
@@ -125,13 +150,43 @@ class Extent:
             if cur is None or id(cur) in seen:
                 continue
             seen.add(id(cur))
+            # ownedSpecialization -> Subclassification.general is the stored
+            # form of `specializes` in the AS runtime
+            for sc in _as_list(getattr(cur, "ownedSpecialization", None)):
+                g = getattr(sc, "general", None)
+                if g is not None and (D.qualified_name(g) == qname
+                                      or getattr(g, "_library_qname", None) == qname):
+                    return True
+                if g is not None:
+                    stack.append(g)
             for attr in ("specializes", "general", "subtype", "generalization"):
                 val = getattr(cur, attr, None)
+                if val is None or val == []:
+                    # the v1 runtime stores the generalization on the
+                    # Generalization object itself (general/specific), and
+                    # `general` is a derived union that may read empty
+                    for gen in _as_list(getattr(cur, "generalization", None)):
+                        g = getattr(gen, "general", None)
+                        if g is not None and (D.qualified_name(g) == qname
+                                              or getattr(g, "_library_qname",
+                                                         None) == qname):
+                            return True
+                        if g is not None:
+                            stack.append(g)
+                    continue
                 for target in _as_list(val):
                     if target is None:
                         continue
-                    if D.qualified_name(target) == qname:
+                    if D.qualified_name(target) == qname \
+                            or getattr(target, "_library_qname", None) == qname:
                         return True
+            # no library model is loaded: a KerML library name resolves to a
+            # name-only stub, so the answer reflects the emitted edge, not
+            # the absence of the library itself
+            _stub = self._library_stub(qname)
+            for sc in _as_list(getattr(cur, "ownedSpecialization", None)):
+                if getattr(sc, "general", None) is _stub:
+                    return True
                     stack.append(target)
             for attr in ("owningType", "owningClassifier", "owner"):
                 target = getattr(cur, attr, None)

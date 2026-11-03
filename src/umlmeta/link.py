@@ -99,6 +99,17 @@ def _walk(root):
         yield el, parts, el._vals.get("elementId")
         for _feat, ch in reversed(contained(el)):
             stack.append((ch, parts))
+        # subset/derived composite ends (ownedSpecialization, ownedTyping,
+        # ...) are composite storage too — serialized by v2_json, so the
+        # identity walk must follow them or those elements lose their id
+        for name, d in getattr(el, "_props", {}).items():
+            if not d.composite or name == "ownedRelationship":
+                continue
+            v = el._vals.get(name)
+            items = v if isinstance(v, (list, tuple)) else ((v,) if v else ())
+            for ch in items:
+                if ch is not None and hasattr(ch, "_props"):
+                    stack.append((ch, parts))
 
 
 def signature(el):

@@ -294,6 +294,20 @@ def transform_v1_element(el, index=None):
     """Dispatch on v1 metaclass: build the v2 AS object per the
     normative mapping. Returns the v2 element (not yet owned).
 
+    Wraps the inner dispatch so every produced definition/usage gets its
+    KerML library base attached (the check*Specialization rules test it).
+    """
+    if index is None:
+        index = {}
+    v2 = _transform_v1_element_inner(el, index)
+    _add_library_specialization(index, v2)
+    return v2
+
+
+def _transform_v1_element_inner(el, index=None):
+    """Dispatch on v1 metaclass: build the v2 AS object per the
+    normative mapping. Returns the v2 element (not yet owned).
+
     The index (id(v1) -> v2 AS object) is shared through the recursive
     population passes; pass-1 callers pass it so requirement/TestCase
     objects register before relationship ends resolve."""
@@ -517,6 +531,7 @@ def transform_property(prop, owner_def, index):
     _type_feature(usage, tdef)
     _feature_membership(owner_def, usage)
     index[id(prop)] = usage
+    _add_library_specialization(index, usage)
     return usage
 
 
@@ -2340,6 +2355,169 @@ def transform_package(pkg, side_channel=False):
     content the mapping has no target for.
     """
     return transform_packages([pkg], side_channel=side_channel)[0]
+
+
+# KerML/SysML library elements every mapped definition specializes
+# (KerML Root Library). Emitted as a Subclassification to one shared
+# name-only library definition per name, cached on the index — the same
+# singleton pattern the v1-library metadata uses. This is what the
+# check*Specialization rules test (specializesFromLibrary('Base::things')
+# and friends): without these edges every mapped type fails them.
+_LIBRARY_BASES = {
+    "Definition": "Base::things",
+    "Usage": "Base::things",
+    "Type": "Base::Anything",
+    "Class": "Occurrences::Occurrence",
+    "DataType": "Base::DataValue",
+    "Feature": "Base::things",
+    "ActionUsage": "Actions::actions",
+    "ActionDefinition": "Actions::Action",
+    "Behavior": "Performances::Performance",
+    "Step": "Performances::performances",
+    "OccurrenceUsage": "Occurrences::occurrences",
+    "OccurrenceDefinition": "Occurrences::Life",
+    "PartDefinition": "Parts::Part",
+    "PartUsage": "Parts::parts",
+    "ItemDefinition": "Items::Item",
+    "ItemUsage": "Items::items",
+    "ConnectionDefinition": "Connections::BinaryConnections",
+    "ConnectionUsage": "Connections::connections",
+    "Connector": "Links::links",
+    "Association": "Links::BinaryLink",
+    "PortDefinition": "Ports::Port",
+    "PortUsage": "Ports::ports",
+    "CalculationDefinition": "Calculations::Calculation",
+    "CalculationUsage": "Calculations::calculations",
+    "Expression": "Performances::evaluations",
+    "Function": "Performances::Evaluation",
+    "CaseDefinition": "Cases::Case",
+    "CaseUsage": "Cases::cases",
+    "UseCaseDefinition": "UseCases::UseCase",
+    "UseCaseUsage": "UseCases::useCases",
+    "RequirementDefinition": "Requirements::RequirementCheck",
+    "RequirementUsage": "Requirements::requirementChecks",
+    "VerificationCaseDefinition": "VerificationCases::VerificationCase",
+    "VerificationCaseUsage": "VerificationCases::verificationCases",
+    "StateDefinition": "States::StateAction",
+    "StateUsage": "States::stateActions",
+    "TransitionUsage": "Actions::transitionActions",
+    "Succession": "Occurrences::happensBeforeLinks",
+    "FlowDefinition": "Flows::Message",
+    "FlowUsage": "Flows::flows",
+    "Multiplicity": "Base::naturals",
+    "Port": "Ports::Port",
+    "Structure": "Objects::Object",
+    "AllocationDefinition": "Allocations::Allocation",
+    "AllocationUsage": "Allocations::allocations",
+    "Metaclass": "Metaobjects::Metaobject",
+    "MetadataDefinition": "Metadata::MetadataItem",
+    "MetadataUsage": "Metadata::metadataItems",
+    "ViewDefinition": "Views::View",
+    "ViewUsage": "Views::views",
+    "ViewpointDefinition": "Views::Viewpoint",
+    "ViewpointUsage": "Views::viewpoints",
+    "InterfaceDefinition": "Interfaces::Interface",
+    "InterfaceUsage": "Interfaces::interfaces",
+    "LiteralExpression": "Performances::literalEvaluations",
+    "LiteralInteger": "Performances::literalIntegerEvaluations",
+    "LiteralString": "Performances::literalStringEvaluations",
+    "LiteralBoolean": "Performances::literalBooleanEvaluations",
+    "LiteralInfinity": "Performances::literalIntegerEvaluations",
+    "LiteralRational": "Performances::literalRationalEvaluations",
+    "NullExpression": "Performances::nullEvaluations",
+    "BooleanExpression": "Performances::booleanEvaluations",
+    "Predicate": "Performances::BooleanEvaluation",
+    "Invariant": "Performances::falseEvaluations",
+    "Flow": "Transfers::transfers",
+    "SuccessionFlow": "Transfers::flowTransfersBefore",
+    "SuccessionFlowUsage": "Flows::successionFlows",
+    "BindingConnector": "Links::selfLinks",
+    "ControlNode": "Actions::Action::controls",
+    "DecisionNode": "Actions::Action::decisions",
+    "ForkNode": "Actions::Action::forks",
+    "JoinNode": "Actions::Action::join",
+    "MergeNode": "Actions::Action::merges",
+    "AcceptActionUsage": "Actions::acceptActions",
+    "SendActionUsage": "Actions::sendActions",
+    "PerformActionUsage": "Parts::Part::performedActions",
+    "EventOccurrenceUsage": "Occurrences::Occurrence::timeEnclosedOccurrences",
+    "ExhibitStateUsage": "Parts::Part::exhibitedStates",
+    "ForLoopActionUsage": "Actions::forLoopActions",
+    "IfActionUsage": "Actions::ifThenActions",
+    "WhileLoopActionUsage": "Actions::whileLoopActions",
+    "TerminateActionUsage": "Actions::terminateActions",
+    "AssignmentActionUsage": "Actions::assignmentActions",
+    "IncludeUseCaseUsage": "UseCases::UseCase::includedUseCases",
+    "IndexExpression": "Collections::Array",
+    "MetadataAccessExpression": "Performances::metadataAccessEvaluations",
+    "MetadataFeature": "Metaobjects::metaobjects",
+    "AnalysisCaseDefinition": "AnalysisCases::AnalysisCase",
+    "AnalysisCaseUsage": "AnalysisCases::analysisCases",
+    "ViewRendering": "Views::Rendering",
+    "ViewRenderingUsage": "Views::renderings",
+    "SatisfyRequirementUsage": "Requirements::satisfiedRequirementChecks",
+    "ConstraintDefinition": "Constraints::ConstraintCheck",
+    "ConstraintUsage": "Constraints::constraintChecks",
+    "AssertConstraintUsage": "Constraints::assertedConstraintChecks",
+    "ConcernDefinition": "Requirements::ConcernCheck",
+    "ConcernUsage": "Requirements::concernChecks",
+    "EnumerationDefinition": "Base::things",
+    "EnumerationUsage": "Base::things",
+    "Dependency": "Base::things",
+}
+
+_LIBRARY_DEFS = {}
+
+
+def _library_definition(index, qname):
+    """One shared name-only Type for a library qualified name, cached on
+    the index, so every Subclassification to it resolves through the extent
+    against the same object."""
+    key = ("libdef", qname)
+    if key in index:
+        return index[key]
+    leaf = qname.rsplit("::", 1)[-1]
+    pkg = qname.rsplit("::", 1)[0]
+    t = S2.Type(declaredName=leaf)
+    t._vals['isLibraryElement'] = True
+    # carry the qualified name so Extent.specializes_from_library matches it
+    t._library_qname = qname
+    t._library_pkg = pkg
+    # a stable synthetic elementId so the JSON persistence can reference it
+    t._vals["elementId"] = "lib:" + qname
+    index[key] = t
+    _LIBRARY_DEFS[qname] = t
+    return t
+
+
+def _add_library_specialization(index, v2obj):
+    """Attach the KerML library base for this object's class, if the table
+    names one. The rule bodies test specializesFromLibrary, which resolves
+    qualified names through the extent."""
+    if v2obj is None:
+        return
+    # every Type gets Base::Anything in addition to its specific base: the
+    # MRO-level checkTypeSpecialization rule asks for exactly that
+    qnames = ["Base::Anything"]
+    for cls in type(v2obj).__mro__:
+        if cls.__name__ in _LIBRARY_BASES:
+            qnames.append(_LIBRARY_BASES[cls.__name__])
+            break
+    for qname in qnames:
+        _attach_one_base(index, v2obj, qname)
+    # and keep the stubs referenced-but-not-contained reachable for the JSON
+    # serializer by remembering them on the index root
+    index.setdefault("_lib_stubs", []).extend(
+        _library_definition(index, q) for q in qnames)
+
+
+def _attach_one_base(index, v2obj, qname):
+    if not hasattr(v2obj, "ownedSpecialization"):
+        return
+    base = _library_definition(index, qname)
+    sc = S2.Subclassification()
+    sc.general = base
+    v2obj.ownedSpecialization.append(sc)
 
 
 def transform_packages(pkgs, side_channel=False):
