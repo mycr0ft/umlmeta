@@ -747,8 +747,10 @@ states = [e for e in tsm_def.ownedElement
 by_name = {e.declaredName: e for e in tsm_def.ownedElement
            if type(e).__name__ == "TransitionUsage"}
 t1u = by_name.get("start")
-suxs = [r for r in t1u.ownedRelationship
-        if type(r).__name__ == "Succession"]
+suxs = [m.ownedRelatedElement[0] for m in t1u.ownedRelationship
+        if isinstance(m, S2.OwningMembership)
+        and m.ownedRelatedElement
+        and type(m.ownedRelatedElement[0]).__name__ == "Succession"]
 end_names = [getattr(x, "declaredName", None)
              for em in suxs[0].ownedRelationship
              for x in em.ownedRelatedElement]

@@ -331,6 +331,36 @@ def _expr_result(obj):
 
 
 _AS_STRUCTURAL["result"] = _expr_result
+# Connector::sourceFeature / targetFeature — the relatedFeature slices
+# (source the first related feature, targetFeature the rest); the corpus
+# derivations read connectorEnd chains that the transform emits as owned
+# ReferenceSubsettings
+def _connector_source_feature(obj):
+    rel = _related_features(obj)
+    return rel[0] if rel else None
+
+
+def _connector_target_features(obj):
+    return _related_features(obj)[1:]
+
+
+def _related_features(obj):
+    rels = []
+    for e2 in _owned_end_feature(obj):
+        for s in (getattr(e2, "ownedRelationship", None) or ()):
+            if type(s).__name__ in ("ReferenceSubsetting", "Subsetting"):
+                tgt = s._vals.get("referencedFeature") \
+                    or s._vals.get("subsettedFeature")
+                if tgt is not None:
+                    rels.append(tgt)
+    return rels
+
+
+_AS_STRUCTURAL["sourceFeature"] = _connector_source_feature
+_AS_STRUCTURAL["targetFeature"] = _connector_target_features
+# the binding-connector rules navigate `relatedFeatures` (plural) — the
+# plural spelling of Connector::relatedFeature
+_AS_STRUCTURAL["relatedFeatures"] = _related_features
 # Type/Feature::featureMemberships — the corpus result/parameter derivation
 # reads this end; the runtime carries memberships only in
 # ownedRelationship, so the select is structural here
@@ -2159,6 +2189,28 @@ def ocl_is_kind(obj, tname):
     return ocl_is_kind_of(obj, tname)
 
 
+def source_feature(tu):
+    """Actions::TransitionUsage::sourceFeature(): the feature the
+    transition's source end references — the succession's first related
+    feature (the source state). The corpus derives `source` from this
+    via featureTarget, which for a terminal feature is the feature
+    itself."""
+    if tu is None:
+        return None
+    from . import sysml2 as _S2
+    rel = _related_features(tu)
+    if rel:
+        return rel[0]
+    # the transition's succession may own the ends
+    for om in _aslist(getattr(tu, "ownedRelationship", None)):
+        for el in _aslist(getattr(om, "ownedRelatedElement", None)):
+            if isinstance(el, _S2.Connector):
+                rel = _related_features(el)
+                if rel:
+                    return rel[0]
+    return None
+
+
 def resolve_global(qname, _self=None):
     """KerML `resolveGlobal('Pkg::El')`: the extent's qualified lookup;
     None when no extent is bound or the name is unknown. Accepts the
@@ -2172,11 +2224,22 @@ def resolve_global(qname, _self=None):
     hit = ext.qualified(qname)
     if hit is not None:
         return hit
+    # a KerML library name (TransitionPerformances::...::transitionLink)
+    # resolves to the name-only stub the transform registered — identity
+    # matches whatever the transform bound with _attach_one_base
+    try:
+        from . import v1_to_v2_as as _AS
+        stub = _AS._LIBRARY_DEFS.get(qname)
+        if stub is not None:
+            return stub
+    except Exception:                          # noqa: BLE001
+        pass
     # qualified names are None on hand-built ownerless models; fall back to
     # matching the last segment against element names
     leaf = qname.rsplit("::", 1)[-1]
     for el in ext.elements():
-        if getattr(el, "name", None) == leaf or getattr(el, "declaredName", None) == leaf:
+        if getattr(el, "name", None) == leaf or \
+                getattr(el, "declaredName", None) == leaf:
             return el
     return None
 

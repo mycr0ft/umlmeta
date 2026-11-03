@@ -132,6 +132,7 @@ DERIVED_FUNCS = {
     "isFeaturedWithin": ("local", "is_featured_within"),
     "oclIsType": ("local", "ocl_is_type"),
     "resolveGlobal": ("local", "resolve_global"),
+    "sourceFeature": ("local", "source_feature"),
     "importedMemberships": ("local", "imported_memberships"),
     "isTriggerAction": ("local", "is_trigger_action"),
     "instantiatedType": ("local", "instantiated_type_op"),

@@ -1331,7 +1331,9 @@ def _populate_statemachine(sm, v2def, index):
                 tu.target = tgt_obj
                 # 7.7.11.2.19-.25: the transition's Succession with the
                 # named ('source'/'target') end features, isEnd,
-                # subsetting the mapped states
+                # subsetting the mapped states — owned as an owned MEMBER
+                # (the validateTransitionUsageSuccession rule reads
+                # ownedMember->selectByKind(Succession))
                 sux = S2.Succession()
                 for end_nm, end_v in (("source", src_obj),
                                       ("target", tgt_obj)):
@@ -1347,7 +1349,32 @@ def _populate_statemachine(sm, v2def, index):
                     em = S2.EndFeatureMembership()
                     em.ownedRelatedElement.append(fe)
                     sux.ownedRelationship.append(em)
-                tu.ownedRelationship.append(sux)
+                _own_membership(tu, sux)
+                # the in-parameter carrying the source state — the
+                # TransitionPerformance inputParameter(1) pattern; the
+                # checkTransitionUsageSourceBindingConnector rule binds it
+                pru = S2.ReferenceUsage(direction="in")
+                _attach_one_base(index, pru, "Base::things")
+                rs_in = S2.ReferenceSubsetting()
+                rs_in.subsettingFeature = pru
+                rs_in.referencedFeature = src_obj
+                pru.ownedRelationship.append(rs_in)
+                pm_in = S2.ParameterMembership()
+                pm_in.ownedRelatedElement.append(pru)
+                tu.ownedRelationship.append(pm_in)
+                # 7.7.11.2.x: the transition's binding connectors — one
+                # binding the succession to the library transitionLink,
+                # one binding the source state to the transition's input
+                # parameter (checkTransitionUsageSuccessionBindingConnector /
+                # checkTransitionUsageSourceBindingConnector)
+                _tl = _library_definition(
+                    index,
+                    "TransitionPerformances::TransitionPerformance::"
+                    "transitionLink")
+                bc1 = _binding_connector(sux, _tl)
+                _own_membership(tu, bc1)
+                bc2 = _binding_connector(src_obj, pru)
+                _own_membership(tu, bc2)
                 # 7.7.11.2.26: the trigger feature memberships
                 for tg in list(tr._vals.get("trigger") or ()):
                     tu.ownedRelationship.append(
@@ -2832,6 +2859,24 @@ def transform_packages(pkgs, side_channel=False):
         # every root carries it.
         out._v1_elisions = elisions
     return outs
+
+
+def _binding_connector(*related):
+    """A BindingConnector whose ends are reference ends subsetting the
+    related features — the KerML `binding [0..1] a = [1] b` shape. The
+    connector's relatedFeature reads the ends' ReferenceSubsettings."""
+    bc = S2.BindingConnector()
+    for target in related:
+        ru = S2.ReferenceUsage()
+        ru.isEnd = True
+        rs = S2.ReferenceSubsetting()
+        rs.subsettingFeature = ru
+        rs.referencedFeature = target
+        ru.ownedRelationship.append(rs)
+        em = S2.EndFeatureMembership()
+        em.ownedRelatedElement.append(ru)
+        bc.ownedRelationship.append(em)
+    return bc
 
 
 _SKIP_PASS1 = (S.Satisfy, S.Verify, S.DeriveReqt, S.Allocate,
