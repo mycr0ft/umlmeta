@@ -194,7 +194,12 @@ def _uses_three_valued(new_src):
     that crashed on a 0/-1 index)."""
     return any(m in new_src for m in ("_land(", "_lor(", "_implies(",
                                       "is None else (not ",
-                                      "isinstance(("))
+                                      "isinstance((",
+                                      # the three-valued comparisons (a
+                                      # null operand is UNDETERMINED, not
+                                      # a Python TypeError)
+                                      "_ge(", "_gt(", "_le(", "_lt(",
+                                      "_for_all(", "_ex_ists("))
 
 
 def _uses_new_operation(tree):
@@ -276,7 +281,7 @@ for _tv in three_valued:
 check("differences are itemized (names, v0 defects, derived routing, "
       "receiver retarget, three-valued)",
       len(renamed) + len(defects) + len(derived_route) + len(receivers)
-      + len(type_recv) + len(three_valued) == 403,
+      + len(type_recv) + len(three_valued) == 440,
       f"identical {identical}, renamed {len(renamed)}, "
       f"defects {len(defects)}, derived {len(derived_route)}, "
       f"receivers {len(receivers)}, type-receivers {len(type_recv)}, "

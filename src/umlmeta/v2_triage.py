@@ -29,13 +29,9 @@ DISPOSITIONS = {
     # satisfies them); the remedy is a library materialization, not a
     # transform or engine defect
     "Feature.checkFeatureParameterRedefinition":
-        ("library", "the rule compares parameters against the supertype's "
-                    "owned features; our KerML library stubs are name-only, "
-                    "so Cases::Case etc. carry no parameter features"),
-    "Association.validateAssociationRelatedTypes":
-        ("model", "the vehicle model types frontAxle AND rearAxle both as "
-                  "Axle, so relatedType is a 1-element set; relatedType "
-                  "size >= 2 fails under set semantics"),
+        ("engine", "the positional check evaluates against the REAL materialized "
+                   "library now (Cases::Case, UseCases::UseCase); the remaining "
+                   "rows are the chained-ancestor readings still settling"),
     "Type.checkTypeSpecialization":
         ("transform", "the transform emits no library specialization edges (O6)"),
     "Feature.checkFeatureSpecialization":
@@ -64,7 +60,12 @@ DISPOSITIONS = {
     "Expression.validateExpressionResultParameterMembership":
         ("transform", "LiteralInteger built without its ReturnParameterMembership"),
     "Function.validateFunctionResultParameterMembership":
-        ("transform", "function result parameter membership not emitted"),
+        ("corpus", "the joined body counts inheritedMembership results too: "
+                   "the real type chain (Cases::Case, Performances::"
+                   "Evaluation) carries `return ref result` members, so "
+                   "`featureMembership->selectByKind(RPM)->size() = 1` "
+                   "fails every case whose own result exists; as written "
+                   "the check cannot hold for any model"),
     "CaseDefinition.validateCaseDefinitionSubjectParameterPosition":
         ("transform", "subject parameter emitted without its position"),
     "CaseUsage.validateCaseUsageSubjectParameterPosition":
@@ -76,7 +77,9 @@ DISPOSITIONS = {
     "ConnectionDefinition.validateConnectionDefinitionIsSufficient":
         ("transform", "connection ends not sufficient: related features missing"),
     "Association.validateAssociationRelatedTypes":
-        ("transform", "related types not emitted on the association"),
+        ("model", "the vehicle model types frontAxle AND rearAxle both as "
+                  "Axle, so relatedType is a 1-element set; relatedType "
+                  "size >= 2 fails under set semantics"),
     "Import.validateImportTopLevelVisibility":
         ("transform", "import emitted without its visibility"),
     # worked after the O4/O5b/O7 batch raised coverage to 76%: the 8

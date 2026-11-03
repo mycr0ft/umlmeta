@@ -3240,19 +3240,19 @@ def _L_meta_ok(tn):
 _ids = _L.assign_element_ids(as_pkg)
 _doc = JS.to_json(as_pkg, ids=_ids)
 _named = [n for n in _doc["@graph"]
-          if not str(n.get("@id", "")).startswith("lib:")]
+          if not str(n.get("@id", "")).startswith(("lib:", "libm:"))]
 check("M2b: one graph node per AS element, @type is the metaclass",
       len(_named) == len(_ids)
       and all(_L_meta_ok(n["@type"]) for n in _doc["@graph"]),
       f"{len(_named)} nodes / {len(_ids)} ids "
-      f"(+{len(_doc['@graph']) - len(_named)} library stubs)")
+      f"(+{len(_doc['@graph']) - len(_named)} library stubs/memberships)")
 _js = JS.to_json_text(as_pkg, ids=_ids)
 _back = JS.from_json_text(_js)
 _js2 = JS.to_json_text(_back)
 _named1 = [n for n in json.loads(_js)["@graph"]
-           if not str(n.get("@id", "")).startswith("lib:")]
+           if not str(n.get("@id", "")).startswith(("lib:", "libm:"))]
 _named2 = [n for n in json.loads(_js2)["@graph"]
-           if not str(n.get("@id", "")).startswith("lib:")]
+           if not str(n.get("@id", "")).startswith(("lib:", "libm:"))]
 check("M2b: write -> read -> write is a byte-identical fixed point "
       "(library stubs excluded — they are re-materialized on read)",
       _named1 == _named2)

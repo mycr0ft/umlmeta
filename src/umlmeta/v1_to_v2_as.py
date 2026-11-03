@@ -162,9 +162,19 @@ Honest elisions (documented, no data invented silently):
 """
 from __future__ import annotations
 
+import os
+
 from . import uml25 as U
 from . import sysml2 as S2
 from . import sysml as S
+from . import kerml_lib as KL
+
+# the parsed model library: the real KerML/.sysml texts under the
+# SysML-v2-Release checkout (override with UMLMETA_LIBRARY_DIR)
+_LIBRARY_ROOT = os.environ.get(
+    "UMLMETA_LIBRARY_DIR",
+    os.path.join(os.path.expanduser("~"),
+                 "proj/third_party/SysML-v2-Release/sysml.library"))
 
 
 class UnmappedFeature(Exception):
@@ -863,15 +873,140 @@ def _populate_class(v1cls, v2def, index, pending):
         pending.append((v2def, g))
 
 
+def _redefine_to_library(index, feature, base_qname, member_leaf,
+                         element=None, defer=False):
+    """Attach a Redefinition from a model feature to its library base
+    member (the feature of the KerML library definition this feature
+    redefines).
+
+    The target is the NEAREST library general of `element` that declares
+    the member — a UseCaseDefinition specializes UseCases::UseCase, whose
+    `subj :>> Case::subj` is itself a redefinition of Cases::Case::subj;
+    the positional rule checks redefines() against every general's
+    parameter list, and only the nearest declaring general resolves to
+    the same object the transform declares the redefinition to.
+    `base_qname` seeds the candidate list (kept for the case-usages whose
+    general list does not include Cases::Case itself)."""
+    if defer:
+        # attach later (see the note below): the element's library bases
+        # are not attached yet at populate time, and an early attach would
+        # target a FARTHER general than the rule's forAll probes
+        feature._vals["_lib_redef_pending"] = (member_leaf, base_qname)
+        return False
+    bases = []
+    if element is not None:
+        for s in (getattr(element, "ownedSpecialization", None) or ()):
+            g = getattr(s, "general", None)
+            q = getattr(g, "_library_qname", None)
+            if q and q not in bases:
+                bases.append(q)
+    # NEAREST general wins: base_qname only seeds the fallback (the
+    # rule's forAll walks the general list in order and expects the
+    # redefinition target to match the nearest declaring general)
+    if base_qname not in bases:
+        bases.append(base_qname)
+    for q in bases:
+        base = _library_definition(index, q)
+        if base is None:
+            continue
+        if not (base.ownedRelationship or ()):
+            # the base may have been materialized as a shell through some
+            # specialization chain before this attach ran — force the full
+            # materialization so the member lookup sees the real features
+            KL.library_element(q)
+        for rel in (base.ownedRelationship or ()):
+            for m in (getattr(rel, "ownedRelatedElement", None) or ()):
+                if getattr(m, "_vals", {}).get("declaredName") == member_leaf:
+                    rd = S2.Redefinition()
+                    rd.redefinedFeature = m
+                    # the corpus rules read BOTH spellings of the target
+                    # end (Subsetting.subsettedFeature on the featuring
+                    # rule; Feature.redefinedFeature on the redefines op)
+                    rd._vals["subsettedFeature"] = m
+                    rd.subsettingFeature = feature
+                    feature.ownedRelationship.append(rd)
+                    return True
+    # no base in hand declares the member: the definition's library bases
+    # may not be attached yet — park it (with the seed base) for
+    # _resolve_deferred_redefs
+    feature._vals["_lib_redef_pending"] = (member_leaf, base_qname)
+    return False
+
+
+def _resolve_deferred_redefs(*roots):
+    """Second-chance attach for the library redefinitions parked while a
+    definition's library bases were not yet attached."""
+    done = 0
+
+    def walk(e):
+        # memberships attach to ownedRelationship (the runtime's
+        # ownedMember derives over a different web) — recurse through both
+        yield e
+        for rel in (getattr(e, "ownedRelationship", None) or ()):
+            for c in (getattr(rel, "ownedRelatedElement", None) or ()):
+                yield from walk(c)
+        for m in (getattr(e, "ownedMember", None) or ()):
+            yield from walk(m)
+
+    seen = set()
+    for root in roots:
+        for e in walk(root):
+            for rel in (getattr(e, "ownedRelationship", None) or ()):
+                for m in (getattr(rel, "ownedRelatedElement", None) or ()):
+                    pending = getattr(m, "_vals", {}).get("_lib_redef_pending")
+                    if pending is None or id(m) in seen:
+                        continue
+                    seen.add(id(m))
+                    leaf, base = pending if isinstance(pending, tuple) \
+                        else (pending, "Cases::Case")
+                    if _redefine_to_library({}, m, base, leaf, e):
+                        m._vals.pop("_lib_redef_pending")
+                        done += 1
+    return done
+    """Attach a Redefinition from a model feature to its library base
+    member (the feature of the KerML library definition this feature
+    redefines). The real library element is materialized through the
+    parsed model library, so the library member the rule reads is the
+    same object the transform declares the redefinition to — the rule's
+    `redefines(ownedParameters->at(i))` then holds by construction."""
+    base = _library_definition(index, base_qname)
+    if base is None:
+        return False
+    if not (base.ownedRelationship or ()):
+        # the base may have been materialized as a shell through some
+        # specialization chain before this attach ran — force the full
+        # materialization so the member lookup sees the real features
+        KL.library_element(base_qname)
+    for rel in (base.ownedRelationship or ()):
+        for m in (getattr(rel, "ownedRelatedElement", None) or ()):
+            if getattr(m, "_vals", {}).get("declaredName") == member_leaf:
+                rd = S2.Redefinition()
+                rd.redefinedFeature = m
+                # AS: the redefining feature rides the subsettingFeature
+                # end (Subsetting.validateSubsettingFeaturingTypes reads
+                # subsettingFeature.canAccess(redefinedFeature))
+                rd.subsettingFeature = feature
+                feature.ownedRelationship.append(rd)
+                return True
+    return False
+
+
 def _case_result_membership(index, case):
     """The canonical `return ref result[0..*]` of a case (Cases.sysml
     Case): one ReturnParameterMembership carrying the result usage —
     Function.validateFunctionResultParameterMembership demands exactly
-    one among the case's featureMemberships."""
+    one among the case's featureMemberships. The result redefines the
+    library Case::result feature (checkFeatureParameterRedefinition
+    compares parameters positionally against the supertype's owned
+    features)."""
+    ru = S2.ReferenceUsage(declaredName="result", direction="return")
     rpm = S2.ReturnParameterMembership()
-    rpm.ownedRelatedElement.append(
-        S2.ReferenceUsage(declaredName="result", direction="return"))
+    rpm._vals["owner"] = case
+    ru._vals["owner"] = rpm
+    rpm.ownedRelatedElement.append(ru)
     case.ownedRelationship.append(rpm)
+    _redefine_to_library(index, ru, "Cases::Case", "result", case,
+                         defer=True)
     return rpm
 
 
@@ -880,10 +1015,14 @@ def _case_subject_and_result(index, case_usage):
     the library-shaped subject and result memberships too — the rules
     CaseUsage.validate*SubjectParameterPosition and the Function result
     rule apply to every CalculationUsage-shaped element."""
+    sru = S2.ReferenceUsage(declaredName="subj", direction="in")
     sm = S2.SubjectMembership()
-    sm.ownedRelatedElement.append(
-        S2.ReferenceUsage(declaredName="subj", direction="in"))
+    sm._vals["owner"] = case_usage
+    sru._vals["owner"] = sm
+    sm.ownedRelatedElement.append(sru)
     case_usage.ownedRelationship.append(sm)
+    _redefine_to_library(index, sru, "Cases::Case", "subj", case_usage,
+                         defer=True)
     _case_result_membership(index, case_usage)
 
 
@@ -967,17 +1106,25 @@ def _populate_usecase(uc, v2def, index, pkg):
             direction="in")
         _type_feature(ru, sdef)
         sm = S2.SubjectMembership()
+        sm._vals["owner"] = v2def
+        ru._vals["owner"] = sm
         sm.ownedRelatedElement.append(ru)
         v2def.ownedRelationship.append(sm)
+        _redefine_to_library(index, ru, "Cases::Case", "subj", v2def,
+                             defer=True)
     else:
         # a subject-less use case still carries the library-shaped subject
         # (Cases.sysml: Case has `subject subj : Anything[1]`, and every
         # UseCaseDefinition specializes Case) — the Case rules demand a
         # non-empty input whose first parameter IS the subjectParameter
+        sru = S2.ReferenceUsage(declaredName="subj", direction="in")
         sm = S2.SubjectMembership()
-        sm.ownedRelatedElement.append(
-            S2.ReferenceUsage(declaredName="subj", direction="in"))
+        sm._vals["owner"] = v2def
+        sru._vals["owner"] = sm
+        sm.ownedRelatedElement.append(sru)
         v2def.ownedRelationship.append(sm)
+        _redefine_to_library(index, sru, "Cases::Case", "subj", v2def,
+                             defer=True)
     # the canonical case shape also carries the result return parameter
     # (Cases.sysml Case: `return ref result[0..*]`) — Function's
     # validateFunctionResultParameterMembership demands exactly one
@@ -1309,6 +1456,13 @@ def _populate_statemachine(sm, v2def, index):
                     ssm.ownedRelatedElement.append(au)
                     v2def.ownedRelationship.append(ssm)
                     index[id(st)] = au
+                    # InitialStateSubactionMembership_Mapping's redefinition
+                    # target: the library StateAction's entryAction (the
+                    # checkActionUsageStateActionRedefinition rule reads
+                    # redefinesFromLibrary('States::StateAction::entryAction'))
+                    _redefine_to_library(
+                        index, au, "States::StateAction", "entryAction",
+                        v2def, defer=True)
                     continue
                 su = S2.StateUsage(declaredName=_name(st))
                 _own_membership(v2def, su)
@@ -2633,9 +2787,16 @@ _LIBRARY_DEFS = {}
 
 
 def _library_definition(index, qname):
-    """One shared name-only Type for a library qualified name, cached on
-    the index, so every Subclassification to it resolves through the extent
-    against the same object."""
+    """The library element for a qualified name, cached on the index, so
+    every Subclassification to it resolves through the extent against the
+    same object.
+
+    The element is REAL when the parsed model library (kerml_lib) declares
+    it: a genuine runtime object with its own membership structure,
+    specializations and multiplicity domain — rules that navigate library
+    structure (supertype parameters, Feature::isUnique defaults, the
+    KerML multiplicity rules) read actual content. Only names outside the
+    parsed files fall back to a name-only Type."""
     key = ("libdef", qname)
     if key in index:
         return index[key]
@@ -2661,6 +2822,13 @@ def _library_definition(index, qname):
         index[key] = t
         _LIBRARY_DEFS[qname] = t
         return t
+    # the parsed model library: a real materialized element
+    KL.init(_LIBRARY_ROOT)
+    real = KL.library_element(qname)
+    if real is not None:
+        index[key] = real
+        _LIBRARY_DEFS[qname] = real
+        return real
     leaf = qname.rsplit("::", 1)[-1]
     pkg = qname.rsplit("::", 1)[0]
     t = S2.Type(declaredName=leaf)
@@ -3686,6 +3854,9 @@ def transform_xmi_files(paths, side_channel=False):
         index = out[0]._v1_index
         for o2 in out:
             _backfill_library_bases(index, o2)
+        # the parked library redefinitions resolve only now that the bases
+        # exist on every definition
+        _resolve_deferred_redefs(*out)
     return out
 
 

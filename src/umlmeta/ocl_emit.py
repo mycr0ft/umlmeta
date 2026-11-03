@@ -184,11 +184,16 @@ def _py_collect(n):
     if op in ("exists", "one", "any"):
         var, body = _iterator(args, op)
         if op == "exists":
-            return f"any({body} for {var} in {recv})"
+            # three-valued: a True element decides True; None propagates
+            # when no element decides (any() would Python-False nulls)
+            return f"_ex_ists({body} for {var} in {recv})"
         return f"(sum(1 for {var} in {recv} if ({body})) == 1)"
     if op == "forAll":
         var, body = _iterator(args, op)
-        return f"all({body} for {var} in {recv})"
+        # three-valued: a False element decides False; None (undetermined)
+        # propagates when no element decides (all() would Python-False the
+        # whole quantifier and pin a violation the rule text never earned)
+        return (f"_for_all({body} for {var} in {recv})")
     if op == "select":
         var, body = _iterator(args, op)
         return f"[{var} for {var} in {recv} if ({body})]"
@@ -231,7 +236,11 @@ def _py_collect(n):
                 f"else None)")
     if op == "indexOf":
         a = to_python(args[0])
-        return (f"((({recv}).index(({a})) + 1) if (({a}) in ({recv})) else -1)")
+        # a non-member index is OCL Invalid -> None (three-valued): the
+        # checkFeatureParameterRedefinition body guards on indexOf(self)
+        # and any definite answer for an absent element invents a truth
+        return (f"((({recv}).index(({a})) + 1) if (({a}) in ({recv})) "
+                f"else None)")
     if op == "isUnique":
         # Collection::isUnique(lambda): no duplicated lambda results
         var, body = _iterator(args, op)
@@ -296,6 +305,11 @@ def _py_binop(n):
     if n.op == "or":
         # the KerML OR table: true decides, null or false is null
         return f"_lor({l}, (lambda: {r}))"
+    if n.op in ("<", ">", "<=", ">="):
+        # three-valued comparisons: a null operand is UNDETERMINED, not a
+        # Python TypeError (KerML: size() >= invalidIndex is invalid)
+        fn = {"<": "_lt", ">": "_gt", "<=": "_le", ">=": "_ge"}[n.op]
+        return f"{fn}({l}, {r})"
     return f"({l} {n.op} {r})"
 
 

@@ -1,11 +1,13 @@
 # v2 validation triage
 
-211 elements, 4276 checks (+8358 derivations), 14 violations, 235 skipped, coverage 95%
+218 elements, 4300 checks (+8433 derivations), 4 violations, 269 skipped, coverage 94%
 
 | kind | family | count | owner | note |
 |---|---|---:|---|---|
-| violation | `Feature.checkFeatureParameterRedefinition` | 12 | library | the rule compares parameters against the supertype's owned features; our KerML library stubs are name-only, so Cases::Case etc. carry no parameter features |
-| violation | `Association.validateAssociationRelatedTypes` | 2 | transform | related types not emitted on the association |
+| violation | `Association.validateAssociationRelatedTypes` | 2 | model | the vehicle model types frontAxle AND rearAxle both as Axle, so relatedType is a 1-element set; relatedType size >= 2 fails under set semantics |
+| violation | `Function.validateFunctionResultParameterMembership` | 2 | corpus | the joined body counts inheritedMembership results too: the real type chain (Cases::Case, Performances::Evaluation) carries `return ref result` members, so `featureMembership->selectByKind(RPM)->size() = 1` fails every case whose own result exists; as written the check cannot hold for any model |
 | skip | `corpus-defect` | 204 | runtime |  |
-| skip | `undetermined` | 29 | runtime |  |
+| skip | `undetermined` | 54 | runtime |  |
+| skip | `primary at ('eof', '')` | 7 | runtime |  |
 | skip | `eval-unmapped` | 2 | runtime |  |
+| skip | `undetermined comparison` | 2 | runtime |  |

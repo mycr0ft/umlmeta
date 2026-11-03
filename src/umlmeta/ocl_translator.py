@@ -47,6 +47,7 @@ returns [] because a bare object has no resource.
 
 from __future__ import annotations
 
+import enum as _enum
 import re
 
 from . import extent as extent_mod
@@ -508,8 +509,82 @@ def _feature_membership_union(obj):
                                 _S2.VariantMembership))]
 
 
-_AS_STRUCTURAL["featureMembership"] = _feature_membership_union
+_AS_STRUCTURAL["featureMembership"] = \
+    lambda obj: _collapse_redefined(_feature_membership_union(obj))
 _AS_STRUCTURAL["featureMemberships"] = _feature_membership_union
+
+# Type::ownedFeature is a composite end in the AS: the features OWNED by
+# this type -- not the chain union the generated reader computes. The
+# positional parameter rules read the supertype's own parameters; the
+# union would pull inherited library params into every position.
+def _owned_feature_own(obj):
+    from . import sysml2 as _S2
+    return [m.ownedRelatedElement[0]
+            for rel in (obj._vals.get("ownedRelationship") or ())
+            if isinstance(rel, _S2.FeatureMembership)
+            or type(rel).__name__ in ("SubjectMembership",
+                                      "ObjectiveMembership",
+                                      "ActorMembership",
+                                      "ParameterMembership",
+                                      "ReturnParameterMembership")
+            for m in (getattr(rel, "ownedRelatedElement", None) or ())]
+
+
+_AS_STRUCTURAL["ownedFeature"] = _owned_feature_own
+_OVERRIDE_READS = {}
+_OVERRIDE_READS["ownedFeature"] = _owned_feature_own
+
+# Feature::owningFeatureMembership — the membership of the owner that
+# carries THIS feature. The runtime stores features inside their
+# membership's ownedRelatedElement; the positional parameter logic
+# (checkFeatureParameterRedefinition's RPM reject) reads it.
+def _owning_feature_membership(f):
+    owner = getattr(f, "_vals", {}).get("owner")
+    if owner is None:
+        owner = getattr(f, "owner", None)
+    if owner is None:
+        return None
+    # a library materialization sets the owner to the CARRYING MEMBERSHIP
+    # itself; a transform-attached feature reads it through the owner
+    # type's ownedRelationship
+    if f in (getattr(owner, "ownedRelatedElement", None) or ()):
+        return owner
+    for rel in (getattr(owner, "ownedRelationship", None) or ()):
+        if f in (getattr(rel, "ownedRelatedElement", None) or ()):
+            return rel
+    return None
+
+
+_OVERRIDE_READS["owningFeatureMembership"] = _owning_feature_membership
+_AS_STRUCTURAL["owningFeatureMembership"] = _owning_feature_membership
+
+# Feature::featuringTypes — the types through which the feature is
+# featured. The AS computes the whole access chain; the corpus rule that
+# consumes it (checkFeatureFeatureMembershipTypeFeaturing) asks whether
+# the owner type appears, so the owner chain is the honest read: the
+# owner of the feature's owning feature membership, then the owners of
+# that type's own carrying memberships up to the package.
+def _featuring_types_read(f):
+    out = []
+    cur = f
+    seen = set()
+    while cur is not None and id(cur) not in seen:
+        seen.add(id(cur))
+        mem = _owning_feature_membership(cur)
+        if mem is None:
+            break
+        owner = getattr(mem, "owner", None) or \
+            getattr(mem, "_vals", {}).get("owner")
+        if owner is None:
+            break
+        if owner not in out:
+            out.append(owner)
+        cur = owner
+    return out
+
+
+_OVERRIDE_READS["featuringTypes"] = _featuring_types_read
+_AS_STRUCTURAL["featuringTypes"] = _featuring_types_read
 _AS_STRUCTURAL["ownedSubjectParameter"] = _owned_member_feature
 # CaseUsage spells the same derived end without 'owned' in some places
 _AS_STRUCTURAL["subjectParameter"] = lambda obj: _owned_member_feature(obj)
@@ -583,6 +658,13 @@ def ocl_get(obj, name):
     """A bare property read (`ownedMemberFeature`), with the derivation and
     sentinel rules applied — the `_dot` fallback's counterpart, without which
     an unqualified name never reaches either."""
+    ov = _OVERRIDE_READS.get(name)
+    if ov is not None and not isinstance(obj, (list, tuple)) and \
+            not isinstance(obj, type):
+        try:
+            return ov(obj)
+        except Exception:                      # noqa: BLE001
+            pass
     v = getattr(obj, name, _MISSING)
     if callable(v):
         v = _MISSING                    # a stub op is not a stored value
@@ -595,9 +677,13 @@ def ocl_get(obj, name):
                 and not getattr(d0, "derived", False):
             v = False
     if v is not _MISSING and not _needs_derivation(obj, name, v):
+        if name in _REDEF_COLLAPSE_ENDS and isinstance(v, (list, tuple)):
+            v = _collapse_redefined(v)
         return v
     d = derived_read(obj, name)
     if d is not _MISSING:
+        if name in _REDEF_COLLAPSE_ENDS and isinstance(d, (list, tuple)):
+            d = _collapse_redefined(d)
         return d
     lfn = _local_read_fn(name)
     if lfn is not None:
@@ -674,6 +760,68 @@ def derived_read(obj, prop):
         _DERIV_BUSY.discard(guard)
 
 
+# --------------------------------------------------------------------------
+# redefinition collapse for the derived membership/feature unions
+# --------------------------------------------------------------------------
+# The generated chain unions (featureMembership, ownedFeature) ride along
+# every ancestor's members. KerML semantics: a member that redefines an
+# ancestor member REPLACES it in the union (the library itself writes
+# `subject subj :>> Case::subj` on UseCases::UseCase). Group members by
+# their transitive redefines-root — members sharing a root occupy one
+# feature position — and keep the one nearest the owner (first in the
+# union, which the generated reader orders nearest-first).
+
+_REDEF_COLLAPSE_ENDS = {"featureMembership", "featureMemberships",
+                        "ownedFeature"}
+
+
+def _collapse_redefined(v):
+    if not isinstance(v, (list, tuple)) or len(v) <= 1:
+        return v
+    seen = set()
+    out = []
+    roots = {}
+
+    def root_key(mem):
+        # the redefines root of the MEMBERSHIP's member feature — members
+        # sharing a root occupy one feature position
+        key = id(mem)
+        if key in roots:
+            return roots[key]
+        feats = (getattr(mem, "ownedRelatedElement", None) or ())
+        cur = feats[0] if feats else None
+        chain = set()
+        last = cur
+        while cur is not None and id(cur) not in chain:
+            chain.add(id(cur))
+            nxt = None
+            for r in getattr(cur, "ownedSpecialization", ()) or ():
+                if type(r).__name__ == "Redefinition":
+                    nxt = getattr(r, "redefinedFeature", None)
+                    break
+            for r in getattr(cur, "ownedRelationship", ()) or ():
+                if type(r).__name__ == "Redefinition":
+                    nxt = getattr(r, "redefinedFeature", None)
+                    break
+            if nxt is not None:
+                last = nxt
+            cur = nxt
+        rk = id(last) if last is not None else key
+        roots[key] = rk
+        return rk
+
+    for m in v:
+        try:
+            rk = root_key(m)
+        except Exception:                          # noqa: BLE001
+            rk = id(m)
+        if rk in seen:
+            continue
+        seen.add(rk)
+        out.append(m)
+    return out
+
+
 def ocl_dot(recv, attr):
     """Property navigation with implicit collect: over a single value
     this is getattr; over a collection it collects the attribute values
@@ -687,6 +835,12 @@ def ocl_dot(recv, attr):
         return ocl_collect([ocl_dot(e, attr) for e in recv])
     if recv is None:
         return None
+    ov = _OVERRIDE_READS.get(attr)
+    if ov is not None:
+        try:
+            return ov(recv)
+        except Exception:                      # noqa: BLE001
+            pass
     v = getattr(recv, attr, _MISSING)
     if v is None:
         d0 = getattr(type(recv), "_props", {}).get(attr)
@@ -702,6 +856,9 @@ def ocl_dot(recv, attr):
     if v is _MISSING or v is None or _needs_derivation(recv, attr, v):
         derived = derived_read(recv, attr)
         if derived is not _MISSING:
+            if attr in _REDEF_COLLAPSE_ENDS and isinstance(derived,
+                                                           (list, tuple)):
+                derived = _collapse_redefined(derived)
             return derived
     if v is _MISSING:
         # the runtime has no such feature: try the local query op, then
@@ -721,6 +878,8 @@ def ocl_dot(recv, attr):
         dd = getattr(type(recv), "_props", {}).get(attr)
         if dd is not None and getattr(dd, "t", None) is bool:
             return False   # unset Booleans read false (tooling convention)
+    if attr in _REDEF_COLLAPSE_ENDS and isinstance(v, (list, tuple)):
+        v = _collapse_redefined(v)
     return v
 
 
@@ -742,6 +901,13 @@ def ocl_eq(a, b):
     if isinstance(a, (list, tuple)) and isinstance(b, (list, tuple)):
         return (len(a) == len(b) and
                 all(x in b for x in a))
+    # an enum value compares against its string spelling (the corpus
+    # rules write `kind = StateSubactionKind::entry` and the enum is
+    # materialized as a Python Enum member)
+    if isinstance(a, _enum.Enum) and isinstance(b, str):
+        a = a.value
+    if isinstance(b, _enum.Enum) and isinstance(a, str):
+        b = b.value
     return a == b
 
 
@@ -1967,7 +2133,21 @@ _CORPUS_REPAIRS = {
     ("Feature", "checkFeatureEndRedefinition"): [("END", ")")],
     ("Feature", "checkFeatureResultRedefinition"): [("END", ")")],
     # two closers: the forAll lambda and the outer implication let-chain
-    ("Feature", "checkFeatureParameterRedefinition"): [("END", ") )")],
+    ("Feature", "checkFeatureParameterRedefinition"):
+        [("START", "( "),
+         ("END", ") )"),
+         # the serializer dropped the implication's opening paren: it
+         # belongs BEFORE `owningType <> null` and the one before the
+         # Behavior clause is the misplaced twin. As joined, the rule
+         # fails every RPM-carried feature (every `result`), which cannot
+         # be normative: the positional redefinition check gates on
+         # non-return parameters of Behaviors/Steps.
+         (" and not owningFeatureMembership.     oclIsKindOf"
+          "(ReturnParameterMembership) and (owningType.oclIsKindOf"
+          "(Behavior)",
+          " and not owningFeatureMembership.     oclIsKindOf"
+          "(ReturnParameterMembership) and owningType.oclIsKindOf"
+          "(Behavior)"),],
     ("Feature", "deriveFeatureCrossFeature"): [("END", "endif")],
     ("IncludeUseCaseUsage", "checkIncludeUseCaseSpecialization"):
         # the lost closer belongs BEFORE the implies: `(A or B) implies sfl`
@@ -2005,6 +2185,8 @@ def _repair_body(cls_name, cname, body):
             for old, new in deltas:
                 if old == "END":
                     body = body + " " + new
+                elif old == "START":
+                    body = new + " " + body
                 elif old in body:
                     body = body.replace(old, new)
     return body
@@ -2262,8 +2444,16 @@ def redefines_from_library(el, qname):
     ext = _extent()
     target = ext.qualified(qname)
     if target is None:
-        return False
-    return _redefines(el, target)
+        # a library qname resolves through the parsed model library — the
+        # read must not MATERIALIZE stubs (a failed lookup stays null)
+        from . import kerml_lib as KL
+        target = KL.member_or_type(qname, 1)
+        if target is None:
+            return False
+    # sysml2_redefines walks ownedSpecialization AND ownedRelationship
+    # (the runtime's derived ownedRedefinition end does not compute) and
+    # is transitive down the redefinition chain
+    return sysml2_redefines(el, target)
 
 
 def _range_bounds(m):
@@ -2470,6 +2660,51 @@ def ocl_is_type(obj, tname):
 def ocl_is_kind(obj, tname):
     """KerML `oclIsKind(T)`: kind test (like oclIsKindOf)."""
     return ocl_is_kind_of(obj, tname)
+
+
+def _three_valued_cmp(op):
+    def cmp(a, b):
+        try:
+            return op(a, b)
+        except TypeError:
+            return None
+    return cmp
+
+
+_lt = _three_valued_cmp(lambda a, b: a < b)
+_gt = _three_valued_cmp(lambda a, b: a > b)
+_le = _three_valued_cmp(lambda a, b: a <= b)
+_ge = _three_valued_cmp(lambda a, b: a >= b)
+
+
+def _for_all(gen):
+    """Three-valued forAll: False decides; None propagates when no
+    element decides; True otherwise."""
+    seen = False
+    any_null = False
+    for v in gen:
+        if v is False:
+            return False
+        if v is None:
+            any_null = True
+        else:
+            seen = True
+    return None if any_null else (True if seen else True)
+
+
+def _ex_ists(gen):
+    """Three-valued exists: True decides; None propagates when no
+    element decides; False otherwise."""
+    any_null = False
+    saw = False
+    for v in gen:
+        if v is True:
+            return True
+        if v is None:
+            any_null = True
+        else:
+            saw = True
+    return None if any_null else False
 
 
 def _land(a, bth):
@@ -2891,6 +3126,16 @@ def inherited_memberships(ns, excluded=None, owned=None, filter_union=None):
     for rel in _as_list(getattr(ns, "ownedSpecialization", None)):
         g = getattr(rel, "general", None)
         if g is not None:
+            # only SUBLASSIFICATION edges are type inheritance: the
+            # member-base Subsettings (O6's member-level attachments ride
+            # the same ownedSpecialization storage) generalize FEATURES,
+            # and their members are not inherited memberships
+            if type(rel).__name__ not in ("Subclassification",
+                                          "Specialization",) \
+                    and not isinstance(rel, _S2.Subclassification):
+                continue
+            if not isinstance(g, _S2.Type):
+                continue
             stack.append(g)
     # v1 shape: general / ownedGeneralization
     for g in _as_list(getattr(ns, "general", None)):
@@ -2902,10 +3147,13 @@ def inherited_memberships(ns, excluded=None, owned=None, filter_union=None):
         memberships_of(cur)
         for rel in _as_list(getattr(cur, "ownedSpecialization", None)):
             g = getattr(rel, "general", None)
-            if g is not None:
+            if g is not None and isinstance(g, _S2.Type):
                 stack.append(g)
         for g in _as_list(getattr(cur, "general", None)):
-            stack.append(g)
+            # the same member-base rule as the top-level push: feature
+            # generals (Subsetting-shaped) do not contribute inheritances
+            if isinstance(g, _S2.Type):
+                stack.append(g)
     return out
 
 
@@ -3015,7 +3263,8 @@ def _subsets(f, other):
         if getattr(rel, "_vals", {}).get("subsettingFeature") is not f:
             continue
         tgt = rel._vals.get("subsettedFeature") \
-            or rel._vals.get("referencedFeature")
+            or rel._vals.get("referencedFeature") \
+            or rel._vals.get("redefinedFeature")
         if tgt is other:
             return True
     return False
@@ -3813,14 +4062,56 @@ def sysml2_redefines(el, target):
     runtime's derived ownedRedefinition end does not compute, so walk
     ownedSpecialization for Redefinition relationships."""
     if el is None or target is None:
-        return False
+        # a null argument is undetermined under the KerML tables, not a
+        # definite False the violation ledger can pin on the model
+        return None
     if isinstance(target, str):
         t = _extent().qualified(target)
         if t is None:
             return False
         target = t
     from . import sysml2 as _S2
-    for rel in _aslist(getattr(el, "ownedSpecialization", None)):
+    rels = list(_aslist(getattr(el, "ownedSpecialization", None)))
+    # a Redefinition specializes the relationship web, not Specialization,
+    # so a direct edge on ownedRelationship / derived ownedRedefinition is
+    # invisible to ownedSpecialization — the corpus rules read both routes
+    rels += [r for r in _aslist(getattr(el, "ownedRelationship", None))
+             if isinstance(r, _S2.Redefinition)]
+    rels += _aslist(derived_read(el, "ownedRedefinition"))
+    # KerML redefinition is transitive down the chain (the library itself
+    # chains: UseCase::subj :>> Case::subj) — a BFS over the redefinition
+    # targets answers the positional forAll over every general
+    frontier = []
+    seen_t = {id(el)}
+    for rel in rels:
+        if not isinstance(rel, _S2.Redefinition):
+            continue
+        rf = getattr(rel, "redefinedFeature", None)
+        if rf is None:
+            continue
+        if rf is target:
+            return True
+        if id(rf) not in seen_t:
+            seen_t.add(id(rf))
+            frontier.append(rf)
+    while frontier:
+        cur = frontier.pop()
+        cur_rels = list(_aslist(getattr(cur, "ownedSpecialization", None)))
+        cur_rels += [r for r in _aslist(getattr(cur, "ownedRelationship", None))
+                     if isinstance(r, _S2.Redefinition)]
+        cur_rels += _aslist(derived_read(cur, "ownedRedefinition"))
+        for rel in cur_rels:
+            if not isinstance(rel, _S2.Redefinition):
+                continue
+            rf = getattr(rel, "redefinedFeature", None)
+            if rf is None:
+                continue
+            if rf is target:
+                return True
+            if id(rf) not in seen_t:
+                seen_t.add(id(rf))
+                frontier.append(rf)
+    for rel in rels:
         if not isinstance(rel, _S2.Redefinition):
             continue
         if getattr(rel, "redefinedFeature", None) is target:
@@ -3957,6 +4248,12 @@ for _nm, (_kind, _fn) in SY.DERIVED_FUNCS.items():
 _EVAL_ENV["_implies"] = _implies
 _EVAL_ENV["_closure_call"] = _closure_call
 _EVAL_ENV["_land"] = _land
+_EVAL_ENV["_for_all"] = _for_all
+_EVAL_ENV["_ex_ists"] = _ex_ists
+_EVAL_ENV["_lt"] = _lt
+_EVAL_ENV["_gt"] = _gt
+_EVAL_ENV["_le"] = _le
+_EVAL_ENV["_ge"] = _ge
 _EVAL_ENV["_lor"] = _lor
 
 # built last: _iterate is defined above the O6 section, after _EVAL_ENV

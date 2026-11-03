@@ -123,11 +123,20 @@ def to_json(root, ids=None):
     for s in stubs:
         if id(s) not in seen:
             stack.append(s)
+    eid_seen = set()
     while stack:
         el = stack.pop()
         if id(el) in seen:
             continue
         seen.add(id(el))
+        # an elementId must map to exactly ONE node: name-only stubs and
+        # real library materializations can share an @id (and multiple
+        # stale stubs do) — dedup by elementId, one graph node per @id
+        eid = el._vals.get("elementId")
+        if isinstance(eid, str) and eid in eid_seen:
+            continue
+        if isinstance(eid, str):
+            eid_seen.add(eid)
         graph.append(_node(el))
         for _feat, ch in reversed(contained(el)):
             stack.append(ch)
@@ -144,6 +153,38 @@ def to_json(root, ids=None):
             for ch in items:
                 if ch is not None and hasattr(ch, "_props"):
                     stack.append(ch)
+    # dangling library references: an edge may @id a library element the
+    # traversal never entered (a general riding a non-contained storage
+    # end, a typing target reached only mid-hydration). Emit a minimal
+    # stub node so the document is closed under its own references.
+    ids_seen = {n["@id"] for n in graph if n.get("@id")}
+
+    def _ref_ids(x):
+        if isinstance(x, str):
+            return [x] if x.startswith("lib:") else []
+        if isinstance(x, dict):
+            return [x["@id"]] if isinstance(x.get("@id"), str) \
+                and x["@id"].startswith("lib:") else []
+        if isinstance(x, (list, tuple)):
+            out = []
+            for i in x:
+                out.extend(_ref_ids(i))
+            return out
+        return []
+
+    for n in graph:
+        for k, v in n.items():
+            if k.startswith("@"):
+                continue
+            for v_id in _ref_ids(v):
+                if v_id in ids_seen:
+                    continue
+                ids_seen.add(v_id)
+                # the lib: @id prefix carries the qualified name on
+                # from_json -- no extra keys (from_json maps node keys to
+                # _props and the underscore names are not features)
+                graph.append({"@id": v_id, "@type": "Type",
+                              "declaredName": v_id.rsplit("::", 1)[-1]})
     return {"format": FORMAT, "@context": dict(CONTEXT),
             "@id": root._vals.get("elementId"), "@graph": graph}
 
