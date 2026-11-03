@@ -1,6 +1,6 @@
 # v2 validation triage
 
-131 elements, 1898 checks (+4584 derivations), 284 violations, 1318 skipped, coverage 59%
+131 elements, 1871 checks (+4584 derivations), 282 violations, 1345 skipped, coverage 58%
 
 | kind | family | count | owner | note |
 |---|---|---:|---|---|
@@ -27,7 +27,6 @@
 | violation | `Structure.checkStructureSpecialization` | 3 | transform | the transform emits no library specialization edges (O6) |
 | violation | `LiteralInteger.checkLiteralIntegerSpecialization` | 2 | transform | the transform emits no library specialization edges (O6) |
 | violation | `LiteralExpression.checkLiteralExpressionSpecialization` | 2 | transform | the transform emits no library specialization edges (O6) |
-| violation | `PortUsage.validatePortUsageIsReference` | 2 | transform | isReference computes (not isComposite) but the transform emits no featuring type, which the same rule requires of a composite usage |
 | violation | `PortUsage.checkPortUsageSpecialization` | 2 | transform | the transform emits no library specialization edges (O6) |
 | violation | `EventOccurrenceUsage.validateEventOccurrenceUsageIsReference` | 2 | transform | isReference computes (not isComposite) but the transform emits no featuring type, which the same rule requires of a composite usage |
 | violation | `ParameterMembership.validateParameterMembershipOwningType` | 2 | runtime | owningType is the inverse of owningMembership; not set |
@@ -64,7 +63,7 @@
 | violation | `Association.validateAssociationRelatedTypes` | 1 | transform | related types not emitted on the association |
 | violation | `Association.checkAssociationSpecialization` | 1 | transform | the transform emits no library specialization edges (O6) |
 | violation | `Import.validateImportTopLevelVisibility` | 1 | transform | import emitted without its visibility |
-| skip | `eval-unmapped` | 264 | runtime |  |
+| skip | `eval-unmapped` | 291 | runtime |  |
 | skip | `operation specializes(` | 167 | engine |  |
 | skip | `operation libraryNamespace(` | 131 | engine |  |
 | skip | `expected ) at token ('eof', '')` | 123 | runtime |  |

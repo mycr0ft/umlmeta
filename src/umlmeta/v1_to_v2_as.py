@@ -3152,6 +3152,8 @@ def transform_xmi_files(paths, side_channel=False):
             "unmapped": [list(x) for x in model.unmapped],
             "unmapped_features": [list(x) for x in model.unmapped_features],
         }
+    from . import as_inverses
+    as_inverses.repair(*out)
     return out
 
 
