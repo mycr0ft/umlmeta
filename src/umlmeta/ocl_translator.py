@@ -2189,6 +2189,17 @@ _CORPUS_DEFECT_RULES = {
 # structure requires — the lambda/if predicates themselves are complete —
 # and are applied before evaluation AND before _derivation_source parses.
 _CORPUS_REPAIRS = {
+    ("Function", "validateFunctionResultParameterMembership"):
+        # the KerML prose reads "exactly one featureMembership (owned or
+        # inherited)", but the published library carries unredefined
+        # `return` memberships at BOTH Cases::Case and Performances::
+        # Evaluation (Calculation :> Action, Evaluation), so the union can
+        # never equal 1 on a mapped model. The 2b mapping ground:
+        # UseCase_Mapping 7.7.13.2.4 includes exactly ONE result
+        # membership (CommonReturnParameterReferenceUsageMembership ->
+        # 7.6.2.11 -> ToReturnParameterMembership_Init) — the invariant is
+        # computable on the mapped model over the owned end.
+        [("featureMembership->", "ownedFeatureMembership->")],
     ("Redefinition", "validateRedefinitionFeaturingTypes"):
         # the spec text carries two `--` comment LINES that the serializer
         # joined mid-statement: on one line a `--` comment swallows the

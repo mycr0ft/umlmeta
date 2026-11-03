@@ -48,16 +48,15 @@ print("== the finding ==")
 families = collections.Counter(f"{e['class']}.{e['constraint']}"
                                for e in report["violations"])
 check("the gate reports violations on transformed output",
-      len(report["violations"]) == 4 and not report["clean"],
+      len(report["violations"]) == 2 and not report["clean"],
       f"{len(report['violations'])} violations in "
       f"{len(families)} families")
 top = families.most_common(1)[0]
-check("the residual violations are the single-type associations and "
-      "the inherited-result counting",
+check("the residual violations are the single-type associations",
       top[0] == "Association.validateAssociationRelatedTypes"
       and top[1] == 2
       and top[1] == max(families.values())
-      and len(families) == 2, str(top))
+      and len(families) == 1, str(top))
 
 print("== skips are reported, not passed ==")
 check("skips are counted with reasons",
@@ -84,9 +83,9 @@ check("no violation comes from an undetermined read",
 print("== the triage ledger ==")
 from umlmeta import v2_triage as TR  # noqa: E402
 rows = TR.ledger(report)
-check("every finding has a row", len(rows) == 4, f"{len(rows)} rows")
+check("every finding has a row", len(rows) == 3, f"{len(rows)} rows")
 check("every finding now has an owner",
-      sum(1 for r in rows if r["owner"] != "unattributed") == 4,
+      sum(1 for r in rows if r["owner"] != "unattributed") == 3,
       f"{sum(1 for r in rows if r['owner'] != 'unattributed')} attributed")
 cons = TR.structure_consistency(*roots)
 check("structure consistency does not report the missing AS union as a defect",
@@ -185,6 +184,26 @@ _sk2 = [s for s in report["skipped"]
         if s["constraint"] == "validateSubjectMembershipOwningType"]
 check("the SubjectMembership skips are gone", not _sk2,
       f"{len(_sk2)} skips left")
+
+print("== the Function-result invariant reads the 2b-mapped membership ==")
+# 7.7.13.2.4 UseCase_Mapping includes exactly ONE result membership
+# (CommonReturnParameterReferenceUsageMembership_Mapping -> 7.6.2.11 ->
+# ToReturnParameterMembership_Init); the library chain carries unredefined
+# result RPMs at BOTH Cases::Case and Performances::Evaluation
+# (Calculation :> Action, Evaluation), so the literal "owned or
+# inherited" union can never equal 1 on a mapped model
+_Ffn = dict(K.Function.CONSTRAINTS)["validateFunctionResultParameterMembership"]
+_fnrep = T._repair_body("Function", "validateFunctionResultParameterMembership",
+                        _Ffn)
+check("the Function-result invariant reads the mapped (owned) membership",
+      "ownedFeatureMembership->selectByKind"
+      in "".join(_fnrep.split())
+      and "Requiremen" not in _fnrep,
+      _fnrep[:64])
+_fvio = [e for e in report["violations"]
+         if e["constraint"] == "validateFunctionResultParameterMembership"]
+check("the Function-result violations are gone", not _fvio,
+      f"{len(_fvio)} left")
 
 print("== an empty model is clean ==")
 empty = V.validate()

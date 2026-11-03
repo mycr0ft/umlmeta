@@ -60,12 +60,15 @@ DISPOSITIONS = {
     "Expression.validateExpressionResultParameterMembership":
         ("transform", "LiteralInteger built without its ReturnParameterMembership"),
     "Function.validateFunctionResultParameterMembership":
-        ("corpus", "the joined body counts inheritedMembership results too: "
-                   "the real type chain (Cases::Case, Performances::"
-                   "Evaluation) carries `return ref result` members, so "
-                   "`featureMembership->selectByKind(RPM)->size() = 1` "
-                   "fails every case whose own result exists; as written "
-                   "the check cannot hold for any model"),
+        ("engine", "repaired to the 2b-mapping reading: UseCase_Mapping "
+                   "7.7.13.2.4 maps exactly ONE result membership onto the "
+                   "definition (CommonReturnParameterReferenceUsage -> "
+                   "7.6.2.11), while the KerML prose's owned-or-inherited "
+                   "union is uncomputable - the library carries unredefined "
+                   "result memberships at BOTH Cases::Case and Performances::"
+                   "Evaluation (Calculation :> Action, Evaluation). The "
+                   "repair reads ownedFeatureMembership; the text-faithful "
+                   "read remains recorded here."),
     "CaseDefinition.validateCaseDefinitionSubjectParameterPosition":
         ("transform", "subject parameter emitted without its position"),
     "CaseUsage.validateCaseUsageSubjectParameterPosition":
