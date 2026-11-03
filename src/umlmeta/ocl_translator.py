@@ -584,7 +584,47 @@ def _featuring_types_read(f):
 
 
 _OVERRIDE_READS["featuringTypes"] = _featuring_types_read
+
+# Specialization::specific — the specializing element. Subsetting redefines
+# it as the subsetting feature; a Subclassification's specific is the
+# subclassifier (its owningType). The corpus conjugation rules read
+# `specific.isConjugated` from the relationship itself.
+def _specific_read(rel):
+    sf = getattr(rel, "_vals", {}).get("subsettingFeature")
+    if sf is not None:
+        return sf
+    rf = getattr(rel, "_vals", {}).get("redefinedFeature")
+    if rf is not None:
+        return rf
+    ot = getattr(rel, "_vals", {}).get("owningType")
+    if ot is not None and type(rel).__name__ in ("Subclassification",
+                                                 "Specialization"):
+        return ot
+    return getattr(rel, "specific", None)
+
+
+_OVERRIDE_READS["specific"] = _specific_read
+
+# Feature::isUnique — UNIQUE is the default (the explicit modifier is
+# `nonunique`); stored True/False wins when present
+_OVERRIDE_READS["isUnique"] = lambda f: True if f is None else \
+    (f._vals.get("isUnique") if f._vals.get("isUnique") is not None
+     else True)
+_AS_STRUCTURAL["specific"] = _specific_read
 _AS_STRUCTURAL["featuringTypes"] = _featuring_types_read
+
+# Feature::ownedTyping — the FeatureTyping relationships owned by this
+# feature (the storage the transform writes through _type_feature). Types
+# with no typings must answer the EMPTY list: the corpus rules test
+# ownedTyping.type->exists(...) and an _Undefined read makes the whole
+# antecedent a TypeError.
+def _owned_typing_read(f):
+    return [rel for rel in (f._vals.get("ownedRelationship") or ())
+            if type(rel).__name__ == "FeatureTyping"]
+
+
+_OVERRIDE_READS["ownedTyping"] = _owned_typing_read
+_AS_STRUCTURAL["ownedTyping"] = _owned_typing_read
 _AS_STRUCTURAL["ownedSubjectParameter"] = _owned_member_feature
 # CaseUsage spells the same derived end without 'owned' in some places
 _AS_STRUCTURAL["subjectParameter"] = lambda obj: _owned_member_feature(obj)
@@ -1008,11 +1048,21 @@ def all_instances(tname):
 
 def select_by_kind(collection, tname):
     """KerML `x->selectByKind(T)`: the elements of the collection that are
-    (a subtype of) metaclass T."""
+    (a subtype of) metaclass T.
+
+    The published spec also applies selectByKind to the IMPLICIT element
+    (`ownedTyping.type->exists(selectByKind(DataType))`, KerML 1.1 Beta 2
+    checkFeatureDataValueSpecialization et al.) — a scalar receiver there
+    is the kind PREDICATE: is the element of metaclass T. A list receiver
+    stays the collection filter."""
     cls = extent_mod.metaclass(tname, getattr(_EXTENT, "prefer", None))
-    if cls is None:
-        return list(collection or ())
-    return [e for e in (collection or ()) if isinstance(e, cls)]
+    if isinstance(collection, (list, tuple)):
+        if cls is None:
+            return list(collection or ())
+        return [e for e in (collection or ()) if isinstance(e, cls)]
+    if cls is None or collection is None:
+        return False
+    return isinstance(collection, cls)
 
 
 def select_as_kind(collection, tname):
@@ -1200,9 +1250,21 @@ def association(p):
 
 def input_parameters(op):
     """BehavioralFeature::inputParameters (§9.6.3): ownedParameter
-    ->select(direction = in or inout)."""
-    return [p for p in op.ownedParameter
-            if enum_val(p.direction) in ("in", "inout")]
+    ->select(direction = in or inout). On the SysML side there is no
+    ownedParameter storage: the parameters are the members of the
+    ParameterMemberships (a TransitionUsage carries its in-parameter)."""
+    if hasattr(op, "ownedParameter"):
+        return [p for p in op.ownedParameter
+                if enum_val(p.direction) in ("in", "inout")]
+    from . import sysml2 as _S2
+    params = []
+    for rel in (getattr(op, "_vals", {}).get("ownedRelationship") or ()):
+        if isinstance(rel, _S2.ParameterMembership):
+            for m in (getattr(rel, "ownedRelatedElement", None) or ()):
+                if enum_val(getattr(m, "_vals", {}).get("direction")) \
+                        in ("in", "inout", None):
+                    params.append(m)
+    return params
 
 
 def output_parameters(op):
@@ -2117,8 +2179,7 @@ _CORPUS_DEFECT_RULES = {
     # semantics the rule can never hold for a UseCase*/Case* subject member,
     # so it is skipped with a named reason instead of reported as a model
     # violation
-    ("SubjectMembership", "validateSubjectMembershipOwningType"):
-        "RequiremenCaseRequirementDefinition",
+
 }
 
 # Serialization defects the generator committed when joining multi-line
@@ -2128,6 +2189,32 @@ _CORPUS_DEFECT_RULES = {
 # structure requires — the lambda/if predicates themselves are complete —
 # and are applied before evaluation AND before _derivation_source parses.
 _CORPUS_REPAIRS = {
+    ("Redefinition", "validateRedefinitionFeaturingTypes"):
+        # the spec text carries two `--` comment LINES that the serializer
+        # joined mid-statement: on one line a `--` comment swallows the
+        # whole tail, so strip the two spans the prose shows
+        [("-- Including \"Anything\" accounts for implicit featuringType "
+          "of Features", ""),
+         ("-- with no explicit featuringType.", "")],
+    ("Definition", "validateDefinitionVariationSpecialization"):
+        # the prose reads "A variation Definition may not specialize any
+        # OTHER variation": the test iterates the SPECIALIZED definitions,
+        # i.e. the general end (KerML specific = the subclasser = self,
+        # with which the body would only re-test the antecedent)
+        [("ownedSpecialization.specific->exists(",
+          "ownedSpecialization.general->exists(")],
+    ("SubjectMembership", "validateSubjectMembershipOwningType"):
+        # the corpus body names oclIsType(RequiremenCaseRequirement
+        # Definition) — a join artifact; the spec prose at the same clause
+        # (2a 8.3.21.11) reads "RequirementDefinition, RequirementUsage,
+        # CaseDefinition, or CaseUsage", so position 2 is RequirementUsage
+        [("RequiremenCaseRequirementDefinition", "RequirementUsage"),
+         # the prose at the same clause reads "must be a Requirement
+         # Definition, RequirementUsage, CaseDefinition, or CaseUsage" —
+         # kind-of semantics: exact oclIsType can never hold for a
+         # UseCaseDefinition's own subject member, and UseCaseDefinition
+         # IS a CaseDefinition subtype in the generated hierarchy
+         ("oclIsType(", "oclIsKindOf(")],
     ("Feature", "validateFeatureEndNoDirection"):
         [("implied", "implies")],          # KerML has no `implied` keyword
     ("Feature", "checkFeatureEndRedefinition"): [("END", ")")],
@@ -2173,10 +2260,6 @@ _CORPUS_REPAIRS = {
 # corpus bodies whose lambda text the serializer LOST (the rule navigates
 # `.type->exists(selectByKind(Class))` — an argument-less selectByKind is
 # not OCL); unrepairable without speculation, named as defects
-for _r in ("checkFeatureDataValueSpecialization",
-           "checkFeatureObjectSpecialization",
-           "checkFeatureOccurrenceSpecialization"):
-    _CORPUS_DEFECT_RULES[("Feature", _r)] = "exists(selectByKind("
 
 
 def _repair_body(cls_name, cname, body):

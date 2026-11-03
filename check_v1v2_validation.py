@@ -39,7 +39,7 @@ check("the transform produces one root package", len(roots) == 1)
 check("the extent reaches the whole model", report["elements"] == 218,
       f"{report['elements']} elements")
 check("checks and derivations are separated",
-      len(report["checks"]) == 4300 and len(report["derivations"]) == 8433,
+      len(report["checks"]) == 4533 and len(report["derivations"]) == 8433,
       f"{len(report['checks'])} checks, {len(report['derivations'])} derivations")
 check("no deriveXxx body is counted as a check",
       not any(e["constraint"].startswith("derive") for e in report["checks"]))
@@ -61,12 +61,13 @@ check("the residual violations are the single-type associations and "
 
 print("== skips are reported, not passed ==")
 check("skips are counted with reasons",
-      len(report["skipped"]) == 269 and report["skip_reasons"],
+      len(report["skipped"]) == 36 and report["skip_reasons"],
       str(report["skip_reasons"][:2]))
 check("the top skip reason is a named class",
       report["skip_reasons"][0][0] in ("eval-unmapped",
                                        "undetermined comparison",
-                                       "corpus-defect") or
+                                       "corpus-defect",
+                                       "undetermined") or
       report["skip_reasons"][0][0].startswith("operation "),
       str(report["skip_reasons"][0]))
 
@@ -83,9 +84,9 @@ check("no violation comes from an undetermined read",
 print("== the triage ledger ==")
 from umlmeta import v2_triage as TR  # noqa: E402
 rows = TR.ledger(report)
-check("every finding has a row", len(rows) == 7, f"{len(rows)} rows")
+check("every finding has a row", len(rows) == 4, f"{len(rows)} rows")
 check("every finding now has an owner",
-      sum(1 for r in rows if r["owner"] != "unattributed") == 7,
+      sum(1 for r in rows if r["owner"] != "unattributed") == 4,
       f"{sum(1 for r in rows if r['owner'] != 'unattributed')} attributed")
 cons = TR.structure_consistency(*roots)
 check("structure consistency does not report the missing AS union as a defect",
@@ -112,14 +113,78 @@ print("== the skips say whose gap they are ==")
 check("every skip is bucketed by cause",
       sum(report["skip_buckets"].values()) == len(report["skipped"]),
       str(dict(report["skip_buckets"])))
-check("the skip classes are named and bounded",
-      report["skip_buckets"]["engine-other"] == 211
-      and max(report["skip_buckets"].values()) <= 211,
+check("every skip bucket is undetermined-bounded",
+      set(report["skip_buckets"]) == {"undetermined"}
+      and report["skip_buckets"]["undetermined"] == 36,
       f"{dict(report['skip_buckets'])} of {len(report['skipped'])} skips")
 check("gate coverage is reported as a fraction",
-      abs(V.coverage(report) - 0.94) < 0.01,
+      abs(V.coverage(report) - 0.99) < 0.01,
       f"{V.coverage(report):.1%} of applicable checks run")
 
+
+print("== the corpus-defect rules repair into evaluations ==")
+from umlmeta import sysml2 as K  # noqa: E402
+from umlmeta import ocl_translator as T  # noqa: E402
+from umlmeta import derived as DD  # noqa: E402
+from umlmeta import extent as _XT  # noqa: E402
+_XTENT = _XT.Extent(*roots, prefer="sysml2")
+_F = dict(K.Feature.CONSTRAINTS)
+_SM = dict(K.SubjectMembership.CONSTRAINTS)
+# the published text (KerML 1.1 Beta 2 clause checkFeatureDataValue
+# Specialization) prints `ownedTyping.type->exists(selectByKind(DataType))`
+# -- selectByKind applied to the IMPLICIT element: a kind predicate, not a
+# collection filter. The lowering (select_by_kind(it, 'T')) already binds
+# the iterator; the op takes the scalar predicate reading.
+check("selectByKind on a scalar receiver is the kind predicate",
+      T.select_by_kind(K.OccurrenceDefinition(), "Definition") is True
+      and T.select_by_kind(K.Feature(), "DataType") is False
+      and len(T.select_by_kind([K.OccurrenceDefinition(), K.Feature()],
+                               "Definition")) == 1
+      and isinstance(T.select_by_kind([K.OccurrenceDefinition(), K.Feature()],
+                                      "Definition")[0],
+                     K.OccurrenceDefinition),
+      "scalar receiver -> oclIsKindOf; list receiver -> the filter")
+for _rule in ("checkFeatureDataValueSpecialization",
+              "checkFeatureObjectSpecialization",
+              "checkFeatureOccurrenceSpecialization"):
+    _b = T._repair_body("Feature", _rule, _F[_rule])
+    _ok_lower = None
+    _lowered = None
+    try:
+        _lowered = T.translate(_b)
+        _ok_lower = True
+    except Exception:                          # noqa: BLE001
+        pass
+    check(f"the {_rule} body lowers with the predicate reading",
+          _ok_lower and "select_by_kind(it," in (_lowered or ""),
+          (_lowered or _b)[:72])
+    _sk = [s for s in report["skipped"] if s["constraint"] == _rule]
+    check(f"the {_rule} skips are gone",
+          not _sk, f"{len(_sk)} skips left")
+check("the mangled token reads RequirementUsage (the spec prose)",
+      "RequiremenCaseRequirementDefinition"
+      not in T._repair_body("SubjectMembership",
+                            "validateSubjectMembershipOwningType",
+                            _SM["validateSubjectMembershipOwningType"])
+      and T._repair_body("SubjectMembership",
+                         "validateSubjectMembershipOwningType",
+                         _SM["validateSubjectMembershipOwningType"])
+      .count("oclIsKindOf") == 4)
+_smem = K.SubjectMembership()
+_v2d = K.UseCaseDefinition(declaredName="probe")
+_smem._vals["owner"] = _v2d
+_smem._vals["owningType"] = _v2d
+check("the repaired SubjectMembership rule evaluates (not skips)",
+      T.eval_body(
+          T._repair_body("SubjectMembership",
+                         "validateSubjectMembershipOwningType",
+                         _SM["validateSubjectMembershipOwningType"]),
+          _smem, DD, extent=_XTENT) is True,
+      "a UseCaseDefinition owningType satisfies kind-of CaseDefinition")
+_sk2 = [s for s in report["skipped"]
+        if s["constraint"] == "validateSubjectMembershipOwningType"]
+check("the SubjectMembership skips are gone", not _sk2,
+      f"{len(_sk2)} skips left")
 
 print("== an empty model is clean ==")
 empty = V.validate()
