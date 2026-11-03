@@ -67,6 +67,34 @@ DISPOSITIONS = {
         ("transform", "related types not emitted on the association"),
     "Import.validateImportTopLevelVisibility":
         ("transform", "import emitted without its visibility"),
+    # worked after the O4/O5b/O7 batch raised coverage to 76%: the 8
+    # previously-unattributed rows, traced. All are "the transform did not
+    # emit the featuring/subsetting edge the rule tests" except two, which
+    # are the same inverse-maintenance gap already attributed on the
+    # ParameterMembership side.
+    "Subsetting.validateSubsettingFeaturingTypes":
+        ("transform", "subsettingFeature.canAccess(subsettedFeature) needs the "
+                      "featuring-type edges; the transform emits subsetting "
+                      "but not featuring"),
+    "ReferenceSubsetting.validateSubsettingFeaturingTypes":
+        ("transform", "same rule on the reference subsetting"),
+    "ParameterMembership.validateParameterMembershipParameterDirection":
+        ("runtime", "parameterDirection default is derivable but the "
+                    "membership's ownedMemberParameter inverse is not set"),
+    "Connector.checkConnectorTypeFeaturing":
+        ("transform", "connector featuringType not emitted; rule falls back "
+                      "to isFeaturedWithin(null) which needs featuring edges"),
+    "TransitionUsage.checkTransitionUsageSuccessionBindingConnector":
+        ("transform", "the succession binding connector the rule requires is "
+                      "not emitted"),
+    "TransitionUsage.checkTransitionUsageSourceBindingConnector":
+        ("transform", "same, for the source binding connector"),
+    "Multiplicity.checkMultiplicityTypeFeaturing":
+        ("transform", "multiplicity's featuringType derives from its owning "
+                      "feature's featuringType; the owning chain is incomplete"),
+    "Association.validateAssociationEndTypes":
+        ("transform", "an end feature carries no type; the transform emits "
+                      "end usages untyped"),
     "Usage.validateUsageIsReferential":
         ("runtime", "isReference is derived in the KerML AS "
                     "(deriveUsageIsReference); the runtime stores it as None "
