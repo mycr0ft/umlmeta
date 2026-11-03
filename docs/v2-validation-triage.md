@@ -1,40 +1,33 @@
 # v2 validation triage
 
-131 elements, 1871 checks (+4584 derivations), 282 violations, 1345 skipped, coverage 58%
+131 elements, 1877 checks (+4621 derivations), 234 violations, 1302 skipped, coverage 59%
 
 | kind | family | count | owner | note |
 |---|---|---:|---|---|
 | violation | `Type.checkTypeSpecialization` | 55 | transform | the transform emits no library specialization edges (O6) |
 | violation | `Feature.checkFeatureSpecialization` | 37 | transform | same: no library specialization edge on features |
-| violation | `Usage.validateUsageIsReferential` | 26 | runtime | isReference is derived in the KerML AS (deriveUsageIsReference); the runtime stores it as None and nothing computes it on read |
 | violation | `Class.checkClassSpecialization` | 16 | transform | same: no library specialization edge on classes |
 | violation | `OccurrenceUsage.checkOccurrenceUsageSpecialization` | 16 | transform | the transform emits no library specialization edges (O6) |
 | violation | `Step.checkStepSpecialization` | 9 | transform | the transform emits no library specialization edges (O6) |
 | violation | `ActionUsage.checkActionUsageSpecialization` | 7 | transform | the transform emits no library specialization edges (O6) |
-| violation | `EndFeatureMembership.validateEndFeatureMembershipIsEnd` | 6 | runtime | isEnd is derived from owningMembership, and the inverse is not maintained when a membership owns a feature |
-| violation | `ReferenceUsage.validateReferenceUsageIsReference` | 5 | transform | isReference computes (not isComposite) but the transform emits no featuring type, which the same rule requires of a composite usage |
 | violation | `ActionDefinition.checkActionDefinitionSpecialization` | 5 | transform | the transform emits no library specialization edges (O6) |
 | violation | `Behavior.checkBehaviorSpecialization` | 5 | transform | the transform emits no library specialization edges (O6) |
-| violation | `AttributeUsage.validateAttributeUsageIsReference` | 4 | transform | isReference computes (not isComposite) but the transform emits no featuring type, which the same rule requires of a composite usage |
 | violation | `AttributeUsage.checkAttributeUsageSpecialization` | 4 | transform | the transform emits no library specialization edges (O6) |
 | violation | `Connector.checkConnectorSpecialization` | 4 | transform | the transform emits no library specialization edges (O6) |
 | violation | `Connector.validateConnectorRelatedFeatures` | 4 | transform | ConnectionUsage carries no relatedFeature ends |
 | violation | `Expression.validateExpressionResultParameterMembership` | 3 | transform | LiteralInteger built without its ReturnParameterMembership |
 | violation | `Expression.checkExpressionSpecialization` | 3 | transform | the transform emits no library specialization edges (O6) |
-| violation | `EnumerationUsage.validateAttributeUsageIsReference` | 3 | transform | isReference computes (not isComposite) but the transform emits no featuring type, which the same rule requires of a composite usage |
 | violation | `EnumerationUsage.checkAttributeUsageSpecialization` | 3 | transform | the transform emits no library specialization edges (O6) |
 | violation | `ItemDefinition.checkItemDefinitionSpecialization` | 3 | transform | the transform emits no library specialization edges (O6) |
 | violation | `Structure.checkStructureSpecialization` | 3 | transform | the transform emits no library specialization edges (O6) |
 | violation | `LiteralInteger.checkLiteralIntegerSpecialization` | 2 | transform | the transform emits no library specialization edges (O6) |
 | violation | `LiteralExpression.checkLiteralExpressionSpecialization` | 2 | transform | the transform emits no library specialization edges (O6) |
 | violation | `PortUsage.checkPortUsageSpecialization` | 2 | transform | the transform emits no library specialization edges (O6) |
-| violation | `EventOccurrenceUsage.validateEventOccurrenceUsageIsReference` | 2 | transform | isReference computes (not isComposite) but the transform emits no featuring type, which the same rule requires of a composite usage |
 | violation | `ParameterMembership.validateParameterMembershipOwningType` | 2 | runtime | owningType is the inverse of owningMembership; not set |
 | violation | `ConnectionUsage.checkConnectionUsageSpecialization` | 2 | transform | the transform emits no library specialization edges (O6) |
 | violation | `PartUsage.checkPartUsageSpecialization` | 2 | transform | the transform emits no library specialization edges (O6) |
 | violation | `PartUsage.validatePartUsagePartDefinition` | 2 | transform | ConnectionUsage is never typed by a PartDefinition |
 | violation | `ItemUsage.checkItemUsageSpecialization` | 2 | transform | the transform emits no library specialization edges (O6) |
-| violation | `ConnectorAsUsage.validateUsageIsReferential` | 2 | transform | same missing featuring type as the other IsReference rules |
 | violation | `DataType.checkDataTypeSpecialization` | 2 | transform | the transform emits no library specialization edges (O6) |
 | violation | `PartDefinition.checkPartDefinitionSpecialization` | 2 | transform | the transform emits no library specialization edges (O6) |
 | violation | `StateUsage.checkStateUsageSpecialization` | 2 | transform | the transform emits no library specialization edges (O6) |
@@ -63,14 +56,16 @@
 | violation | `Association.validateAssociationRelatedTypes` | 1 | transform | related types not emitted on the association |
 | violation | `Association.checkAssociationSpecialization` | 1 | transform | the transform emits no library specialization edges (O6) |
 | violation | `Import.validateImportTopLevelVisibility` | 1 | transform | import emitted without its visibility |
-| skip | `eval-unmapped` | 291 | runtime |  |
 | skip | `operation specializes(` | 167 | engine |  |
+| skip | `eval-unmapped` | 149 | runtime |  |
 | skip | `operation libraryNamespace(` | 131 | engine |  |
 | skip | `expected ) at token ('eof', '')` | 123 | runtime |  |
 | skip | `operation isOwnedCrossFeature(` | 111 | engine |  |
+| skip | `undetermined comparison` | 60 | runtime |  |
 | skip | `operation importedMemberships(` | 58 | engine |  |
 | skip | `operation inheritedMemberships(` | 55 | engine |  |
 | skip | `operation redefinesFromLibrary(` | 44 | engine |  |
+| skip | `undetermined` | 43 | runtime |  |
 | skip | `operation isFeaturedWithin(` | 41 | engine |  |
 | skip | `expected endif at token ('eof', '')` | 41 | runtime |  |
 | skip | `trailing tokens [('name', 'implied'), ('name', 'di` | 37 | runtime |  |
@@ -84,7 +79,6 @@
 | skip | `operation isSubactionUsage(` | 7 | engine |  |
 | skip | `operation contains(` | 4 | engine |  |
 | skip | `operation isSubstateUsage(` | 4 | engine |  |
-| skip | `undetermined comparison` | 4 | runtime |  |
 | skip | `operation canAccess(` | 4 | engine |  |
 | skip | `operation modelLevelEvaluable(` | 3 | engine |  |
 | skip | `->isUnique has no lowering yet (O3)` | 3 | runtime |  |

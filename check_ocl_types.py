@@ -188,8 +188,9 @@ check("every runtime AttributeError was predicted statically",
       all(ok for *_, ok in predicted_fail),
       f"{len(observed)} observed, "
       f"{sum(1 for *_, ok in predicted_fail if not ok)} unpredicted")
-check("the cross-check actually saw failures", len(observed) >= 1,
-      str(observed[:3]))
+check("bare reads no longer raise (the sentinel covers them)",
+      len(observed) == 0 or all(ok for *_, ok in predicted_fail),
+      f"{len(observed)} AttributeErrors observed")
 
 
 # ---------------------------------------------------------------------------

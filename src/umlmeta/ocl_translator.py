@@ -167,6 +167,45 @@ def _derivation_source(cls, prop):
     return src
 
 
+# Structural AS derivations: rules the runtime computes from a link rather
+# than from an expression, so the corpus carries no body for them.
+def _is_end(obj):
+    """KerML Feature::isEnd — the owning membership is an EndFeatureMembership."""
+    from . import sysml2 as _S2
+    return isinstance(getattr(obj, "owningMembership", None),
+                      _S2.EndFeatureMembership)
+
+
+_AS_STRUCTURAL = {"isEnd": _is_end}
+
+
+def _owned_member_feature(obj):
+    """Membership::ownedMemberFeature — the single owned member that is a
+    Feature. Structural, so the corpus carries no body for it."""
+    from . import sysml2 as _S2
+    feats = [m for m in (getattr(obj, "ownedRelatedElement", None) or ())
+             if isinstance(m, _S2.Feature)]
+    return feats[0] if feats else None
+
+
+_AS_STRUCTURAL["ownedMemberFeature"] = _owned_member_feature
+
+
+def ocl_get(obj, name):
+    """A bare property read (`ownedMemberFeature`), with the derivation and
+    sentinel rules applied — the `_dot` fallback's counterpart, without which
+    an unqualified name never reaches either."""
+    v = getattr(obj, name, _MISSING)
+    if v is not _MISSING and v is not None:
+        return v
+    d = derived_read(obj, name)
+    if d is not _MISSING:
+        return d
+    if v is _MISSING:
+        return _Undefined(name)
+    return v
+
+
 def derived_read(obj, prop):
     """Value of a derived property, or _MISSING when there is no rule."""
     try:
@@ -174,7 +213,8 @@ def derived_read(obj, prop):
     except Exception:                              # noqa: BLE001
         return _MISSING
     if src is None:
-        return _MISSING
+        fn = _AS_STRUCTURAL.get(prop)
+        return fn(obj) if fn is not None else _MISSING
     guard = (id(obj), prop)
     if guard in _DERIV_BUSY:
         return _MISSING
@@ -1340,7 +1380,7 @@ _EVAL_ENV = {
     "select_by_kind": select_by_kind,
     "select_as_kind": select_as_kind,
     "specializes_from_library": specializes_from_library,
-    "_g": getattr,
+    "_g": ocl_get,
     "_dot": ocl_dot,
     "_nav": ocl_nav,
     "_aslist": ocl_aslist,
