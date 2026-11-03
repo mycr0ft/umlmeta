@@ -36,10 +36,10 @@ roots = AS.transform_xmi(str(ROOT / "vehicle_example_cameo.xmi"))
 report = V.validate(*roots)
 print("  " + V.summary(report))
 check("the transform produces one root package", len(roots) == 1)
-check("the extent reaches the whole model", report["elements"] == 143,
+check("the extent reaches the whole model", report["elements"] == 171,
       f"{report['elements']} elements")
 check("checks and derivations are separated",
-      len(report["checks"]) == 2411 and len(report["derivations"]) == 5272,
+      len(report["checks"]) == 3032 and len(report["derivations"]) == 6706,
       f"{len(report['checks'])} checks, {len(report['derivations'])} derivations")
 check("no deriveXxx body is counted as a check",
       not any(e["constraint"].startswith("derive") for e in report["checks"]))
@@ -48,17 +48,20 @@ print("== the finding ==")
 families = collections.Counter(f"{e['class']}.{e['constraint']}"
                                for e in report["violations"])
 check("the gate reports violations on transformed output",
-      len(report["violations"]) == 50 and not report["clean"],
+      len(report["violations"]) == 10 and not report["clean"],
       f"{len(report['violations'])} violations in "
       f"{len(families)} families")
 top = families.most_common(1)[0]
-check("the check*Specialization family is down to conditional Binary rules",
-      top[0] == "Connector.checkConnectorBinarySpecialization" and top[1] == 4
+check("the residual violations are the transition-binding layer and the "
+      "single-type associations",
+      top[0] in ("Association.validateAssociationRelatedTypes",
+                 "TransitionUsage.validateTransitionUsageSuccession")
+      and top[1] == 2
       and top[1] == max(families.values()), str(top))
 
 print("== skips are reported, not passed ==")
 check("skips are counted with reasons",
-      len(report["skipped"]) == 781 and report["skip_reasons"],
+      len(report["skipped"]) == 951 and report["skip_reasons"],
       str(report["skip_reasons"][:2]))
 check("the top skip reason is a known engine gap",
       report["skip_reasons"][0][0] in ("eval-unmapped",) or
@@ -78,9 +81,9 @@ check("no violation comes from an undetermined read",
 print("== the triage ledger ==")
 from umlmeta import v2_triage as TR  # noqa: E402
 rows = TR.ledger(report)
-check("every finding has a row", len(rows) == 38, f"{len(rows)} rows")
+check("every finding has a row", len(rows) == 17, f"{len(rows)} rows")
 check("every finding now has an owner",
-      sum(1 for r in rows if r["owner"] != "unattributed") == 38,
+      sum(1 for r in rows if r["owner"] != "unattributed") == 17,
       f"{sum(1 for r in rows if r['owner'] != 'unattributed')} attributed")
 cons = TR.structure_consistency(*roots)
 check("structure consistency does not report the missing AS union as a defect",
@@ -106,10 +109,10 @@ print("== the skips say whose gap they are ==")
 check("every skip is bucketed by cause",
       sum(report["skip_buckets"].values()) == len(report["skipped"]),
       str(dict(report["skip_buckets"])))
-check("the helper-operation library is the dominant skip class",
-      report["skip_buckets"]["helper-operation"] == 87,
-      f"{report['skip_buckets']['helper-operation']} of "
-      f"{len(report['skipped'])} skips")
+check("the skip classes are named and bounded",
+      report["skip_buckets"]["helper-operation"] == 111
+      and max(report["skip_buckets"].values()) <= 337,
+      f"{dict(report['skip_buckets'])} of {len(report['skipped'])} skips")
 check("gate coverage is reported as a fraction",
       abs(V.coverage(report) - 0.76) < 0.01,
       f"{V.coverage(report):.1%} of applicable checks run")

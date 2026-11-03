@@ -76,7 +76,15 @@ def repair(*roots):
                     if _set(member, "owningType", el):
                         counts["type"] += 1
                 visit(member)
-            # a relationship is itself an element in the graph
+            # a relationship held directly in ownedRelationship is owned by
+            # the container through its own owningRelatedElement (the KerML
+            # Relationship owner override — memberships appended bare to a
+            # namespace's ownedRelationship depend on exactly this link)
+            if _set(rel, "owningRelatedElement", el):
+                counts["relationship"] += 1
+            # and a directly-held Membership's owningType IS the container
+            if is_membership:
+                _set(rel, "owningType", el)
             visit(rel)
 
     for root in roots:

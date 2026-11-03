@@ -110,8 +110,22 @@ def union_names(el):
 # ---------------------------------------------------------------------------
 
 def owner(el):
-    """Element::owner (§7.8.6.4, /owner {union}): the Element that owns
-    this Element. The runtime maintains the containment inverse."""
+    """Element::owner (/owner {union}) with the AS derivations applied:
+    a Relationship is owned by ITS own ``owningRelatedElement`` (the
+    spec overrides the derivation for Relationships); a membership
+    owned inside another membership reads owner through
+    ``owningRelationship.owningRelatedElement`` (the normative
+    deriveElementOwner body)."""
+    props = getattr(type(el), "_props", {}) or {}
+    if "owningRelatedElement" in props:
+        ore = getattr(el, "owningRelatedElement", None)
+        if ore is not None and not isinstance(ore, uml._Element):
+            return ore
+    ore = getattr(el, "owningRelationship", None)
+    if ore is not None:
+        c = getattr(ore, "owningRelatedElement", None)
+        if c is not None:
+            return c
     return el.owner
 
 
@@ -427,11 +441,67 @@ def conforms_to(cl, other):
 # MultiplicityElement (UML 2.5.1 §9.9.11)
 # ---------------------------------------------------------------------------
 
+def _is_v2_multiplicity(me):
+    """True when `me` is a SysML v2 Multiplicity/MultiplicityRange: bound
+    ends are owned Expressions, not the UML lowerValue/upperValue stores."""
+    return type(me).__name__ in ("Multiplicity", "MultiplicityRange")
+
+
+def _v2_owned_expressions(me):
+    """The owned Expression members of a v2 Multiplicity, read
+    structurally: ownedRelationship->selectByKind(OwningMembership)->
+    ownedRelatedElement->selectByKind(Expression). This mirrors the
+    normative ownedMember derivation, which the union helpers cannot
+    see (the corpus carries it as a derivation, not a union table)."""
+    from . import sysml2 as _S2
+    out = []
+    for rel in (me._vals.get("ownedRelationship") or ()):
+        if type(rel).__name__ != "OwningMembership":
+            continue
+        for m in (rel._vals.get("ownedRelatedElement") or ()):
+            if isinstance(m, _S2.Expression):
+                out.append(m)
+    return out
+
+
+def _v2_bound_expr(me, which):
+    """MultiplicityRange::lowerBound/upperBound (§7.7.3.3.14 derivations):
+    0 owned expression -> null; 1 -> upper (and lower stays null); 2+ ->
+    lower = at(1), upper = at(2)."""
+    exprs = _v2_owned_expressions(me)
+    if not exprs:
+        return None
+    if len(exprs) == 1:
+        return exprs[0] if which == "upper" else None
+    return exprs[0] if which == "lower" else exprs[1]
+
+
+def _bound_int(e):
+    """The integer of a v2 bound expression, or '*' for the infinity
+    literal — None when the bound is a non-literal (model-level
+    evaluation is undetermined)."""
+    if e is None:
+        return None
+    name = type(e).__name__
+    if name == "LiteralInfinity":
+        return "*"
+    if name == "LiteralInteger":
+        return e._vals.get("value")
+    return None
+
+
 def lower_bound(me):
     """MultiplicityElement::lowerBound (§7.8.8): the integerValue of
     lowerValue if given; otherwise 1. On instance models the XMI
     carries the derived `lower` attribute directly (no lowerValue
-    element), so the carried value is used as the fall-back."""
+    element), so the carried value is used as the fall-back.
+
+    A SysML v2 Multiplicity/Range derives `lowerBound` as its own
+    EXPRESSION end (null when there is only an upper bound — the v2
+    rule then reads the positional members); integer semantics for v2
+    objects stay available through _bound_int(...)."""
+    if _is_v2_multiplicity(me):
+        return _v2_bound_expr(me, "lower")
     lv = me.lowerValue
     if lv is not None:
         return lv.value
@@ -441,7 +511,10 @@ def lower_bound(me):
 def upper_bound(me):
     """MultiplicityElement::upperBound (§7.8.8): the
     unlimitedNaturalValue of upperValue if given; otherwise 1. Same
-    XMI-carried fall-back as lower_bound."""
+    XMI-carried fall-back as lower_bound. A v2 Multiplicity returns its
+    upper-bound Expression (null when no bound is owned)."""
+    if _is_v2_multiplicity(me):
+        return _v2_bound_expr(me, "upper")
     uv = me.upperValue
     if uv is not None:
         return uv.value

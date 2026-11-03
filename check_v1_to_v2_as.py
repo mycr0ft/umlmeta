@@ -151,8 +151,13 @@ try:
           pist._vals.get("isComposite") is None
           and pleg._vals.get("isComposite") is False)
     est = find(as_pkg, "EngineState", S2.EnumerationDefinition)[0]
-    check("XMI enumeration literals -> EnumerationUsage features",
-          [f.declaredName for f in est.feature] == ["off", "on"])
+    _vm = [m for m in est.ownedRelationship
+           if isinstance(m, S2.VariantMembership)]
+    check("XMI enumeration literals -> EnumerationUsage variants",
+          sorted(v.declaredName for m in _vm
+                 for v in m.ownedRelatedElement) == ["off", "on"]
+          and est._vals.get("isVariation") is True
+          and est._vals.get("isAbstract") is True)
 finally:
     Path(xmi_path).unlink()
 
@@ -529,8 +534,11 @@ check("Documentation annotates the engine via an Annotation relationship"
               and r.annotatedElement is engine_as
               for r in docs[0].ownedRelationship))
 color_as = find(as_pkg, "Color", S2.EnumerationDefinition)[0]
-check("EnumerationLiteral -> EnumerationUsage via FeatureMembership",
-      [f.declaredName for f in color_as.feature] == ["red", "green"])
+_vm = [r for r in color_as.ownedRelationship
+       if isinstance(r, S2.VariantMembership)]
+check("EnumerationLiteral -> EnumerationUsage via VariantMembership",
+      [v.declaredName for m in _vm
+       for v in m.ownedRelatedElement] == ["red", "green"])
 
 print()
 print("== R2 runtime wiring over the transformed graph ==")
@@ -1073,8 +1081,9 @@ check("PackageImport -> NamespaceImport under the importing package",
       len(ni) == 2 and all(r.importedNamespace is lib_pkg2 for r in ni))
 vis = sorted(str(getattr(r._vals.get("visibility"), "name",
                         r._vals.get("visibility"))) for r in ni)
-check("visibility mapped (v1 private -> private, absent -> public)",
-      vis == ["private", "public"], str(vis))
+check("visibility mapped; top-level imports are private"
+      " (Import.validateImportTopLevelVisibility)",
+      vis == ["private", "private"], str(vis))
 mi = rel_kinds(app_pkg2, "MembershipImport")
 engine_def = [e for e in lib_pkg2.ownedElement
               if e.declaredName == "Engine"][0]

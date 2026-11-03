@@ -335,7 +335,15 @@ def _transform_v1_element_inner(el, index=None):
     if isinstance(el, U.Enumeration):
         # Enumeration_Mapping: to EnumerationDefinition (before the
         # DataType check: Enumeration specializes DataType)
-        return S2.EnumerationDefinition(declaredName=_name(el))
+        e = S2.EnumerationDefinition(declaredName=_name(el))
+        # an enumeration definition is a variation point: isVariation
+        # (= true) implies isAbstract, and its literals are variants —
+        # carried by VariantMembership, NOT a FeatureMembership (the
+        # Definition.validateDefinitionVariationOwnedFeatureMembership
+        # rule demands an empty ownedFeatureMembership on a variation)
+        e._vals["isVariation"] = True
+        e._vals["isAbstract"] = True
+        return e
     if isinstance(el, U.DataType):
         # plain DataType (non-stereotyped): same mapping family as
         # ValueType -> AttributeDefinition (7.8.4.3.15)
@@ -674,7 +682,7 @@ def _attach_feature_extras(prop, usage, index):
     FeatureReferenceExpression (InstanceValue → feature reference,
     7.7.4.2.16) or a literal-carried Expression. Multiplicity bounds
     ride _attach_multiplicity (MultiplicityElement_Mapping)."""
-    _attach_multiplicity(prop, usage)
+    _attach_multiplicity(prop, usage, index)
     subs = [t for t in list(prop.subsettedProperty)]
     for sub in subs:
         target = index.get(id(sub))
@@ -684,6 +692,9 @@ def _attach_feature_extras(prop, usage, index):
                 f"{type(sub).__name__}")
         ss = S2.Subsetting()
         ss.subsettedFeature = target
+        # the Subsetting is owned by the subsetting feature: KerML
+        # Subsetting.subsettingFeature IS its owningRelatedElement
+        ss.subsettingFeature = usage
         usage.ownedRelationship.append(ss)
     for red in list(prop.redefinedProperty):
         target = index.get(id(red))
@@ -755,7 +766,7 @@ def _populate_class(v1cls, v2def, index, pending):
             if d is not None:
                 val = str(getattr(d, "value", d))
                 ref.direction = "out" if val == "return" else val
-            _attach_multiplicity(prm, ref)
+            _attach_multiplicity(prm, ref, index)
             pm = S2.ParameterMembership()
             pm.ownedRelatedElement.append(ref)
             pau.ownedRelationship.append(pm)
@@ -780,6 +791,38 @@ def _populate_class(v1cls, v2def, index, pending):
                 cu.target.append(roles[1])
         else:
             cu = S2.ConnectionUsage(declaredName=_name(conn))
+            # 7.7.12.2.14 (Connector_Mapping): a Connector with no type is
+            # typed by an anonymous (unnamed) ConnectionDefinition — the
+            # PartUsage.validatePartUsagePartDefinition rule then sees a
+            # PartDefinition in the typing
+            cdef = conn._vals.get("type")
+            cdef = cdef[0] if isinstance(cdef, list) else cdef
+            v2cdef = index.get(id(cdef)) if cdef is not None else None
+            if v2cdef is None:
+                v2cdef = S2.ConnectionDefinition()
+                if cdef is not None:
+                    index[id(cdef)] = v2cdef
+                _own_membership(v2def, v2cdef)
+                # a synthesized anonymous connection definition is a
+                # complete (sufficient) classification and carries an end
+                # typed by each connected role's type — the AS shape the
+                # Association rules (relatedType->size() >= 2) require
+                v2cdef._vals["isSufficient"] = True
+                if len(roles) == 2:
+                    # AssociationStructure binary rule for the anonymous CD
+                    _attach_one_base(index, v2cdef,
+                                     "Objects::BinaryLinkObject")
+                for role in roles:
+                    rend = S2.ReferenceUsage(isEnd=True)
+                    rty = [getattr(ft, "type", None)
+                           for ft in (role._vals.get("ownedTyping") or ())]
+                    rty = [t for t in rty if t is not None]
+                    if rty:
+                        _type_feature(rend, rty[0])
+                    em = S2.EndFeatureMembership()
+                    em.ownedRelatedElement.append(rend)
+                    v2cdef.ownedRelationship.append(em)
+            _type_feature(cu, v2cdef)
             if len(roles) >= 2:
                 cu.source.append(roles[0])
                 cu.target.append(roles[1])
@@ -796,7 +839,19 @@ def _populate_class(v1cls, v2def, index, pending):
             cu.ownedRelationship.append(fm)
             rs = S2.ReferenceSubsetting()
             rs.referencedFeature = role
+            # ReferenceSubsetting.subsettingFeature IS its referencing
+            # feature (the end ReferenceUsage owning the relationship)
+            rs.subsettingFeature = ru
             ru.ownedRelationship.append(rs)
+        if len(roles) == 2:
+            # the binary-end conditional rules: connectorEnd->size() = 2
+            # implies Links::binaryLinks; ownedEndFeature->size() = 2
+            # implies Connections::binaryConnections (BindingConnectorAsUsages
+            # specialize Links::selfLinks through the bare BindingConnector
+            # rule already)
+            _attach_one_base(index, cu, "Links::binaryLinks")
+            if not isinstance(cu, S2.BindingConnectorAsUsage):
+                _attach_one_base(index, cu, "Connections::binaryConnections")
         _feature_membership(v2def, cu)
     for nested in getattr(v1cls, "nestedClassifier", ()):
         nv2 = transform_v1_element(nested)
@@ -805,6 +860,30 @@ def _populate_class(v1cls, v2def, index, pending):
         _populate_class(nested, nv2, index, pending)
     for g in list(v1cls.generalization):
         pending.append((v2def, g))
+
+
+def _case_result_membership(index, case):
+    """The canonical `return ref result[0..*]` of a case (Cases.sysml
+    Case): one ReturnParameterMembership carrying the result usage —
+    Function.validateFunctionResultParameterMembership demands exactly
+    one among the case's featureMemberships."""
+    rpm = S2.ReturnParameterMembership()
+    rpm.ownedRelatedElement.append(
+        S2.ReferenceUsage(declaredName="result", direction="return"))
+    case.ownedRelationship.append(rpm)
+    return rpm
+
+
+def _case_subject_and_result(index, case_usage):
+    """A case usage (an IncludeUseCaseUsage included by a case) carries
+    the library-shaped subject and result memberships too — the rules
+    CaseUsage.validate*SubjectParameterPosition and the Function result
+    rule apply to every CalculationUsage-shaped element."""
+    sm = S2.SubjectMembership()
+    sm.ownedRelatedElement.append(
+        S2.ReferenceUsage(declaredName="subj", direction="in"))
+    case_usage.ownedRelationship.append(sm)
+    _case_result_membership(index, case_usage)
 
 
 def _populate_usecase(uc, v2def, index, pkg):
@@ -848,6 +927,12 @@ def _populate_usecase(uc, v2def, index, pkg):
                 f"{_name(addition)!r}")
         iucu = S2.IncludeUseCaseUsage(declaredName=_name(inc))
         _type_feature(iucu, adef)
+        # CalculationUsage.checkCalculationUsageSubcalculationSpecialization
+        # (IncludeUseCaseUsage is a CalculationUsage): an include usage
+        # inside a case specializes the case's subcalculations library base
+        _attach_one_base(index, iucu,
+                         "Calculations::Calculation::subcalculations")
+        _case_subject_and_result(index, iucu)
         _feature_membership(v2def, iucu)
 
     # Extend / ExtensionPoint have no normative v2 target (the UseCase
@@ -877,11 +962,25 @@ def _populate_usecase(uc, v2def, index, pkg):
             raise UnmappedFeature(
                 f"UseCase subject {type(subj).__name__!r} not mapped first")
         ru = S2.ReferenceUsage(
-            declaredName="subject_" + (_name(subj) or "?"))
+            declaredName="subject_" + (_name(subj) or "?"),
+            direction="in")
         _type_feature(ru, sdef)
         sm = S2.SubjectMembership()
         sm.ownedRelatedElement.append(ru)
         v2def.ownedRelationship.append(sm)
+    else:
+        # a subject-less use case still carries the library-shaped subject
+        # (Cases.sysml: Case has `subject subj : Anything[1]`, and every
+        # UseCaseDefinition specializes Case) — the Case rules demand a
+        # non-empty input whose first parameter IS the subjectParameter
+        sm = S2.SubjectMembership()
+        sm.ownedRelatedElement.append(
+            S2.ReferenceUsage(declaredName="subj", direction="in"))
+        v2def.ownedRelationship.append(sm)
+    # the canonical case shape also carries the result return parameter
+    # (Cases.sysml Case: `return ref result[0..*]`) — Function's
+    # validateFunctionResultParameterMembership demands exactly one
+    _case_result_membership(index, v2def)
 
     # actors: associations with a memberEnd typed by this use case carry
     # the actor end (each OTHER memberEnd) as a PartUsage (named from
@@ -1109,7 +1208,16 @@ def _populate_association(assoc, conn, index):
         em.ownedRelatedElement.append(ru)
         conn.ownedRelationship.append(em)
         index[id(e)] = ru
-        _attach_multiplicity(e, ru)
+        _attach_multiplicity(e, ru, index)
+    # a mapped v1 Association is a complete (sufficient) classification:
+    # Type::isSufficient defaults true in KerML, and the
+    # ConnectionDefinition.validateConnectionDefinitionIsSufficient rule
+    # reads the stored attribute
+    conn._vals["isSufficient"] = True
+    if len(list(assoc.memberEnd)) == 2:
+        # AssociationStructure.checkAssociationStructureBinarySpecialization:
+        # endFeature->size() = 2 implies the Objects::BinaryLinkObject base
+        _attach_one_base(index, conn, "Objects::BinaryLinkObject")
 
 
 def _bound_value(mult_el, val_name):
@@ -1122,7 +1230,7 @@ def _bound_value(mult_el, val_name):
     return v
 
 
-def _attach_multiplicity(mult_el, feature):
+def _attach_multiplicity(mult_el, feature, index=None):
     """MultiplicityElement_Mapping (7.7.12.2.x family): v1 multiplicity
     bounds -> MultiplicityRange named 'multiplicity', its bound
     OwningMemberships named 'lowerBound'/'upperBound' (per the
@@ -1144,9 +1252,21 @@ def _attach_multiplicity(mult_el, feature):
 
     def bound_lit(value_n, star):
         if star:
-            return S2.LiteralInfinity()
-        lit = S2.LiteralInteger()
-        lit.value = value_n
+            lit = S2.LiteralInfinity()
+        else:
+            lit = S2.LiteralInteger()
+            lit.value = value_n
+        # every Expression carries exactly one result membership (the
+        # Expression.validateExpressionResultParameterMembership rule);
+        # the literal-family mapper (.33) attaches the same shape — and
+        # the result usage specializes ScalarValues::Integer, which the
+        # MultiplicityRange bound-result rule demands
+        rpm = S2.ReturnParameterMembership()
+        rres = S2.ReferenceUsage(direction="out")
+        rpm.ownedRelatedElement.append(rres)
+        lit.ownedRelationship.append(rpm)
+        if index is not None:
+            _attach_one_base(index, rres, "ScalarValues::Integer")
         return lit
 
     rng = S2.MultiplicityRange(declaredName="multiplicity")
@@ -1215,11 +1335,15 @@ def _populate_statemachine(sm, v2def, index):
                 sux = S2.Succession()
                 for end_nm, end_v in (("source", src_obj),
                                       ("target", tgt_obj)):
-                    fe = S2.Feature(declaredName=end_nm)
+                    # the succession ends are reference ends subsetting the
+                    # mapped states — Connector::relatedFeature reads them
+                    # through the ownedReferenceSubsetting chain
+                    fe = S2.ReferenceUsage(declaredName=end_nm)
                     fe.isEnd = True
-                    ss = S2.Subsetting()
-                    ss.subsettedFeature = end_v
-                    fe.ownedRelationship.append(ss)
+                    rs = S2.ReferenceSubsetting()
+                    rs.subsettingFeature = fe
+                    rs.referencedFeature = end_v
+                    fe.ownedRelationship.append(rs)
                     em = S2.EndFeatureMembership()
                     em.ownedRelatedElement.append(fe)
                     sux.ownedRelationship.append(em)
@@ -1247,7 +1371,7 @@ def _populate_statemachine(sm, v2def, index):
                 if ef is not None:
                     v2ef = transform_v1_element(ef, index)
                     index[id(ef)] = v2ef
-                    _populate_behavior_params(ef, v2ef)
+                    _populate_behavior_params(ef, v2ef, index)
                     _opaque_body_repr(v2ef, ef)
                     _own_membership(tu, v2ef)
                 _own_membership(v2def, tu)
@@ -1379,6 +1503,7 @@ def _edge_end(se, node, subset_target, is_src, cls, ref_layer):
     fe.isEnd = True
     ss = S2.Subsetting()          # 7.7.3.3.11/.63: end :> mapped end
     ss.subsettedFeature = subset_target
+    ss.subsettingFeature = fe
     fe.ownedRelationship.append(ss)
     if ref_layer:
         # 7.7.3.3.61/.60: the end's reference-usage layer
@@ -1689,7 +1814,7 @@ def _action_pins(n, au, index):
                         f"Pin {_name(pin)!r} typed by "
                         f"external/unordered {type(pt).__name__}")
                 _type_feature(pu_ref, pdef)
-            _attach_multiplicity(pin, pu_ref)
+            _attach_multiplicity(pin, pu_ref, index)
             pval = pin._vals.get("value")
             if pval is not None:
                 if isinstance(pval, list):
@@ -2111,7 +2236,7 @@ def _populate_activity(act, v2def, index):
         else:
             vuse = S2.ItemUsage(declaredName=vnm)
         _type_feature(vuse, vdef)
-        _attach_multiplicity(v, vuse)
+        _attach_multiplicity(v, vuse, index)
         fm_v = S2.FeatureMembership()
         fm_v.visibility = S2.VisibilityKind.private
         fm_v.ownedRelatedElement.append(vuse)
@@ -2324,7 +2449,7 @@ def _populate_activity(act, v2def, index):
         index[id(e)] = tu2
 
 
-def _populate_behavior_params(behavior, v2def):
+def _populate_behavior_params(behavior, v2def, index=None):
     """Parameter → ReferenceUsage with direction (7.7.4.2.24; return →
     out per the Activity textual example); the parameter's multiplicity
     rides _attach_multiplicity (MultiplicityElement_Mapping)."""
@@ -2336,7 +2461,7 @@ def _populate_behavior_params(behavior, v2def):
             # normative (7.7.4.2.24): return -> out per the Activity
             # textual example
             ref.direction = "out" if val == "return" else val
-        _attach_multiplicity(p, ref)
+        _attach_multiplicity(p, ref, index)
         # 7.8.2.3: the parameter's Probability/Rate metadata
         _stereo_metadata(p, ref)
         _feature_membership(v2def, ref)
@@ -2551,6 +2676,49 @@ def _backfill_library_bases(index, root):
             continue
         seen.add(id(el))
         _add_library_specialization(index, el)
+        # the per-element conditional library bases: the conditional
+        # check*Specialization rules attach a library base only when their
+        # antecedent holds, so the transform mirrors the antecedents
+        try:
+            from . import sysml2 as _S2
+            from .extent import metaclass as _mt
+            ot = el._vals.get("owningType")
+
+            def _kind(names):
+                # metaclass resolution MUST carry the sysml2 preference:
+                # uml25 owns colliding names (Association, Step, ...) and
+                # an extent-less lookup answers against the wrong hierarchy
+                return ot is not None and any(
+                    m is not None and isinstance(ot, m)
+                    for m in (_mt(n, "sysml2") for n in names))
+            if isinstance(el, _S2.Step) and _kind(("Behavior", "Step")):
+                _attach_one_base(index, el,
+                                 "Performances::Performance::enclosed"
+                                 "Performance")
+                if el._vals.get("isComposite"):
+                    _attach_one_base(index, el,
+                                     "Performances::Performance::sub"
+                                     "performance")
+            if isinstance(el, _S2.Step) and el._vals.get("isComposite") \
+                    and _kind(("Structure",)):
+                _attach_one_base(index, el,
+                                 "Objects::Object::ownedPerformance")
+            if el._vals.get("isEnd") and _kind(("Association", "Connector")):
+                _attach_one_base(index, el, "Links::Link::participant")
+            # the binary-connector conditional: any Connector-shaped
+            # element with two ends needs the Links::binaryLinks base
+            # (the rule reads connectorEnd->size() = 2)
+            if isinstance(el, _S2.Connector):
+                ends = []
+                for rel in (el._vals.get("ownedRelationship") or ()):
+                    if type(rel).__name__ == "EndFeatureMembership":
+                        ends.extend(rel._vals.get("ownedRelatedElement")
+                                    or ())
+                if len([e2 for e2 in ends
+                        if getattr(e2, "_vals", {}).get("isEnd")]) == 2:
+                    _attach_one_base(index, el, "Links::binaryLinks")
+        except Exception:                          # noqa: BLE001
+            pass
         for name, d in el._props.items():
             if not d.composite:
                 continue
@@ -2694,7 +2862,9 @@ def _populate_namespace(ns_v1, ns2, index, ns_pairs):
         if isinstance(el, U.Enumeration):
             for lit in list(el.ownedLiteral):
                 lv2 = S2.EnumerationUsage(declaredName=_name(lit))
-                _feature_membership(v2, lv2)
+                vm = S2.VariantMembership()
+                vm.ownedRelatedElement.append(lv2)
+                v2.ownedRelationship.append(vm)
         if isinstance(el, U.Package):
             _populate_namespace(el, v2, index, ns_pairs)
 
@@ -2708,12 +2878,12 @@ def _populate_namespace(ns_v1, ns2, index, ns_pairs):
                 _populate_statemachine(el, v2, index)
             elif isinstance(el, U.Activity):
                 _populate_activity(el, v2, index)
-                _populate_behavior_params(el, v2)
+                _populate_behavior_params(el, v2, index)
             else:
                 # an OpaqueBehavior is a Behavior, NOT an Activity: it has
                 # no node/edge/variable features - its body rides as OABody
                 # (ActivityAsDefinition + 7.7.2.3.2.3)
-                _populate_behavior_params(el, v2)
+                _populate_behavior_params(el, v2, index)
                 _opaque_body_repr(v2, el)
         elif isinstance(el, U.Interface):
             # Interface attributes/operations ride the generic classifier
@@ -2793,6 +2963,11 @@ def _populate_imports(ns_v1, ns2, index):
         ni.importedNamespace = tgt
         ni._vals["visibility"] = _visibility_v1_to_v2(
             pi._vals.get("visibility"))
+        if ns_v1._vals.get("owner") is None:
+            # Import.validateImportTopLevelVisibility: an import owned by
+            # a top-level (ownerless) namespace must be private — public
+            # visibility would leak it into the package's clients
+            ni._vals["visibility"] = "private"
         _own_membership(ns2, ni)
     for ei in list(ns_v1._vals.get("elementImport") or []):
         tgt_el = ei._vals.get("importedElement")
@@ -2913,6 +3088,7 @@ def _transform_verify(verify, out, index):
     r40 = S2.RequirementUsage(declaredName=_name(verify))
     rs = S2.ReferenceSubsetting()
     rs.referencedFeature = req
+    rs.subsettingFeature = r40
     r40.ownedRelationship.append(rs)
     sm0 = S2.SubjectMembership()
     r40.ownedRelationship.append(sm0)
@@ -3406,6 +3582,12 @@ def transform_xmi_files(paths, side_channel=False):
         }
     from . import as_inverses
     as_inverses.repair(*out)
+    # the conditional library bases read owningType/isEnd, which repair
+    # just wired — so the (idempotent) backfill sweeps again post-repair
+    if out:
+        index = out[0]._v1_index
+        for o2 in out:
+            _backfill_library_bases(index, o2)
     return out
 
 

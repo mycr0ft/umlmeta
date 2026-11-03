@@ -182,7 +182,7 @@ def _is_end(obj):
                       _S2.EndFeatureMembership)
 
 
-_AS_STRUCTURAL = {"isEnd": _is_end}
+_AS_STRUCTURAL: dict = {"isEnd": _is_end}  # deliberately heterogeneous values
 
 
 def _owned_member_feature(obj):
@@ -243,15 +243,135 @@ def _subsetted_feature(obj):
 
 _AS_STRUCTURAL["ownedReferenceSubsetting"] = _owned_reference_subsetting
 _AS_STRUCTURAL["subsettedFeature"] = _subsetted_feature
+# ParameterMembership::ownedMemberParameter redefines ownedMemberFeature:
+# the single owned member, which IS a Feature (the parameter).
+_AS_STRUCTURAL["ownedMemberParameter"] = _owned_member_feature
+
+
+def _owned_member_element(obj):
+    """Membership::ownedMemberElement — the single owned member (any
+    Element); the corpus derivation of Namespace::ownedMember reads this
+    end, and the transform stores membership members in
+    ownedRelatedElement."""
+    rels = getattr(obj, "ownedRelatedElement", None) or ()
+    return rels[0] if rels else None
+
+
+_AS_STRUCTURAL["ownedMemberElement"] = _owned_member_element
+
+
+def _membership_owning_namespace(m):
+    """Membership::membershipOwningNamespace — the namespace that owns
+    the membership (= its owner for a directly-held membership)."""
+    from . import sysml2 as _S2
+    o = D.owner(m) if callable(getattr(D, "owner", None)) else None
+    if isinstance(o, _S2.Namespace):
+        return o
+    return o
+
+
+_AS_STRUCTURAL["membershipOwningNamespace"] = _membership_owning_namespace
+
+
+def _feature_type(obj):
+    """Feature::type — ownedTyping->collect(type). The normative
+    deriveFeatureType body is a corpus text defect (unparseable escape),
+    so the structural form carries the derivation."""
+    out = []
+    for ot in (getattr(obj, "ownedTyping", None) or ()):
+        t = getattr(ot, "type", None)
+        if t is not None:
+            out.append(t)
+    return out
+
+
+_AS_STRUCTURAL["type"] = _feature_type
+
+
+def _related_types(obj):
+    """Association::relatedType — the types of the association's end
+    features (set-valued, memberEnd order)."""
+    out, seen = [], set()
+    for end in _owned_end_feature(obj):
+        for t in _feature_type(end):
+            if t is not None and id(t) not in seen:
+                seen.add(id(t))
+                out.append(t)
+    return out
+
+
+_AS_STRUCTURAL["relatedType"] = _related_types
+
+
+def _item_definition(obj):
+    """Usage::itemDefinition — the typing types (ownedTyping->collect
+    (type)); partDefinition's normative derivation narrows to
+    PartDefinition on top of this."""
+    return _feature_type(obj)
+
+
+_AS_STRUCTURAL["itemDefinition"] = _item_definition
+# Association::associationEnd — the association's end features; the
+# normative relatedType derivation reads associationEnd.type
+_AS_STRUCTURAL["associationEnd"] = _owned_end_feature
+# Usage::occurrenceDefinition — the occurrence-kind typing types; the
+# itemDefinition corpus derivation reads occurrenceDefinition->selectByKind
+_AS_STRUCTURAL["occurrenceDefinition"] = _feature_type
+
+
+def _expr_result(obj):
+    """Expression::result — the result Feature carried by the expression's
+    ReturnParameterMembership (the .33/.34 result-parameter shape the
+    transform attaches to every literal)."""
+    for m in (getattr(obj, "ownedRelationship", None) or ()):
+        if type(m).__name__ == "ReturnParameterMembership":
+            ch = m._vals.get("ownedRelatedElement") or ()
+            return ch[0] if ch else None
+    return None
+
+
+_AS_STRUCTURAL["result"] = _expr_result
+# Type/Feature::featureMemberships — the corpus result/parameter derivation
+# reads this end; the runtime carries memberships only in
+# ownedRelationship, so the select is structural here
+def _feature_membership_union(obj):
+    """Type::featureMembership — the corpus `feature` derivation reads
+    this end (featureMembership.ownedMemberFeature); variant memberships
+    (VariantMembership) carry features too, so they contribute."""
+    from . import sysml2 as _S2
+    return [rel for rel in (obj._vals.get("ownedRelationship") or ())
+            if isinstance(rel, (_S2.FeatureMembership,
+                                _S2.VariantMembership))]
+
+
+_AS_STRUCTURAL["featureMembership"] = _feature_membership_union
+_AS_STRUCTURAL["featureMemberships"] = _feature_membership_union
+_AS_STRUCTURAL["ownedSubjectParameter"] = _owned_member_feature
+# CaseUsage spells the same derived end without 'owned' in some places
+_AS_STRUCTURAL["subjectParameter"] = lambda obj: _owned_member_feature(obj)
 
 
 def _needs_derivation(obj, name, v):
     """A derived property whose stored value is empty still needs its rule:
-    a multi-valued derived end reads as an empty list, not as None."""
+    a multi-valued derived end reads as an empty list, not as None. A
+    non-derived end whose storage is empty is returned as-is — EXCEPT an
+    end with redefines (the generator's marker that a subclass end carries
+    the value), where None means "read the redefining sibling":
+    Subsetting.subsettedFeature is the common case."""
     d = (getattr(type(obj), "_props", {}) or {}).get(name)
-    if d is None or not getattr(d, "derived", False):
+    if d is None:
         return False
-    return v is None or (isinstance(v, (list, tuple)) and not v)
+    if getattr(d, "derived", False):
+        return v is None or (isinstance(v, (list, tuple)) and not v)
+    if v is None and getattr(d, "redefines", ()):
+        return True
+    if isinstance(v, (list, tuple)) and not v \
+            and (getattr(d, "subsets", ()) or getattr(d, "redefines", ())):
+        # an unset multi end that participates in the AS composition web
+        # (subsets/redefines another end) reads through its rule when one
+        # exists — Type::feature over variant memberships is the case
+        return True
+    return False
 
 
 
@@ -282,7 +402,10 @@ def derived_read(obj, prop):
     try:
         src = _derivation_source(type(obj), prop)
     except Exception:                              # noqa: BLE001
-        return _MISSING
+        # an UNPARSEABLE derivation body (corpus text defect): fall
+        # through to the structural/derived.py rules rather than
+        # dropping the read to _MISSING
+        src = None
     if src is None:
         fn = _AS_STRUCTURAL.get(prop)
         if fn is not None:
@@ -308,11 +431,16 @@ def derived_read(obj, prop):
         g.update(env)
         val = eval(src, g, {})
         # a body that exists but evaluates to None because its own input is
-        # missing must not shadow the structural rule
-        if val is None:
+        # missing must not shadow the structural rule; the same holds for an
+        # EMPTY multi (the corpus derivations narrow to one membership kind,
+        # and variants carried by other membership kinds still count)
+        empty_multi = isinstance(val, (list, tuple)) and not val
+        if val is None or empty_multi:
             fn = _AS_STRUCTURAL.get(prop)
             if fn is not None:
-                return fn(obj)
+                sv = fn(obj)
+                if sv is not None and (not empty_multi or sv):
+                    return sv
         return val                    # noqa: S307
     except Exception:                              # noqa: BLE001
         return _MISSING
@@ -1537,13 +1665,23 @@ _EVAL_BUILTINS = {
 }
 
 
-def eval_body(body, self_obj, derived, extent=None):
+_UNSET = object()
+
+
+def eval_body(body, self_obj, derived, extent=_UNSET):
     """Evaluate an OCL constraint body against self_obj.
 
     `derived` is the derived module (spec-normative query layer).
     Returns the body's Python value (True/False for boolean bodies).
     Raises UnmappedFeature for constructs outside the grammar.
+    By default the extent stays whatever the caller bound (check_constraints
+    runs after v2_validate bound the model's extent) — passing None would
+    force extent-less metaclass resolution, where module-first lookup can
+    pick the WRONG module for colliding names (uml25.Expression over
+    sysml2.Expression) and silently empty a selectByKind.
     """
+    if extent is _UNSET:
+        extent = _EXTENT
     src = translate(body)
     # comprehensions resolve free variables via the *globals* mapping, so
     # the env must ride IN the globals dict, not as locals
@@ -1559,6 +1697,17 @@ def eval_body(body, self_obj, derived, extent=None):
     finally:
         set_extent(previous)
         set_self(prev_self)
+
+
+_CORPUS_DEFECT_RULES = {
+    # the generated body names oclIsType(RequiremenCaseRequirementDefinition)
+    # — a mangled concatenation artifact in the corpus text; with exact-type
+    # semantics the rule can never hold for a UseCase*/Case* subject member,
+    # so it is skipped with a named reason instead of reported as a model
+    # violation
+    ("SubjectMembership", "validateSubjectMembershipOwningType"):
+        "RequiremenCaseRequirementDefinition",
+}
 
 
 def check_constraints(obj, derived, only=None):
@@ -1577,6 +1726,10 @@ def check_constraints(obj, derived, only=None):
             if key in seen:
                 continue
             seen.add(key)
+            defect = _CORPUS_DEFECT_RULES.get((cls.__name__, cname))
+            if defect is not None and defect in body:
+                skipped.append((cname, body, "corpus-defect: " + defect))
+                continue
             try:
                 val = eval_body(body, obj, derived)
             except UnmappedFeature as ex:
@@ -1641,8 +1794,16 @@ def escaped_name(el):
     return "'" + name + "'" if any(c in bad for c in name) else name
 
 
-def direction_of(feature):
-    """KerML::directionOf — the feature's direction, or null."""
+def direction_of(_self=None, feature=None, arg=None):
+    """KerML Type::directionOf(f) — f's direction, or null. The emitter
+    lowers the corpus call as `direction_of(self, f)` (receiver first),
+    so the FEATURE is the second positional."""
+    if arg is not None:
+        feature = arg
+    if feature is None or feature is _self:
+        feature = _self
+    if feature is None:
+        return None
     d = getattr(feature, "direction", None)
     return getattr(d, "value", d)
 
@@ -2298,12 +2459,33 @@ def ocl_prepend(coll, element):
     return [element] + list(coll or ())
 
 
+def _subsets(f, other):
+    """True when feature f (directly) subsets or redefines `other`: an
+    owned Subsetting/Redefinition with f as its subsetting/redefining
+    feature pointing at other."""
+    if f is None or other is None:
+        return False
+    for rel in (getattr(f, "ownedRelationship", None) or ()):
+        if getattr(rel, "_vals", {}).get("subsettingFeature") is not f:
+            continue
+        tgt = rel._vals.get("subsettedFeature") \
+            or rel._vals.get("referencedFeature")
+        if tgt is other:
+            return True
+    return False
+
+
 def can_access(f, other, _self=None):
     """KerML Feature::canAccess(feature): the other feature is featured
     within one of the direct or indirect featuringTypes of this
     Feature."""
     if f is None or other is None:
         return False
+    # a feature itself carries what it subsets/redefines: sf :> stf is
+    # an access path by construction (the end of a connector :> the
+    # connected part is exactly this shape)
+    if _subsets(f, other):
+        return True
     # a feature is featured within its own owningType, so anything featured
     # in the same type is accessible
     ot_f = ocl_dot(f, "owningType") or getattr(f, "owningType", None)
@@ -2331,18 +2513,19 @@ def can_access(f, other, _self=None):
 def owning_type_op(el):
     """KerML Element::owningType(): the owning Type. as_inverses sets it
     for membership-owned elements; otherwise fall back to the owner
-    chain (the first owner that is a Type)."""
+    chain (the first owner that is a Type), with the AS owner
+    derivations applied (derived.owner)."""
     from . import sysml2 as _S2
     if el is None:
         return None
     v = ocl_dot(el, "owningType")
     if v is not None and not isinstance(v, _Undefined):
         return v
-    o = getattr(el, "owner", None)
+    o = D.owner(el)
     while o is not None:
         if isinstance(o, _S2.Type):
             return o
-        o = getattr(o, "owner", None)
+        o = D.owner(o)
     return None
 
 
