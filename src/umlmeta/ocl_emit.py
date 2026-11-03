@@ -11,10 +11,10 @@ Two textual forms come out of the tree:
   so parse/print round-trips are a real test of the parser, and so
   diagnostics and (later) the operation library can quote what they read.
 
-Operations with no lowering yet (`->iterate`, `->isUnique`,
-`->sortedBy`, `->collectNested`, `selectByKind`, `specializesFromLibrary`,
-`@pre`) parse and print, but raise `UnmappedFeature` when lowered —
-honest: the AST understands them, the evaluator does not (O3/O4).
+Operations with no lowering yet (`->iterate`, `->sortedBy`,
+`->collectNested`, `@pre`) parse and print, but raise `UnmappedFeature`
+when lowered — honest: the AST understands them, the evaluator does not
+(O3/O4).
 
 Standard library only.
 """
@@ -34,7 +34,7 @@ _NAV_WRAP = {
     "excludesAll", "exists", "forAll", "select", "reject", "one", "any",
     "collect", "asSet", "asSequence", "asOrderedSet", "asBag", "union",
     "intersection", "flatten", "closure", "first", "last", "at", "indexOf",
-    "excluding",
+    "excluding", "isUnique",
 }
 
 
@@ -206,10 +206,17 @@ def _py_collect(n):
         return f"({recv}[-1] if {recv} else None)"
     if op == "at":
         a = to_python(args[0])
-        return f"(({recv})[{a} - 1] if len({recv}) >= ({a}) else None)"
+        return (f"(({recv})[{a} - 1] "
+                f"if (isinstance(({a}), int) and 1 <= ({a}) <= len({recv})) "
+                f"else None)")
     if op == "indexOf":
         a = to_python(args[0])
         return (f"((({recv}).index(({a})) + 1) if (({a}) in ({recv})) else -1)")
+    if op == "isUnique":
+        # Collection::isUnique(lambda): no duplicated lambda results
+        var, body = _iterator(args, op)
+        return (f"(len({recv}) <= 1 or "
+                f"len(set({body} for {var} in {recv})) == len({recv}))")
     raise UnmappedFeature(f"->{op}")
 
 
@@ -257,12 +264,25 @@ def _py_binop(n):
     if n.op == "xor":
         return f"(bool({l}) != bool({r}))"
     if n.op == "implies":
-        return f"((not ({l})) or ({r}))"
+        # three-valued KerML implies = or(not a, b): a null antecedent is
+        # UNDETERMINED (null or false is null) unless it is decided by b
+        # (null or true is true) — a Python `not None` would answer True
+        # and silently evaluate the consequent; the consequent is a THUNK
+        # so the short-circuit survives (v0 relied on Python `or`)
+        return f"_implies({l}, (lambda: {r}))"
+    if n.op == "and":
+        # the KerML AND table: false decides, null and true is null
+        return f"_land({l}, (lambda: {r}))"
+    if n.op == "or":
+        # the KerML OR table: true decides, null or false is null
+        return f"_lor({l}, (lambda: {r}))"
     return f"({l} {n.op} {r})"
 
 
 def _py_not(n):
-    return f"(not ({to_python(n.operand)}))"
+    # three-valued KerML not: not null is null (undetermined), not False
+    # is True — Python `not` already agrees except for None
+    return f"((None if ({to_python(n.operand)}) is None else (not ({to_python(n.operand)}))))"
 
 
 def _py_neg(n):

@@ -269,6 +269,7 @@ def _type_feature(feature, type_def):
     owned by the feature (ownedTyping), which back-wires owningFeature."""
     ft = S2.FeatureTyping()
     ft.type = type_def
+    ft._vals["isImplied"] = False   # a mapped v1 typing is a user edge
     feature.ownedTyping.append(ft)
     return ft
 
@@ -2718,6 +2719,20 @@ def _backfill_library_bases(index, root):
                 return ot is not None and any(
                     m is not None and isinstance(ot, m)
                     for m in (_mt(n, "sysml2") for n in names))
+
+            def _own_typed_structure(el):
+                # the second antecedent disjunct: owningType is a Feature
+                # whose type is (indirectly) a Structure
+                if ot is None or not _kind(("Feature",)):
+                    ty = None
+                else:
+                    try:
+                        from .ocl_translator import _AS_STRUCTURAL
+                        ty = _AS_STRUCTURAL["type"](ot)
+                    except Exception:          # noqa: BLE001
+                        ty = None
+                return any(t is not None and isinstance(
+                    t, _mt("Structure", "sysml2")) for t in (ty or ()))
             if isinstance(el, _S2.Step) and _kind(("Behavior", "Step")):
                 _attach_one_base(index, el,
                                  "Performances::Performance::enclosed"
@@ -2727,7 +2742,7 @@ def _backfill_library_bases(index, root):
                                      "Performances::Performance::sub"
                                      "performance")
             if isinstance(el, _S2.Step) and el._vals.get("isComposite") \
-                    and _kind(("Structure",)):
+                    and (_kind(("Structure",)) or _own_typed_structure(el)):
                 _attach_one_base(index, el,
                                  "Objects::Object::ownedPerformance")
             if el._vals.get("isEnd") and _kind(("Association", "Connector")):
@@ -2841,6 +2856,8 @@ def transform_packages(pkgs, side_channel=False):
                 f"generalization to external/unnamed {_name(t)!r}")
         subc = S2.Subclassification()
         subc.general = general
+        # a mapped v1 generalization is a USER edge, not a tooling-implied one
+        subc._vals["isImplied"] = False
         sub_def.ownedSpecialization.append(subc)
     # the linkage layer (docs/v1-v2-linkage-pathway.md, M1) reads the
     # conformance index and the v1 root rather than re-deriving them:
@@ -2907,6 +2924,10 @@ def _populate_namespace(ns_v1, ns2, index, ns_pairs):
         if isinstance(el, U.Enumeration):
             for lit in list(el.ownedLiteral):
                 lv2 = S2.EnumerationUsage(declaredName=_name(lit))
+                sc = S2.Subclassification()
+                sc.general = v2   # the variation definition
+                sc._vals["isImplied"] = True   # the variation model's own edge
+                lv2.ownedSpecialization.append(sc)
                 vm = S2.VariantMembership()
                 vm.ownedRelatedElement.append(lv2)
                 v2.ownedRelationship.append(vm)

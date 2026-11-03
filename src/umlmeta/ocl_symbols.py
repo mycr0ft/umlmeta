@@ -31,7 +31,7 @@ CLASSIFY_OPS = {"oclIsKindOf", "oclIsTypeOf", "oclAsType", "oclIsUndefined",
 
 # OCL extension operations the AST understands but the emitter has no
 # Python lowering for yet (O3): they parse, and evaluation raises.
-PENDING_OPS = {"collectNested", "isUnique", "sortedBy"}
+PENDING_OPS = {"collectNested", "sortedBy"}
 
 DERIVED_FUNCS = {
     "allNamespaces": ("derived", "all_namespaces"),
