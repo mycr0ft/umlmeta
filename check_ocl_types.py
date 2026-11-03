@@ -233,12 +233,12 @@ for modname in ("uml25", "sysml2", "sysml"):
 
 check("every parsed body is type-checked", checked == 1167, f"{checked}")
 check("the corpus type-checks error-free except the named engine runs",
-      clean == 1021, f"{clean} clean, {with_errors} with errors")
+      clean == 1023, f"{clean} clean, {with_errors} with errors")
 check("no body is flagged for arithmetic",
       code_counts["arithmetic-on-non-numeric"] == 0,
       str(code_counts["arithmetic-on-non-numeric"]))
 check("unknown features are the dominant error class",
-      code_counts["unknown-feature"] == 146 and code_counts["unknown-type"] == 17,
+      code_counts["unknown-feature"] == 144 and code_counts["unknown-type"] == 17,
       f"unknown-feature {code_counts['unknown-feature']}, "
       f"unknown-type {code_counts['unknown-type']}")
 # the profile generator emits the extension ends as properties (and a

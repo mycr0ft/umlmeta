@@ -266,8 +266,8 @@ lowered = identical + len(renamed) + len(defects) + len(derived_route) + \
     len(receivers) + len(type_recv) + len(three_valued)
 check("every v0-translatable body also lowers through the AST",
       not legacy_only, str([f"{m}.{c}.{n}" for m, c, n, _ in legacy_only][:4]))
-check("every body v0 lowered (656) lowers identically or is itemized",
-      lowered + len(new_ops) == 656, f"{lowered} identical-or-known, "
+check("every body v0 lowered (657) lowers identically or is itemized",
+      lowered + len(new_ops) == 657, f"{lowered} identical-or-known, "
       f"{len(new_ops)} new-op bodies")
 check("no unexplained source difference", not unexplained,
       str([f"{m}.{c}.{n}" for m, c, n, _ in unexplained][:4]))
@@ -276,7 +276,7 @@ for _tv in three_valued:
 check("differences are itemized (names, v0 defects, derived routing, "
       "receiver retarget, three-valued)",
       len(renamed) + len(defects) + len(derived_route) + len(receivers)
-      + len(type_recv) + len(three_valued) == 402,
+      + len(type_recv) + len(three_valued) == 403,
       f"identical {identical}, renamed {len(renamed)}, "
       f"defects {len(defects)}, derived {len(derived_route)}, "
       f"receivers {len(receivers)}, type-receivers {len(type_recv)}, "
@@ -446,7 +446,6 @@ check("typed iterator variable keeps its name",
       "(Lambda 'v' 'T'" in _parses("x->select(v : T | v.a)"))
 print("  (lowering the not-yet-supported constructs must refuse)")
 for src, label in (("self.x@pre = 1", "@pre"),
-                   ("x->isUnique(e | e.a)", "->isUnique"),
                    ("x->sortedBy(e | e.a)", "sortedBy")):
     try:
         E.to_python(P.parse(src))

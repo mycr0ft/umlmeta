@@ -25,7 +25,8 @@ from . import ocl_symbols as SY
 # (or constructs) are imported
 from .ocl_ast import (
     TypeRef as A_TypeRef,
-    Lambda, Nav, SelfProp, TypeRef, UnmappedFeature, Var, replace as ast_replace,
+    Lambda, Nav, SelfProp, TypeRef, UnmappedFeature, Var, Call as A_Call,
+    replace as ast_replace, Lambda as A_Lambda,
 )
 
 # operations whose receiver is coerced to a collection before the op runs
@@ -128,10 +129,21 @@ def _py_call(n):
     kind, fnname = entry
     args = []
     for i, a in enumerate(n.args):
-        if n.name in SY.TYPE_ARG_OPS and i == 0 and \
+        if isinstance(a, A_Lambda):
+            # a lambda argument on a call-form operation (x->isUnique(kind)
+            # parses as a Call when the grammar takes the non-iterator
+            # branch): bind the RECEIVER as the iterator variable
+            args.append(f"(lambda {a.var}: {to_python(a.body)})")
+        elif n.name in SY.TYPE_ARG_OPS and i == 0 and \
                 isinstance(a, (SelfProp, Var)):
-            # a type/library name, not an expression: keep it a string
-            args.append(repr(a.name))
+            # a type/library name, not an expression: keep it a string —
+            # but only when the name LOOKS like a type reference; a
+            # lowercase property name (specializes(owningVariationUsage))
+            # is an expression read on self
+            if a.name[:1].isupper() or "::" in a.name:
+                args.append(repr(a.name))
+            else:
+                args.append(to_python(a))
         else:
             args.append(to_python(a))
     if kind == "derived":
@@ -197,6 +209,14 @@ def _py_collect(n):
     if op == "closure":
         chain = _chain(args[0]) if args else None
         if not chain:
+            # `closure(typingFeatures())` — a per-element query instead of
+            # a property chain: BFS applying the query repeatedly
+            a0 = args[0]
+            if isinstance(a0, A_Call) and not a0.args and \
+                    a0.receiver is None:
+                fn = SY.DERIVED_FUNCS.get(a0.name)
+                if fn is not None and fn[0] == "local":
+                    return f"_closure_call({recv}, {fn[1]})"
             raise UnmappedFeature(
                 f"->closure({to_ocl(args[0])[:40] if args else ''})")
         return f"_closure_iter({recv}, {chain!r})"

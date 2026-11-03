@@ -93,9 +93,13 @@ check("a quoted qualified name resolves through the extent",
           .qualified_name(base)))
 check("an unknown qualified name is False, not an error",
       T.eval_body("self.specializes('P::Nope')", drv, D, extent=EXT) is False)
-check("the emitter quotes a bare-name argument",
-      T.translate("specializes(f)") == "sysml2_specializes(self, 'f')",
+check("the emitter quotes a type-ref argument and reads a property arg",
+      T.translate("specializes(f)") ==
+      "sysml2_specializes(self, _g(self, 'f'))",
       T.translate("specializes(f)"))
+check("the emitter keeps a capitalized type name as a string",
+      T.translate("specializes(F)") == "sysml2_specializes(self, 'F')",
+      T.translate("specializes(F)"))
 
 print("== redefines ==")
 r1 = S.Feature(declaredName="r1")
@@ -199,7 +203,7 @@ check("each op lowers to a bare local call",
       T.translate("argument(2)") == "sysml2_argument(self, 2)" and
       T.translate("referencedFeatureTarget()") ==
       "referenced_feature_target(self)" and
-      T.translate("redefines(x)") == "sysml2_redefines(self, 'x')",
+      T.translate("redefines(x)") == "sysml2_redefines(self, _g(self, 'x'))",
       str([T.translate(b) for b in
            ("isSubactionUsage()", "inputParameter(1)", "argument(2)",
             "referencedFeatureTarget()", "redefines(x)")]))
@@ -241,7 +245,7 @@ for modname in ("uml25", "sysml2", "sysml"):
             except Exception:                     # noqa: BLE001
                 continue
 check("1167 bodies parse", parsed == 1167, f"{parsed}")
-check("the six sysml2 ops lift lowering to 1147", lowered == 1147,
+check("the six sysml2 ops lift lowering to 1153", lowered == 1153,
       f"{lowered} (was 1040 before this batch)")
 
 

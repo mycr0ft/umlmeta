@@ -24,6 +24,18 @@ from . import extent as extent_mod
 
 # Known causes, by family name. Anything not here is unattributed work.
 DISPOSITIONS = {
+    # -- library fidelity: the rules read KerML library structure behind our
+    # name-only stubs (a tool running against the real library models
+    # satisfies them); the remedy is a library materialization, not a
+    # transform or engine defect
+    "Feature.checkFeatureParameterRedefinition":
+        ("library", "the rule compares parameters against the supertype's "
+                    "owned features; our KerML library stubs are name-only, "
+                    "so Cases::Case etc. carry no parameter features"),
+    "Association.validateAssociationRelatedTypes":
+        ("model", "the vehicle model types frontAxle AND rearAxle both as "
+                  "Axle, so relatedType is a 1-element set; relatedType "
+                  "size >= 2 fails under set semantics"),
     "Type.checkTypeSpecialization":
         ("transform", "the transform emits no library specialization edges (O6)"),
     "Feature.checkFeatureSpecialization":

@@ -125,7 +125,7 @@ for modname in ("uml25", "sysml2", "sysml"):
             except Exception:                     # noqa: BLE001
                 continue
 check("1167 bodies parse", parsed == 1167, f"{parsed}")
-check("the extensions lift lowering to 1147", lowered == 1147,
+check("the extensions lift lowering to 1153", lowered == 1153,
       f"{lowered} (was 676; 1024 before the O6 uml25 ops)")
 
 

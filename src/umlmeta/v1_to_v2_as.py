@@ -2619,6 +2619,16 @@ _LIBRARY_BASES = {
     "Dependency": "Base::things",
 }
 
+# KerML library members whose real metaclass shape matters for the rules
+# that inspect them (the multiplicity domain in Base.kerml §5.x: exactlyOne
+# IS the MultiplicityRange [1..1] every un-bound default flows to)
+_LIBRARY_METACLASSES = {
+    "Base::exactlyOne": (S2.MultiplicityRange, [(1, 1)]),
+    "Base::zeroOrOne": (S2.MultiplicityRange, [(0, 1)]),
+    "Base::oneToMany": (S2.MultiplicityRange, [(1, "*")]),
+    "Base::zeroToMany": (S2.MultiplicityRange, [(0, "*")]),
+}
+
 _LIBRARY_DEFS = {}
 
 
@@ -2629,6 +2639,28 @@ def _library_definition(index, qname):
     key = ("libdef", qname)
     if key in index:
         return index[key]
+    if qname in _LIBRARY_METACLASSES:
+        # a library member with a real metaclass shape (the multiplicity
+        # domain: Base::exactlyOne IS a MultiplicityRange [1..1]) — carry
+        # the real class and its defining members
+        cls, members = _LIBRARY_METACLASSES[qname]
+        t = cls(declaredName=qname.rsplit("::", 1)[-1])
+        t._library_qname = qname
+        t._vals['isLibraryElement'] = True
+        t._vals["elementId"] = "lib:" + qname
+        for lo, hi in members:
+            lo_m = S2.OwningMembership()
+            lo_m.ownedRelatedElement.append(S2.LiteralInteger(value=lo))
+            t.ownedRelationship.append(lo_m)
+            if hi is not None:
+                u_m = S2.OwningMembership()
+                u_m.ownedRelatedElement.append(
+                    S2.LiteralInteger(value=hi) if hi != "*" else
+                    S2.LiteralInfinity())
+                t.ownedRelationship.append(u_m)
+        index[key] = t
+        _LIBRARY_DEFS[qname] = t
+        return t
     leaf = qname.rsplit("::", 1)[-1]
     pkg = qname.rsplit("::", 1)[0]
     t = S2.Type(declaredName=leaf)

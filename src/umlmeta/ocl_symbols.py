@@ -133,6 +133,14 @@ DERIVED_FUNCS = {
     "oclIsType": ("local", "ocl_is_type"),
     "resolveGlobal": ("local", "resolve_global"),
     "sourceFeature": ("local", "source_feature"),
+    "allSuperTypes": ("local", "all_super_types"),
+    "allSupertypes": ("local", "all_super_types"),
+    "typingFeatures": ("local", "typing_features"),
+    "isCartesianProduct": ("local", "is_cartesian_product"),
+    "asCartesianProduct": ("local", "as_cartesian_product"),
+    "isUnique": ("local", "is_unique_op"),
+    "triggerPayloadParameter": ("local", "trigger_payload_parameter"),
+    "crossFeature": ("local", "cross_feature"),
     "importedMemberships": ("local", "imported_memberships"),
     "isTriggerAction": ("local", "is_trigger_action"),
     "instantiatedType": ("local", "instantiated_type_op"),
@@ -175,7 +183,8 @@ TYPE_ARG_OPS = {"selectByKind", "selectAsKind", "oclIsType", "specializes",
 LOCAL_BARE = {"incoming": "vertex_incoming", "outgoing": "vertex_outgoing"}
 
 # operations whose argument list is an iterator expression
-LAMBDA_OPS = {"exists", "forAll", "select", "reject", "one", "any", "collect"}
+LAMBDA_OPS = {"exists", "forAll", "select", "reject", "one", "any", "collect",
+              "isUnique"}
 
 # collection kinds accepted as literal prefixes
 COLLECTION_TYPES = ("Sequence", "Set", "OrderedSet", "Bag", "Collection")

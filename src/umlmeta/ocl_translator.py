@@ -2516,6 +2516,152 @@ def _implies(a, bth):
     return (not a) or b
 
 
+def all_super_types(t):
+    """KerML Type::allSuperTypes(): the type and its direct and indirect
+    supertypes — the transitive closure over the specialization generals
+    (library stubs included). SELF-INCLUDING is the contract the corpus
+    requires: validateFeatureEndMultiplicity reads
+    `multiplicities().allSuperTypes()->flatten()->selectByKind(
+    MultiplicityRange)->exists(hasBounds(1,1))` and a defaulted end's
+    multiplicity IS Base::exactlyOne [1..1], which specializes nothing —
+    the chain element itself must be in the result for the rule to bind."""
+    if t is None:
+        return []
+    out, seen = [], set()
+    stack = [t]
+    for s in (getattr(t, "ownedRelationship", None) or ()):
+        if type(s).__name__ == "Specialization":
+            g = getattr(s, "_vals", {}).get("general")
+            if g is not None:
+                stack.append(g)
+    while stack:
+        cur = stack.pop()
+        if cur is None or id(cur) in seen:
+            continue
+        seen.add(id(cur))
+        out.append(cur)
+        for s in (getattr(cur, "ownedRelationship", None) or ()):
+            if type(s).__name__ == "Specialization":
+                g = getattr(s, "_vals", {}).get("general")
+                if g is not None:
+                    stack.append(g)
+    return out
+
+
+def _closure_call(seq, fn, depth=24):
+    """KerML x->closure(f()): the elements reached by applying the
+    per-element query f repeatedly (BFS, cycle-guarded), including the
+    starting elements."""
+    seq = list(seq or ())
+    out, seen = [], set()
+    frontier = list(seq)
+    for el in frontier:
+        if el is not None and id(el) not in seen:
+            seen.add(id(el))
+            out.append(el)
+    rounds = 0
+    while frontier and rounds < depth:
+        rounds += 1
+        nxt = []
+        for el in frontier:
+            try:
+                res = fn(el)
+            except Exception:                  # noqa: BLE001
+                res = None
+            for r in res if isinstance(res, (list, tuple)) else \
+                    ([res] if res is not None else []):
+                if r is not None and id(r) not in seen:
+                    seen.add(id(r))
+                    out.append(r)
+                    nxt.append(r)
+        frontier = nxt
+    return out
+
+
+def typing_features(f):
+    """KerML Feature::typingFeatures(): the features through which this
+    feature's typing flows — the generals of its specializations that
+    are themselves Features (the redefinition/typing chain)."""
+    from . import sysml2 as _S2
+    out = []
+    for s in (getattr(f, "ownedRelationship", None) or ()):
+        if isinstance(s, _S2.Specialization):
+            g = s._vals.get("general")
+            if g is not None and isinstance(g, _S2.Feature):
+                out.append(g)
+    return out
+
+
+def is_unique_op(coll, key):
+    """Collection::isUnique(key): no two elements share the key value.
+    `key` lowers as a lambda over the element (the implicit-`it` rebind
+    rewrites a bare named argument into the element read)."""
+    if coll is None:
+        return True
+    fn = key if callable(key) else (lambda _x: key)
+    vals = [fn(x) for x in coll]
+    return len(vals) == len({repr(v) for v in vals})
+
+
+def trigger_payload_parameter(tu):
+    """Actions::TransitionUsage::triggerPayloadParameter(): the library
+    TransitionPerformance's payload input parameter. The transform emits
+    no payload-carrying trigger actions (the corpus rule binds it only
+    when triggerAction is non-empty), so the answer is the library null."""
+    return None
+
+
+def cross_feature(f):
+    """KerML Feature::crossFeature(): the feature crossed through this
+    feature's ownedCrossSubsetting (the corpus derive body: the
+    crossedFeature's chaining at position 2). The transform emits no
+    CrossSubsettings, so the answer is null — which is exactly what the
+    corpus rules expect for non-crossing features
+    (`select(crossFeature() <> null)` filters them out)."""
+    if f is None:
+        return None
+    for rel in (getattr(f, "ownedRelationship", None) or ()):
+        if type(rel).__name__ == "CrossSubsetting":
+            cf = getattr(rel, "_vals", {}).get("crossedFeature")
+            chain = getattr(cf, "_vals", {}).get("ownedRelatedElement") \
+                if hasattr(cf, "_vals") else None
+            if isinstance(chain, (list, tuple)) and len(chain) > 1:
+                return chain[1]
+            return cf
+    return None
+
+
+def subsetting_is_unique(s):
+    """Subsetting::isUnique — whether the subsetting constrains element
+    uniqueness. Unset reads TRUE for Feature ends (KerML: a feature is
+    unique unless marked nonunique; the isUnique Boolean defaults to the
+    nonunique flag's opposite)."""
+    if s is None:
+        return None
+    v = getattr(s, "_vals", {}).get("isUnique")
+    if v is None:
+        return True
+    return v
+
+
+def is_cartesian_product(t):
+    """KerML Type::isCartesianProduct(): whether t is the product of its
+    members. The transform emits no Cartesian product types (products
+    arise from ownedFeatureChaining/intersection structures), so this is
+    False deterministically; a real product carries the product structure
+    and would answer True."""
+    if t is None:
+        return False
+    oc = getattr(t, "_vals", {}).get("ownedFeatureChaining") or ()
+    return bool(oc)
+
+
+def as_cartesian_product(t):
+    """KerML Type::asCartesianProduct(): the type recast as its Cartesian
+    product (null when it is not one)."""
+    return t if is_cartesian_product(t) else None
+
+
 def source_feature(tu):
     """Actions::TransitionUsage::sourceFeature(): the feature the
     transition's source end references — the succession's first related
@@ -2779,6 +2925,16 @@ def multiplicities(t):
         if isinstance(e, _S2.Multiplicity) and id(e) not in seen:
             seen.add(id(e))
             out.append(e)
+    if not out and isinstance(t, _S2.Feature) and \
+            t._vals.get("isEnd"):
+        # a feature with no owned multiplicity defaults to [1..1]: the
+        # KerML default multiplicity IS Base::exactlyOne (Base.kerml
+        # `multiplicity exactlyOne [1..1]`)
+        try:
+            from . import v1_to_v2_as as _AS
+            out.append(_AS._library_definition({}, "Base::exactlyOne"))
+        except Exception:                      # noqa: BLE001
+            pass
     return out
 
 
@@ -3799,6 +3955,7 @@ for _nm, (_kind, _fn) in SY.DERIVED_FUNCS.items():
 # built last: _implies is defined below _EVAL_ENV (the three-valued
 # KerML implies; the env binding rides the end-of-module loop)
 _EVAL_ENV["_implies"] = _implies
+_EVAL_ENV["_closure_call"] = _closure_call
 _EVAL_ENV["_land"] = _land
 _EVAL_ENV["_lor"] = _lor
 

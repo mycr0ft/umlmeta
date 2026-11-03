@@ -62,8 +62,8 @@ check("lowers to the _iterate fold",
       src.startswith("_iterate(_nav(") and "'ns', 'agg'" in src, src[:80])
 check("the body travels as source text with var/acc bound at runtime",
       "concat" in src and "agg" in src)
-for bad, label in (("x->isUnique(e | e.a)", "->isUnique"),
-                   ("x->sortedBy(e | e.a)", "->sortedBy"),
+# ->isUnique lowers now (the O3 pending set lost it); the rest refuse
+for bad, label in (("x->sortedBy(e | e.a)", "->sortedBy"),
                    ("x->collectNested(e | e.a)", "->collectNested")):
     try:
         E.to_python(P.parse(bad))

@@ -347,13 +347,14 @@ check("the owner-chain fallback finds the owning Type",
       T.owning_type_op(pkg) is None and T.owning_type_op(f1) is base)
 
 print("== exits ==")
-try:
-    t = T.translate("self.ownedElement->exits(r | r <> self)")
-    refused = False
-except Exception:
-    refused = True
-check("exits with a lambda argument is refused at lowering (the emitter has "
-      "no lambda-to-callable lowering); stated, not guessed", refused)
+# lambda arguments lower to callables on local ops now (isUnique carries
+# them), and `exits` (the corpus spelling of exists with its own local)
+# lowers to the same callable shape
+check("a lambda argument lowers to a callable on the local op",
+      T.translate("self.ownedElement->exits(r | r <> self)") ==
+      "ocl_exits(_dot(self, 'ownedElement'), "
+      "(lambda r: (not (_eq(r, self)))))",
+      T.translate("self.ownedElement->exits(r | r <> self)"))
 check("the bare form registers and evaluates over a predicate callable",
       T.ocl_exits([1, 2, 3], lambda e: e > 1) is True and
       T.ocl_exits([1], lambda e: e > 1) is False)
@@ -394,7 +395,7 @@ for modname in ("uml25", "sysml2", "sysml"):
             except Exception:                     # noqa: BLE001
                 continue
 check("1167 bodies parse", parsed == 1167, f"{parsed}")
-check("the O5b ops lift lowering to 1147 (was 1024)", lowered == 1147,
+check("the O5b ops lift lowering to 1153 (was 1024)", lowered == 1153,
       f"{lowered}")
 
 
