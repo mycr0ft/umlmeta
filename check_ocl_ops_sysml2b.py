@@ -40,6 +40,7 @@ from umlmeta import as_inverses as AI  # noqa: E402
 from umlmeta import derived as D  # noqa: E402
 from umlmeta import extent as X  # noqa: E402
 from umlmeta import ocl_symbols as SY  # noqa: E402
+from umlmeta.ocl_ast import UnmappedFeature  # noqa: E402
 from umlmeta import ocl_translator as T  # noqa: E402
 from umlmeta import sysml2 as S2  # noqa: E402
 from umlmeta import uml25 as U  # noqa: E402
@@ -233,6 +234,28 @@ check("the type argument is quoted, not read as a property",
 check("oclIsKind admits subtypes",
       T.eval_body("self.oclIsKind(Classifier)", base, D, extent=EXT) is True and
       T.eval_body("self.oclIsKind(Package)", base, D, extent=EXT) is False)
+
+print("== the helper overlay (external packages) ==")
+# An external package (FACE UDDL) registers its corpus helper definitions
+# as an overlay; the shared UML/SysML tables must stay untouched
+_before = dict(SY.DERIVED_FUNCS)
+T.register_helpers({"getAllCharacteristics": ((), "self.composition")})
+check("a registered helper does not pollute the shared tables",
+      SY.DERIVED_FUNCS.get("getAllCharacteristics") is None
+      and _before == dict(SY.DERIVED_FUNCS),
+      str(SY.DERIVED_FUNCS.get("getAllCharacteristics")))
+_l = T.translate("self.getAllCharacteristics()")
+check("a helper call lowers to call_helper",
+      "call_helper('getAllCharacteristics'" in _l, _l[:70])
+T.clear_helpers()
+check("clear_helpers leaves the shared tables untouched",
+      not SY.HELPER_OPS and _before == dict(SY.DERIVED_FUNCS))
+try:
+    _t = T.translate("self.getAllCharacteristics()")
+    _raised = "call_helper" in _t
+except UnmappedFeature:
+    _raised = True
+check("unregistered helpers refuse at lowering again", _raised)
 
 print("== resolveGlobal ==")
 check("resolveGlobal finds P::Base in the (uml25) extent",

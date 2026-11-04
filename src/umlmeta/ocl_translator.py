@@ -115,7 +115,12 @@ def ocl_aslist(v):
 
 def ocl_nav(v):
     """Receiver coercion for a collection operation: single-valued ->
-    one-element list; None -> empty; list -> itself."""
+    one-element list; None -> empty; list -> itself. A string stays a
+    string: OCL String::size() counts characters (the FACE helpers use
+    it as a non-empty test), and wrapping it as a one-element collection
+    made every string .size() read 1."""
+    if isinstance(v, (str, bytes)):
+        return v
     return ocl_aslist(v)
 
 
@@ -1007,6 +1012,132 @@ def is_mult(me, lo, hi):
 
 _EXTENT = None
 _SELF = None
+
+
+# ---------------------------------------------------------------------------
+# the helper overlay: external corpus `def:` operations (FACE UDDL et al.)
+# ---------------------------------------------------------------------------
+_HELPER_EVAL_CACHE = {}
+
+
+class _HelperSelf:
+    """The receiver of a helper body: parameter reads (unqualified names
+    in the corpus body) resolve to their argument values; other reads
+    delegate to the actual self element (None for static defs)."""
+
+    __slots__ = ("_p", "_s")
+
+    def __init__(self, params, self_obj):
+        object.__setattr__(self, "_p", params)
+        object.__setattr__(self, "_s", self_obj)
+
+    def __getattr__(self, name):
+        p = object.__getattribute__(self, "_p")
+        if name in p:
+            return p[name]
+        s = object.__getattribute__(self, "_s")
+        return getattr(s, name, None) if s is not None else None
+
+
+def register_helpers(helpers):
+    """Install an external corpus's helper operations (name -> (params,
+    ocl_body) or ('py', callable)). This is the ONLY writer of the
+    overlay table; the shared UML/SysML tables in ocl_symbols stay
+    untouched by construction."""
+    SY.HELPER_OPS.clear()
+    SY.HELPER_OPS.update(helpers)
+    _HELPER_EVAL_CACHE.clear()
+    _TRANSLATE_CACHE.clear()   # helper-state changes lowerings
+
+
+def clear_helpers():
+    SY.HELPER_OPS.clear()
+    _HELPER_EVAL_CACHE.clear()
+    _TRANSLATE_CACHE.clear()
+
+
+def call_helper(name, self_obj, *args):
+    """Evaluate a registered helper: OCL-body helpers evaluate their
+    corpus body through the same engine (with the helper's parameters
+    bound positionally); ('py', fn) entries call the python function."""
+    entry = SY.HELPER_OPS.get(name)
+    if entry is None:
+        return None
+    if isinstance(entry, tuple) and entry and entry[0] == "py":
+        fn = entry[1]
+        return fn(self_obj, *args)
+    params, body = entry
+    if name not in _HELPER_EVAL_CACHE:
+        _HELPER_EVAL_CACHE[name] = translate(body)
+    src = _HELPER_EVAL_CACHE[name]
+    env = dict(_EVAL_ENV)
+    # the receiver a helper body sees: names that shadow its parameters
+    # (their argument values) delegate everything else to the real self —
+    # static defs take no self, so their body sees only its parameters
+    env["self"] = _HelperSelf(dict(zip(params, args)), self_obj)
+    env["_d"] = _derived_call(D)
+    for param, val in zip(params, args):
+        env[param] = val
+    g = dict(_EVAL_BUILTINS)
+    g.update(env)
+    try:
+        return eval(src, g, {})                     # noqa: S307
+    except Undetermined:
+        raise
+    except Exception:                              # noqa: BLE001
+        raise
+
+
+def replace_all(s, pat, rep):
+    """The corpus dialect's String::replaceAll: a regex replacement
+    (the FACE helper bodies pattern-match character classes like
+    '[a-zA-Z][_a-zA-Z0-9]*' — a literal substring replace would never
+    fire and every pattern rule would read False). Three-valued on
+    None/invalid; re.error falls back to the plain-substring read."""
+    if (s is None or pat is None or rep is None
+            or isinstance(s, _Undefined)):
+        return None
+    if isinstance(s, str) and isinstance(pat, str):
+        try:
+            return re.sub(pat, rep or "", s)
+        except re.error:
+            return s.replace(pat, rep)
+    return None
+
+
+def to_lower(s):
+    if isinstance(s, str):
+        return s.lower()
+    return None                       # invalid on a non-string is not False
+
+
+def to_upper(s):
+    if isinstance(s, str):
+        return s.upper()
+    return None
+
+
+def _select_by_type(seq, ty):
+    """Collection::selectByType(T): kind match on the runtime metaclass
+    (a class object => isinstance; a name => the element's metaclass
+    name or its runtime MRO)."""
+    name = ty if isinstance(ty, str) else getattr(ty, "__name__", str(ty))
+    out = []
+    for el in (seq or ()):
+        if el is None:
+            continue
+        try:
+            if isinstance(el, ty):
+                out.append(el)
+                continue
+        except TypeError:
+            pass
+        names = {type(el).__name__}
+        names |= {c.__name__ for c in type(el).__mro__}
+        meta = getattr(el, "_props", None) or {}
+        if name in names or name in names | {meta.get("@type")}:
+            out.append(el)
+    return out
 
 
 def set_extent(extent):
@@ -4341,6 +4472,11 @@ for _nm, (_kind, _fn) in SY.DERIVED_FUNCS.items():
 # KerML implies; the env binding rides the end-of-module loop)
 _EVAL_ENV["_implies"] = _implies
 _EVAL_ENV["_closure_call"] = _closure_call
+_EVAL_ENV["call_helper"] = call_helper
+_EVAL_ENV["_select_by_type"] = _select_by_type
+_EVAL_ENV["replace_all"] = replace_all
+_EVAL_ENV["to_lower"] = to_lower
+_EVAL_ENV["to_upper"] = to_upper
 _EVAL_ENV["_land"] = _land
 _EVAL_ENV["_for_all"] = _for_all
 _EVAL_ENV["_ex_ists"] = _ex_ists

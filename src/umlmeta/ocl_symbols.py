@@ -23,7 +23,7 @@ COLLECTION_OPS = {
     "excludesAll", "exists", "forAll", "select", "reject", "one", "any",
     "asSet", "asSequence", "asOrderedSet", "asBag", "collect", "union",
     "intersection", "flatten", "first", "last", "at", "indexOf", "excluding",
-    "closure",
+    "closure", "collectNested", "selectByType",
 }
 
 CLASSIFY_OPS = {"oclIsKindOf", "oclIsTypeOf", "oclAsType", "oclIsUndefined",
@@ -31,9 +31,12 @@ CLASSIFY_OPS = {"oclIsKindOf", "oclIsTypeOf", "oclAsType", "oclIsUndefined",
 
 # OCL extension operations the AST understands but the emitter has no
 # Python lowering for yet (O3): they parse, and evaluation raises.
-PENDING_OPS = {"collectNested", "sortedBy"}
+PENDING_OPS = {"sortedBy"}
 
 DERIVED_FUNCS = {
+    "replaceAll": ("local", "replace_all"),
+    "toLowerCase": ("local", "to_lower"),
+    "toUpperCase": ("local", "to_upper"),
     "allNamespaces": ("derived", "all_namespaces"),
     "allOwnedElements": ("derived", "all_owned_elements"),
     "allParents": ("derived", "all_parents"),
@@ -184,7 +187,7 @@ LOCAL_BARE = {"incoming": "vertex_incoming", "outgoing": "vertex_outgoing"}
 
 # operations whose argument list is an iterator expression
 LAMBDA_OPS = {"exists", "forAll", "select", "reject", "one", "any", "collect",
-              "isUnique"}
+              "collectNested", "isUnique"}
 
 # collection kinds accepted as literal prefixes
 COLLECTION_TYPES = ("Sequence", "Set", "OrderedSet", "Bag", "Collection")
@@ -244,3 +247,18 @@ def derived_only_props():
             out[ocl] = fname
     _DERIVED_ONLY = out
     return out
+
+
+# ---------------------------------------------------------------------------
+# the helper overlay (external packages)
+# ---------------------------------------------------------------------------
+# FACE UDDL (and any other external corpus) carries its own `def:` helper
+# operations. They are NOT metamodel facts: registering them must never
+# touch the shared UML/SysML tables above. register_helpers()/clear_
+# helpers() (ocl_translator) is the only writer; _py_call consults this
+# table only when DERIVED_FUNCS has no entry for the name.
+HELPER_OPS: dict = {}
+
+
+def helper_ops():
+    return HELPER_OPS

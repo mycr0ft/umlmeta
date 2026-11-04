@@ -24,9 +24,9 @@ from . import ocl_symbols as SY
 # dispatch is by node type name; only the classes the code isinstance-checks
 # (or constructs) are imported
 from .ocl_ast import (
-    TypeRef as A_TypeRef,
-    Lambda, Nav, SelfProp, TypeRef, UnmappedFeature, Var, Call as A_Call,
-    replace as ast_replace, Lambda as A_Lambda,
+    Lambda, Nav, SelfProp, TypeRef, UnmappedFeature, Var, Node, Call as A_Call,
+    Lambda as A_Lambda, TypeRef as A_TypeRef, CollectOp as A_CollectOp,
+    replace as ast_replace, fields as dc_fields,
 )
 
 # operations whose receiver is coerced to a collection before the op runs
@@ -35,8 +35,18 @@ _NAV_WRAP = {
     "excludesAll", "exists", "forAll", "select", "reject", "one", "any",
     "collect", "asSet", "asSequence", "asOrderedSet", "asBag", "union",
     "intersection", "flatten", "closure", "first", "last", "at", "indexOf",
-    "excluding", "isUnique",
+    "excluding", "isUnique", "selectByType",
+    "collectNested",
 }
+
+
+def _retarget_to_e(node):
+    """Re-root a closure argument chain on `e`: an unqualified name (the
+    implicit self's property) becomes a navigation on `e`; explicit
+    `self` references stay bound to the outer self."""
+    return ast_replace(node, lambda n: (
+        Nav(receiver=Var(span=None, name="e"), feature=n.name)
+        if isinstance(n, SelfProp) and n.name[:1].islower() else n))
 
 
 # --------------------------------------------------------------------------
@@ -120,7 +130,22 @@ def _py_call(n):
             f"type-scoped call {n.receiver.name}.{n.name}() needs the "
             f"metaclass registry (O2)")
     recv = to_python(n.receiver) if n.receiver is not None else "self"
+    # Class::member(args): a static member call — the helper table keys by
+    # the leaf name; no receiver is passed (static defs take no self)
+    if "::" in n.name and n.receiver is None:
+        leaf = n.name.rsplit("::", 1)[-1]
+        if leaf in SY.HELPER_OPS:
+            vals = [to_python(a) for a in n.args]
+            return (f"call_helper({leaf!r}"
+                    + "".join(", " + a for a in vals) + ")")
     entry = SY.DERIVED_FUNCS.get(n.name)
+    if entry is None and n.name in SY.HELPER_OPS:
+        # the overlay: a helper defined by an external corpus (FACE UDDL
+        # `def:` declarations) — its body evaluates through call_helper,
+        # never through the shared tables
+        vals = [to_python(a) for a in n.args]
+        return (f"call_helper({n.name!r}, {recv}"
+                + "".join(", " + a for a in vals) + ")")
     if entry is None:
         if n.name in SY.PENDING_OPS:
             raise UnmappedFeature(
@@ -203,6 +228,29 @@ def _py_collect(n):
     if op == "collect":
         var, body = _iterator(args, op)
         return f"_collect([{body} for {var} in {recv}])"
+    if op == "collectNested":
+        var, body = _iterator(args, op)
+        return f"([{body} for {var} in {recv}])"
+    if op == "selectByType":
+        # the type argument lowers as a string; _select_by_type matches
+        # the runtime metaclass by name (or isinstance for a class obj).
+        # A capitalized bare name is the metaclass (OCL convention)
+        a0 = args[0] if args else None
+        if isinstance(a0, A_TypeRef):
+            return f"_select_by_type({recv}, {a0.name!r})"
+        if isinstance(a0, (SelfProp, Var)) and a0.name[:1].isupper():
+            return f"_select_by_type({recv}, {a0.name!r})"
+        raise UnmappedFeature("->selectByType|Kind without a type")
+    if op == "selectByKind":
+        # arrow form is the collection filter; the bare call form (the
+        # v1v2 corpus's kind predicate on the implicit element) parses as
+        # a Call and lowers through DERIVED_FUNCS -> select_by_kind (the
+        # dual: scalar receiver -> oclIsKindOf, list receiver -> filter)
+        a0 = args[0] if args else None
+        if isinstance(a0, (A_TypeRef, SelfProp, Var)) and \
+                getattr(a0, "name", "")[:1].isupper():
+            return f"select_by_kind({recv}, {a0.name!r})"
+        raise UnmappedFeature("->selectByKind without a type")
     if op == "flatten":
         return f"_flatten({recv})"
     if op == "union":
@@ -222,6 +270,16 @@ def _py_collect(n):
                 fn = SY.DERIVED_FUNCS.get(a0.name)
                 if fn is not None and fn[0] == "local":
                     return f"_closure_call({recv}, {fn[1]})"
+                if a0.name in SY.HELPER_OPS:
+                    return (f"_closure_call({recv}, (lambda e: "
+                            f"call_helper({a0.name!r}, e)))")
+            if isinstance(a0, (A_CollectOp, A_Call)):
+                # the corpus closure form: an arrow chain (collection op
+                # or call chain) re-rooted on the per-element var `e`; a
+                # Call chain here is the selectByKind-as-kind-query shape
+                arg = _retarget_to_e(a0)
+                return (f"_closure_call({recv}, "
+                        f"(lambda e: {to_python(arg)}))")
             raise UnmappedFeature(
                 f"->closure({to_ocl(args[0])[:40] if args else ''})")
         return f"_closure_iter({recv}, {chain!r})"

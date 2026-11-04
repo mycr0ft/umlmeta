@@ -530,6 +530,11 @@ class Parser:
             # `UML::Behavior.allInstances()` / `UML::Class(` is a type-scoped
             # reference, not an enumeration literal
             if self.at("op", ".") or self.at("paren", "("):
+                if self.at("paren", "("):
+                    # Class::member(args) — a static member (helper) call;
+                    # the emitter routes the name through the helper
+                    # overlay by leaf name
+                    return self.call(None, qualified, i0)
                 return self._s(TypeRef(name=qualified), i0)
             return self._s(EnumLit(type_name="::".join(parts[:-1]),
                                    literal=parts[-1]), i0)

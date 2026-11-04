@@ -237,6 +237,10 @@ check("the corpus type-checks error-free except the named engine runs",
 check("no body is flagged for arithmetic",
       code_counts["arithmetic-on-non-numeric"] == 0,
       str(code_counts["arithmetic-on-non-numeric"]))
+# back to the 144/17 baseline: the selectByKind arrow-form filter went
+# through the pre-existing dual lowering (select_by_kind), so the corpus
+# distribution is unchanged; only the DMVT FACE corpus (out of scope
+# here) exercises the new selectByType/collectNested/:: shapes
 check("unknown features are the dominant error class",
       code_counts["unknown-feature"] == 144 and code_counts["unknown-type"] == 17,
       f"unknown-feature {code_counts['unknown-feature']}, "
