@@ -259,6 +259,12 @@ def derived_only_props():
 # table only when DERIVED_FUNCS has no entry for the name.
 HELPER_OPS: dict = {}
 
+# the corpus's property-call dialect (Kepler OCL): a no-arg call to one
+# of these names is a property read, spelled with parens. Registered
+# with the helpers (register_helpers's optional second argument); never
+# touches the shared tables
+PROPERTY_CALLS: set = set()
+
 
 def helper_ops():
     return HELPER_OPS

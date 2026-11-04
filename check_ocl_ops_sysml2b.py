@@ -257,6 +257,29 @@ except UnmappedFeature:
     _raised = True
 check("unregistered helpers refuse at lowering again", _raised)
 
+print("== external corpus fronts (duck-kind hooks) ==")
+class _Faceish:
+    """A UDDL-like element front: kinds + no runtime _props."""
+    _kind = "conceptual:Composition"
+    _kinds = frozenset({"Composition", "conceptual:Composition", "Element"})
+    def __getattr__(self, name):
+        raise AttributeError(name)
+
+_f = _Faceish()
+check("oclIsKindOf reads the external front's kinds (not the MRO)",
+      T.ocl_is_kind_of(_f, "Composition") and T.ocl_is_kind_of(_f, "Element")
+      and not T.ocl_is_kind_of(_f, "Composition2"),
+      (T.ocl_is_kind_of(_f, "Composition"), T.ocl_is_kind_of(_f, "Element")))
+check("oclIsTypeOf reads the external front's exact kind",
+      T.ocl_is_type_of(_f, "Composition") is False and T.ocl_is_type_of(
+          _f, "conceptual:Composition") is True,
+      (T.ocl_is_type_of(_f, "Composition"),
+       T.ocl_is_type_of(_f, "conceptual:Composition")))
+check("selectByKind filters by the external front's kinds",
+      T.select_by_kind([_f, 5], "Composition") == [_f])
+check("selectByType filters by the external front's kinds",
+      T._select_by_type([_f, None], "Composition") == [_f])
+
 print("== resolveGlobal ==")
 check("resolveGlobal finds P::Base in the (uml25) extent",
       T.eval_body("resolveGlobal('P::Base')", upkg, D, extent=UEXT) is ubase)

@@ -75,6 +75,13 @@ def enum_val(v):
     return str(v)
 
 
+def _kind_candidates(tname):
+    """A corpus type may arrive qualified (`face::datamodel::conceptual
+    ::Association` — the Kepler spellings); the leaf is a candidate with
+    the full name."""
+    return {tname, tname.rsplit("::", 1)[-1]} if "::" in tname else {tname}
+
+
 def ocl_is_kind_of(obj, tname):
     """obj.oclIsKindOf(T): obj's dynamic type conforms to metaclass T.
     Module-first lookup (like the extent's), with an uml25 fallback so
@@ -82,24 +89,54 @@ def ocl_is_kind_of(obj, tname):
     exist only in the v2 hierarchy answer False, not KeyError."""
     if obj is None:
         return False
-    cls = extent_mod.metaclass(tname, getattr(_EXTENT, "prefer", None))
-    if cls is not None and isinstance(obj, cls):
-        return True
-    try:
-        return isinstance(obj, U.metaclass(tname))
-    except KeyError:
+    # an external corpus front (UDDL-like) carries its own kinds; the
+    # runtime metaclasses say nothing about it
+    kinds = getattr(obj, "_kinds", None)
+    if kinds is not None and not isinstance(obj, (list, tuple)):
+        if _kind_candidates(tname) & set(kinds):
+            return True
         return False
+    for cand in sorted(_kind_candidates(tname)):
+        cls = extent_mod.metaclass(cand, getattr(_EXTENT, "prefer", None))
+        if cls is not None and isinstance(obj, cls):
+            return True
+        try:
+            if isinstance(obj, U.metaclass(cand)):
+                return True
+        except KeyError:
+            pass
+    return False
 
 
 def ocl_is_type_of(obj, tname):
     """obj.oclIsTypeOf(T): obj's dynamic type IS exactly T."""
     if obj is None:
         return False
+    kind = getattr(obj, "_kind", None)
+    if kind is not None and not isinstance(obj, (list, tuple)):
+        return kind == tname
     return type(obj).__name__ == tname
 
 
 def ocl_as_type(obj, tname):
-    """obj.oclAsType(T): obj when kind-of T, else invalid (None)."""
+    """obj.oclAsType(T): obj when kind-of T, else invalid (None). A cast
+    to a COLLECTION type (Bag(OclAny)) is type-assertive: the receiver
+    returns unchanged."""
+    from .ocl_symbols import COLLECTION_TYPES
+    if tname and any(tname.startswith(ct + "(") for ct in COLLECTION_TYPES):
+        return obj
+    if "::" in tname:
+        # a qualified corpus type: kind-test on the full name or the leaf
+        if any(ocl_is_kind_of(obj, c)
+               for c in sorted(_kind_candidates(tname))):
+            return obj
+        if isinstance(obj, (list, tuple)):
+            return [ocl_as_type(e, tname) for e in obj]
+        return None
+    if isinstance(obj, (list, tuple)):
+        # an implicit collect: a cast of a multi-valued end casts each
+        # element (the corpus's Set.oclAsType(Element) spellings)
+        return [ocl_as_type(e, tname) for e in obj]
     return obj if ocl_is_kind_of(obj, tname) else None
 
 
@@ -985,7 +1022,12 @@ def ocl_flatten(seq):
 
 
 def ocl_union(a, b):
-    """OCL union() over sequences: set-union, order preserved."""
+    """OCL union() over sequences: set-union, order preserved. A null
+    operand propagates (invalid union is invalid, OCL): the corpus's
+    subset features read [] on empty models, None only where the
+    element does not carry the end at all."""
+    if a is None or b is None:
+        return None
     out, seen = [], set()
     for e in list(a) + list(b):
         if e is not None and id(e) not in seen:
@@ -1039,21 +1081,75 @@ class _HelperSelf:
         return getattr(s, name, None) if s is not None else None
 
 
-def register_helpers(helpers):
+def register_helpers(helpers, property_calls=None):
     """Install an external corpus's helper operations (name -> (params,
     ocl_body) or ('py', callable)). This is the ONLY writer of the
     overlay table; the shared UML/SysML tables in ocl_symbols stay
     untouched by construction."""
     SY.HELPER_OPS.clear()
     SY.HELPER_OPS.update(helpers)
+    if property_calls is not None:
+        SY.PROPERTY_CALLS.clear()
+        SY.PROPERTY_CALLS.update(property_calls)
     _HELPER_EVAL_CACHE.clear()
     _TRANSLATE_CACHE.clear()   # helper-state changes lowerings
 
 
 def clear_helpers():
     SY.HELPER_OPS.clear()
+    SY.PROPERTY_CALLS.clear()
     _HELPER_EVAL_CACHE.clear()
     _TRANSLATE_CACHE.clear()
+
+
+_LAYER_TOKENS = ("conceptual", "logical", "platform", "integration",
+                "datamodel", "uop", "traceability", "face")
+
+
+def _element_layer(obj):
+    lay = getattr(obj, "_layer", None)
+    if lay:
+        return lay
+    kind = getattr(obj, "_kind", None) or ""
+    for tok in _LAYER_TOKENS:
+        if kind.startswith(tok + ":") or kind == tok:
+            return tok
+    return None
+
+
+def _pick_layer_arm(arms, self_obj):
+    """Arms are (layer, context, params, body, static). Dispatch
+    prefers: same layer AND the element's kind matching the arm's
+    context class; then the layer alone (the corpus's polymorphic
+    helpers branch inside the body); then the generic files."""
+    lay = _element_layer(self_obj)
+    kinds = getattr(self_obj, "_kinds", None) or frozenset()
+    leaf = getattr(self_obj, "_leaf", None)
+    # OCL dynamic dispatch: the arm whose context class the element IS
+    # (its exact leaf) beats the corpus file's layer — the corpus's
+    # per-layer copies of one helper are the same body, and the
+    # Characteristic-vs-Participant arms differ only by kind
+    if leaf:
+        for arm in arms:
+            if arm[1] == leaf:
+                return arm
+    if lay:
+        for arm in arms:                # then a kind-family match
+            if arm[0] == lay and arm[1] in kinds:
+                return arm
+        for arm in arms:
+            if arm[0] == lay and not arm[1]:
+                return arm
+        for arm in arms:
+            if arm[0] == lay:
+                return arm
+    for arm in arms:                    # a generic file's body first
+        if arm[0] == "" and (not arm[1] or arm[1] in kinds):
+            return arm
+    for arm in arms:                    # then the element-free faces
+        if arm[0] in ("face", "traceability"):
+            return arm
+    return arms[0] if arms else None
 
 
 def call_helper(name, self_obj, *args):
@@ -1066,17 +1162,45 @@ def call_helper(name, self_obj, *args):
     if isinstance(entry, tuple) and entry and entry[0] == "py":
         fn = entry[1]
         return fn(self_obj, *args)
-    params, body = entry
-    if name not in _HELPER_EVAL_CACHE:
-        _HELPER_EVAL_CACHE[name] = translate(body)
-    src = _HELPER_EVAL_CACHE[name]
+    if isinstance(entry, tuple) and entry and entry[0] == "multi":
+        # layer-scoped corpus helpers: the corpus defines the same name
+        # with different bodies per corpus layer; the element front's
+        # `_layer` (or its qualified kind's prefix) picks the arm
+        arm = _pick_layer_arm(entry[1], self_obj)
+        if arm is None:
+            return None
+        params, body, is_static = arm[2], arm[3], arm[4]
+        # fall through; entry[1..] is the machine's single-body shape
+    else:
+        params, body = entry[0], entry[1]
+        is_static = entry[2] if len(entry) > 2 else False
+
+    if is_static:
+        # a static def takes no self; the first positional call argument
+        # slots onto its first parameter. OCL invalid propagation: a
+        # null argument makes the answer invalid (undetermined), never
+        # the helper's decision
+        pvals = (self_obj,) + tuple(args)
+        if any(v is None for v in pvals):
+            return None
+        param_env = dict(zip(params, pvals))
+        env_self = _HelperSelf(param_env, None)
+    else:
+        if self_obj is None:
+            return None              # nothing to judge an absent element on
+        param_env = dict(zip(params, args))
+        env_self = _HelperSelf(param_env, self_obj)
+    # keyed by BODY, not name: the corpus carries same-name helpers with
+    # per-layer/per-context bodies (the arms), and a cached lower of one
+    # arm must never run for another — the Characteristic arm's
+    # else-branch recurses getRolename on a Participant forever
+    if body not in _HELPER_EVAL_CACHE:
+        _HELPER_EVAL_CACHE[body] = translate(body)
+    src = _HELPER_EVAL_CACHE[body]
     env = dict(_EVAL_ENV)
-    # the receiver a helper body sees: names that shadow its parameters
-    # (their argument values) delegate everything else to the real self —
-    # static defs take no self, so their body sees only its parameters
-    env["self"] = _HelperSelf(dict(zip(params, args)), self_obj)
+    env["self"] = env_self
     env["_d"] = _derived_call(D)
-    for param, val in zip(params, args):
+    for param, val in param_env.items():
         env[param] = val
     g = dict(_EVAL_BUILTINS)
     g.update(env)
@@ -1117,6 +1241,41 @@ def to_upper(s):
     return None
 
 
+def _for_all_pairs(seq, f):
+    """forAll(v1, v2 | e): the body over every (v1, v2) pair; three-valued
+    (a False pair decides, None propagates when no pair decides)."""
+    seq = list(seq or ())
+    undetermined = False
+    for a in seq:
+        for b in seq:
+            try:
+                v = f(a, b)
+            except Exception:                      # noqa: BLE001
+                v = None
+            if v is False:
+                return False
+            if v is None:
+                undetermined = True
+    return None if undetermined else True
+
+
+def _ex_ists_pairs(seq, f):
+    """exists(v1, v2 | e): some pair answers; three-valued."""
+    seq = list(seq or ())
+    undetermined = False
+    for a in seq:
+        for b in seq:
+            try:
+                v = f(a, b)
+            except Exception:                      # noqa: BLE001
+                v = None
+            if v is True:
+                return True
+            if v is None:
+                undetermined = True
+    return None if undetermined else False
+
+
 def _select_by_type(seq, ty):
     """Collection::selectByType(T): kind match on the runtime metaclass
     (a class object => isinstance; a name => the element's metaclass
@@ -1126,6 +1285,9 @@ def _select_by_type(seq, ty):
     for el in (seq or ()):
         if el is None:
             continue
+        if ocl_is_kind_of(el, name):
+            out.append(el)
+            continue
         try:
             if isinstance(el, ty):
                 out.append(el)
@@ -1134,8 +1296,7 @@ def _select_by_type(seq, ty):
             pass
         names = {type(el).__name__}
         names |= {c.__name__ for c in type(el).__mro__}
-        meta = getattr(el, "_props", None) or {}
-        if name in names or name in names | {meta.get("@type")}:
+        if name in names:
             out.append(el)
     return out
 
@@ -1189,11 +1350,16 @@ def select_by_kind(collection, tname):
     cls = extent_mod.metaclass(tname, getattr(_EXTENT, "prefer", None))
     if isinstance(collection, (list, tuple)):
         if cls is None:
-            return list(collection or ())
-        return [e for e in (collection or ()) if isinstance(e, cls)]
+            # no runtime metaclass: external fronts still filter, by kind
+            return [e for e in (collection or ())
+                    if tname in (getattr(e, "_kinds", None) or ())]
+        return [e for e in (collection or ())
+                if isinstance(e, cls)
+                or tname in (getattr(e, "_kinds", None) or ())]
     if cls is None or collection is None:
         return False
-    return isinstance(collection, cls)
+    return isinstance(collection, cls) \
+        or tname in (getattr(collection, "_kinds", None) or ())
 
 
 def select_as_kind(collection, tname):
@@ -4474,6 +4640,8 @@ _EVAL_ENV["_implies"] = _implies
 _EVAL_ENV["_closure_call"] = _closure_call
 _EVAL_ENV["call_helper"] = call_helper
 _EVAL_ENV["_select_by_type"] = _select_by_type
+_EVAL_ENV["_for_all_pairs"] = _for_all_pairs
+_EVAL_ENV["_ex_ists_pairs"] = _ex_ists_pairs
 _EVAL_ENV["replace_all"] = replace_all
 _EVAL_ENV["to_lower"] = to_lower
 _EVAL_ENV["to_upper"] = to_upper

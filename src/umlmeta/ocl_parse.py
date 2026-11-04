@@ -346,6 +346,35 @@ class Parser:
                 self.next()
                 args.append(self.implication())
             return self._shape(name, args)
+        # multi-variable iterator form (OCL 2.4 §10): v1, v2 | body —
+        # forAll/exists/... over every (v1, v2) pair
+        if vname and self.at("paren", ",") and name in SY.LAMBDA_OPS:
+            names = [vname]
+            self.next()
+            while True:
+                nxt = self.implication()
+                nxt_name = self._var_name(nxt)
+                if nxt_name is None or self.at("bar", "|"):
+                    if nxt_name:
+                        names.append(nxt_name)
+                    break
+                names.append(nxt_name)
+                if not self.accept("paren", ","):
+                    break
+            self.expect("bar", "|")
+            scopes = [(n0, n0) for n0 in names]
+            self.scopes.extend(scopes)
+            try:
+                body = self.implication()
+            finally:
+                for _ in scopes:
+                    self.scopes.pop()
+            args = [Lambda(var=", ".join(names), type_ann=None, body=body,
+                           span=body.span)]
+            while self.at("paren", ","):
+                self.next()
+                args.append(self.implication())
+            return self._shape(name, args)
         args = [first]
         while self.at("paren", ",") or self.at("bar", "|"):
             self.next()
@@ -449,6 +478,8 @@ class Parser:
     def _type_arg(self, node):
         if isinstance(node, (SelfProp, Var)) and node.name[:1].isupper():
             return node.name
+        if isinstance(node, TypeRef):
+            return node.name                 # incl. Bag(OclAny) collection types
         if isinstance(node, EnumLit):
             # qualified type: oclIsKindOf(UML::Property)
             return f"{node.type_name}::{node.literal}"
@@ -495,8 +526,11 @@ class Parser:
             if self.at("lc", "{"):
                 return self.collection_literal(name)
             if self.at("paren", "("):
-                # Set(Type){...}: the element type is the checker's business
+                # Set(Type){...}: a literal; Bag(OclAny) in a type slot
+                # (the corpus casts ->oclAsType(Bag(OclAny))) is a
+                # collection-type reference, not a value
                 depth = 0
+                save = self.i
                 while True:
                     tok = self.next()
                     if tok.kind == "eof":
@@ -509,6 +543,10 @@ class Parser:
                             break
                 if self.at("lc", "{"):
                     return self.collection_literal(name)
+                i1 = save + 1
+                inner = self.toks[i1] if i1 < len(self.toks) else None
+                if inner.kind == "name":
+                    return self._s(TypeRef(name=f"{name}({inner.text})"), i0)
                 raise UnmappedFeature(
                     f"collection type {name}(T) used as a value")
             raise UnmappedFeature(f"collection type {name} used as value")

@@ -138,6 +138,11 @@ def _py_call(n):
             vals = [to_python(a) for a in n.args]
             return (f"call_helper({leaf!r}"
                     + "".join(", " + a for a in vals) + ")")
+    if (not n.args and n.name in SY.PROPERTY_CALLS
+            and n.name not in SY.DERIVED_FUNCS
+            and n.name not in SY.HELPER_OPS):
+        # the corpus property-call dialect: X.feature() reads the feature
+        return f"_g({recv}, {n.name!r})"
     entry = SY.DERIVED_FUNCS.get(n.name)
     if entry is None and n.name in SY.HELPER_OPS:
         # the overlay: a helper defined by an external corpus (FACE UDDL
@@ -214,7 +219,10 @@ def _py_collect(n):
             return f"_ex_ists({body} for {var} in {recv})"
         return f"(sum(1 for {var} in {recv} if ({body})) == 1)"
     if op == "forAll":
-        var, body = _iterator(args, op)
+        var, body = _iterator(args, op, allow_pairs=True)
+        if isinstance(var, tuple):        # the two-variable pair form
+            (a, b) = var
+            return f"_for_all_pairs({recv}, (lambda {a}, {b}: {body}))"
         # three-valued: a False element decides False; None (undetermined)
         # propagates when no element decides (all() would Python-False the
         # whole quantifier and pin a violation the rule text never earned)
@@ -280,6 +288,10 @@ def _py_collect(n):
                 arg = _retarget_to_e(a0)
                 return (f"_closure_call({recv}, "
                         f"(lambda e: {to_python(arg)}))")
+            if isinstance(a0, A_Lambda):
+                # `->closure(pn : PathNode | ...)` — the traversal IS the
+                # lambda, applied per element
+                return f"_closure_call({recv}, {to_python(a0)})"
             raise UnmappedFeature(
                 f"->closure({to_ocl(args[0])[:40] if args else ''})")
         return f"_closure_iter({recv}, {chain!r})"
@@ -307,10 +319,15 @@ def _py_collect(n):
     raise UnmappedFeature(f"->{op}")
 
 
-def _iterator(args, op):
+def _iterator(args, op, allow_pairs=False):
     if len(args) != 1 or not isinstance(args[0], Lambda):
         raise UnmappedFeature(f"->{op} without an iterator expression")
     lam = args[0]
+    if allow_pairs and "," in (lam.var or ""):
+        parts = tuple(lam.var.split(", "))
+        if len(parts) == 2:
+            return parts, to_python(lam.body)
+        raise UnmappedFeature(f"->{op} with {len(parts)} variables")
     return lam.var, to_python(lam.body)
 
 
@@ -426,7 +443,11 @@ def _py_iterate(n):
 
 
 def _py_lambda(n):
-    raise UnmappedFeature("iterator expression outside an operation")
+    # a bare lambda is only meaningful as a closure traversal function
+    # (`->closure(pn : PathNode | ...)`); the iterator ops consume their
+    # own lambdas before to_python ever sees this node
+    body = to_python(n.body)
+    return f"(lambda {n.var}: {body})"
 
 
 _PY = {

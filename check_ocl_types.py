@@ -232,8 +232,12 @@ for modname in ("uml25", "sysml2", "sysml"):
                     it_bodies.add((modname, klass.__name__, name))
 
 check("every parsed body is type-checked", checked == 1167, f"{checked}")
+# 1026/141 (was 1023/144): the two-variable iterator form
+# (forAll(c1, c2 | ...) over pairs) now parses as pair-iterator
+# variables - the four bodies whose c2/c3 reads the typechecker used to
+# flag as unknown features on the context class now type-check clean
 check("the corpus type-checks error-free except the named engine runs",
-      clean == 1023, f"{clean} clean, {with_errors} with errors")
+      clean == 1026, f"{clean} clean, {with_errors} with errors")
 check("no body is flagged for arithmetic",
       code_counts["arithmetic-on-non-numeric"] == 0,
       str(code_counts["arithmetic-on-non-numeric"]))
@@ -242,7 +246,7 @@ check("no body is flagged for arithmetic",
 # distribution is unchanged; only the DMVT FACE corpus (out of scope
 # here) exercises the new selectByType/collectNested/:: shapes
 check("unknown features are the dominant error class",
-      code_counts["unknown-feature"] == 144 and code_counts["unknown-type"] == 17,
+      code_counts["unknown-feature"] == 140 and code_counts["unknown-type"] == 17,
       f"unknown-feature {code_counts['unknown-feature']}, "
       f"unknown-type {code_counts['unknown-type']}")
 # the profile generator emits the extension ends as properties (and a
