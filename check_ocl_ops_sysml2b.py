@@ -270,11 +270,16 @@ check("oclIsKindOf reads the external front's kinds (not the MRO)",
       T.ocl_is_kind_of(_f, "Composition") and T.ocl_is_kind_of(_f, "Element")
       and not T.ocl_is_kind_of(_f, "Composition2"),
       (T.ocl_is_kind_of(_f, "Composition"), T.ocl_is_kind_of(_f, "Element")))
-check("oclIsTypeOf reads the external front's exact kind",
-      T.ocl_is_type_of(_f, "Composition") is False and T.ocl_is_type_of(
-          _f, "conceptual:Composition") is True,
+# the corpus spells its kind tests unqualified ('Enumerated' for
+# 'logical:Enumerated'): a front element answers by its qtype leaf or
+# its full kind; the RUNTIME elements stay exact (type(obj).__name__)
+check("oclIsTypeOf reads the external front's kind (its leaf or full)",
+      T.ocl_is_type_of(_f, "Composition") is True and T.ocl_is_type_of(
+          _f, "conceptual:Composition") is True and T.ocl_is_type_of(
+          _f, "logical:Composition") is False,
       (T.ocl_is_type_of(_f, "Composition"),
-       T.ocl_is_type_of(_f, "conceptual:Composition")))
+       T.ocl_is_type_of(_f, "conceptual:Composition"),
+       T.ocl_is_type_of(_f, "logical:Composition")))
 check("selectByKind filters by the external front's kinds",
       T.select_by_kind([_f, 5], "Composition") == [_f])
 check("selectByType filters by the external front's kinds",

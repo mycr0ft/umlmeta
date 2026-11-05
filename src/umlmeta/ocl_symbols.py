@@ -23,7 +23,7 @@ COLLECTION_OPS = {
     "excludesAll", "exists", "forAll", "select", "reject", "one", "any",
     "asSet", "asSequence", "asOrderedSet", "asBag", "collect", "union",
     "intersection", "flatten", "first", "last", "at", "indexOf", "excluding",
-    "closure", "collectNested", "selectByType",
+    "closure", "collectNested", "selectByType", "count",
 }
 
 CLASSIFY_OPS = {"oclIsKindOf", "oclIsTypeOf", "oclAsType", "oclIsUndefined",

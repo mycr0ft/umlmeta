@@ -35,7 +35,7 @@ _NAV_WRAP = {
     "excludesAll", "exists", "forAll", "select", "reject", "one", "any",
     "collect", "asSet", "asSequence", "asOrderedSet", "asBag", "union",
     "intersection", "flatten", "closure", "first", "last", "at", "indexOf",
-    "excluding", "isUnique", "selectByType",
+    "excluding", "isUnique", "selectByType", "count",
     "collectNested",
 }
 
@@ -259,6 +259,9 @@ def _py_collect(n):
                 getattr(a0, "name", "")[:1].isupper():
             return f"select_by_kind({recv}, {a0.name!r})"
         raise UnmappedFeature("->selectByKind without a type")
+    if op == "count":
+        a = to_python(args[0])
+        return f"(sum(1 for _e in {recv} if _eq(_e, ({a}))))"
     if op == "flatten":
         return f"_flatten({recv})"
     if op == "union":

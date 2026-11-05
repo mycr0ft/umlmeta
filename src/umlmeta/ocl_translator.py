@@ -114,7 +114,9 @@ def ocl_is_type_of(obj, tname):
         return False
     kind = getattr(obj, "_kind", None)
     if kind is not None and not isinstance(obj, (list, tuple)):
-        return kind == tname
+        # an exact kind test: the qualified qtype or its leaf (the corpus
+        # spells it unqualified: oclIsTypeOf(Enumerated))
+        return kind == tname or kind.rsplit(":", 1)[-1] == tname
     return type(obj).__name__ == tname
 
 
