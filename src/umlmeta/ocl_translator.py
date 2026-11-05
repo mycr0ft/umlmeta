@@ -82,6 +82,26 @@ def _kind_candidates(tname):
     return {tname, tname.rsplit("::", 1)[-1]} if "::" in tname else {tname}
 
 
+class _TypeShell(str):
+    """An oclType() value: the metaclass name as a str, with .name
+    reading the receiver's dynamic kind leaf (front-carried objects
+    answer _kind; runtime objects fall back to the python type name),
+    so `self.oclType().name` chains resolve. Comparisons keep ordinary
+    string semantics."""
+
+    def __new__(cls, name, recv=None):
+        s = str.__new__(cls, name)
+        s._recv = recv
+        return s
+
+    @property
+    def name(self):
+        kind = getattr(self._recv, "_kind", None) if self._recv is not None else None
+        if kind:
+            return str(kind).rsplit(":", 1)[-1]
+        return str(self)
+
+
 def ocl_is_kind_of(obj, tname):
     """obj.oclIsKindOf(T): obj's dynamic type conforms to metaclass T.
     Module-first lookup (like the extent's), with an uml25 fallback so
@@ -2100,7 +2120,7 @@ class _Parser:
         if name == "oclIsUndefined":
             return f"(({recv}) is None)"
         if name == "oclType":
-            return f"type({recv}).__name__"
+            return f"_type_shell(type({recv}).__name__, {recv})"
         raise UnmappedFeature(name)
 
     def _type_arg(self, src):
@@ -2388,6 +2408,7 @@ _EVAL_ENV = {
     "_aslist": ocl_aslist,
     "_eq": ocl_eq,
     "_k": ocl_is_kind_of,
+    "_type_shell": _TypeShell,  # an oclType() value: .name reads itself
     "_t": ocl_is_type_of,
     "_a": ocl_as_type,
     "_enum": enum_val,

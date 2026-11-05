@@ -358,7 +358,7 @@ def _py_classify(n):
     if op == "oclIsUndefined":
         return f"(({recv}) is None)"
     if op == "oclType":
-        return f"type({recv}).__name__"
+        return f"_type_shell(type({recv}).__name__, {recv})"
     raise UnmappedFeature(op)
 
 
