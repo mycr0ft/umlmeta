@@ -6,6 +6,13 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- Requires Python 3.10+. The OCL modules use `@dataclass(..., slots=True)`,
+  which only exists from 3.10, so the 3.9 job in `check.yml` had been failing on
+  every push since the OCL work landed. `requires-python` is now `>=3.10`, the
+  3.9 classifier and matrix entry are gone, and every job runs on ubuntu-24.04.
+
 ### Added
 
 - OCL helper operations: `effectiveName`, `effectiveShortName`, `escapedName`,

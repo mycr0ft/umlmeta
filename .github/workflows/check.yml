@@ -3,8 +3,8 @@
 # The generated metamodel modules and the textual emitter are pure stdlib, so
 # the suites below run without lxml or sysmlpy.
 #
-# 3.9 is tested on ubuntu-22.04: the ubuntu-24.04+ runner images do not ship
-# a 3.9 build, and the package still supports 3.9 (see requires-python).
+# The package requires 3.10+ (dataclasses gained slots= in 3.10), so every job
+# runs on ubuntu-24.04.
 name: check
 
 on:
@@ -20,8 +20,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-22.04
-            python-version: "3.9"
+          - os: ubuntu-24.04
+            python-version: "3.10"
           - os: ubuntu-24.04
             python-version: "3.12"
           - os: ubuntu-24.04
