@@ -66,6 +66,30 @@ from . import uml25 as U
 
 XMI_NS = "{http://schema.omg.org/spec/XMI/2.1}"
 
+# UML metamodel namespace families. Eclipse UML2 is an EMF realization of
+# OMG UML 2.x: the metaclasses and containment feature names are the same,
+# but it serialises them under its own URI (2.1.0 ... 5.0.0) and writes the
+# UML root as the DOCUMENT element instead of a child of an <xmi:XMI>
+# wrapper. Both conventions are read.
+UML_NS_FAMILIES = (
+    "omg.org/spec/UML",          # OMG-published UML 2.1 - 2.5.1
+    "schema.omg.org/spec/UML",   # older schema.omg spelling
+    "eclipse.org/uml2/",         # Eclipse UML2 / EMF (Papyrus exports)
+)
+
+
+def is_uml_namespace(ns: str) -> bool:
+    """True when `ns` belongs to an accepted UML metamodel family."""
+    return any(fam in (ns or "") for fam in UML_NS_FAMILIES)
+
+
+class UnsupportedDialect(ValueError):
+    """A document parsed as XML but holds nothing in a readable UML dialect.
+
+    Raised instead of returning an empty model: a reader that silently
+    accepts a file it cannot read reports success it did not achieve.
+    """
+
 # containment features (composite; child elements own sub-objects)
 COMPOSITE = {"packagedElement", "nestedClassifier", "ownedAttribute",
              "ownedLiteral", "ownedEnd", "ownedComment", "ownedConnector",
@@ -224,12 +248,30 @@ class XMI21Model:
 XMI_NS_20131001 = "http://www.omg.org/spec/XMI/20131001"
 
 
+def is_xmi_namespace(ns: str) -> bool:
+    """True for any OMG XMI namespace URI (2.1 schema spelling through 20131001)."""
+    ns = ns or ""
+    return "omg.org/spec/XMI" in ns or "schema.omg.org/spec/XMI" in ns
+
+
 def _xget(e, name):
-    """Value of an xmi-namespaced attribute under either XMI dialect URI."""
+    """Value of an xmi-namespaced attribute under any XMI version URI.
+
+    XMI 2.1 used the schema.omg spelling, 2.4/20110701 and 2.5/20131001 the
+    omg.org spelling; Eclipse UML2 3.x/4.x files still carry the 20110701
+    form with the id on the document element, so a fixed pair of URIs misses
+    whole generations of exports.
+    """
     v = e.get(XMI_NS + name)
-    if v is None:
-        v = e.get("{" + XMI_NS_20131001 + "}" + name)
-    return v
+    if v is not None:
+        return v
+    for k, val in e.attrib.items():
+        if not k.startswith("{"):
+            continue
+        uri, _, local = k[1:].partition("}")
+        if local == name and is_xmi_namespace(uri):
+            return val
+    return None
 
 
 def read_xmi21_files(paths) -> XMI21Model:
@@ -285,14 +327,30 @@ def read_xmi21(path) -> XMI21Model:
         return _xget(e, "type")
 
     def is_uml_ns(e):
-        ns = etree.QName(e).namespace or ""
-        return "omg.org/spec/UML" in ns or "schema.omg.org/spec/UML" in ns
+        return is_uml_namespace(etree.QName(e).namespace or "")
 
-    def construct(e):
+    def construct(e, hint=None):
+        # xmi:type names the metaclass, except where XMI lets it be omitted
+        # because the element name already denotes the class. Two cases:
+        # the document element of an Eclipse UML2 export (`<uml:Package/>`)
+        # and feature-named children whose feature name is the class name
+        # lowercased (`<elementImport/>` -> ElementImport). `hint` is the
+        # containment feature's declared type, which is authoritative when
+        # the caller knows it; otherwise capitalise the local name.
         mname = (xtype(e) or "").split(":")[-1]
         if not mname:
+            local = etree.QName(e).localname
+            if isinstance(hint, str) and hint:
+                mname = hint
+            elif local:
+                mname = local[0].upper() + local[1:]
+        if not mname:
             return None
-        cls = U.metaclass(mname)
+        try:
+            cls = U.metaclass(mname)   # raises KeyError for a non-metaclass
+        except KeyError:
+            xmi.unmapped.append((xid(e), mname))
+            return None
         if cls is None or cls.__name__ not in CONSTRUCTIBLE:
             xmi.unmapped.append((xid(e), mname))
             return None
@@ -413,10 +471,11 @@ def read_xmi21(path) -> XMI21Model:
                 xmi.pending.append((obj, feat, idref or href, single))
                 continue
             if feat in COMPOSITE:
-                child = construct(c)
+                df = obj._props.get(feat)
+                child = construct(c, df.t if df is not None else None)
                 if child is None:
                     continue
-                d = obj._props.get(feat)
+                d = df
                 walk(c, child)          # the Constraint's specification
                 #                         arrives with the child's walk
                 # the runtime's ActivityEdge.guard is ValueSpecification-
@@ -453,16 +512,27 @@ def read_xmi21(path) -> XMI21Model:
             xmi.unmapped_features.append((xid(el), feat))
 
     # ---- top-level UML elements --------------------------------------------
-    for e in root:
-        ns = etree.QName(e).namespace or ""
-        if not ns or "schema.omg.org/spec/XMI" in ns:
-            continue
-        if "omg.org/spec/UML" in ns and \
-                etree.QName(e).localname in ("Model", "Package"):
-            obj = construct(e)
-            if obj is not None:
-                xmi.roots.append(obj)
-                walk(e, obj)
+    # Two root conventions: an OMG-published file wraps its UML root in an
+    # <xmi:XMI> document element, while an Eclipse UML2 export puts
+    # <uml:Model>/<uml:Package> at the document element itself. Accept both.
+    root_ns = etree.QName(root).namespace or ""
+    root_local = etree.QName(root).localname
+    root_candidates = []
+    if is_uml_namespace(root_ns) and root_local in ("Model", "Package", "Profile"):
+        root_candidates.append(root)
+    else:
+        for e in root:
+            ns = etree.QName(e).namespace or ""
+            if not ns or is_xmi_namespace(ns):
+                continue
+            if is_uml_namespace(ns) and \
+                    etree.QName(e).localname in ("Model", "Package", "Profile"):
+                root_candidates.append(e)
+    for e in root_candidates:
+        obj = construct(e)
+        if obj is not None:
+            xmi.roots.append(obj)
+            walk(e, obj)
 
     # ---- resolve pending references -----------------------------------------
     for obj, feat, ref, single in xmi.pending:
@@ -537,9 +607,9 @@ def read_xmi21(path) -> XMI21Model:
     # ---- stereotype applications (top-level, non-metamodel elements) -------
     for e in root:
         ns = etree.QName(e).namespace or ""
-        if "schema.omg.org/spec/XMI" in ns:
+        if is_xmi_namespace(ns):
             continue
-        if "omg.org/spec/UML" in ns and \
+        if is_uml_namespace(ns) and \
                 etree.QName(e).localname in ("Model", "Package"):
             continue  # UML metamodel root(s), already walked
         app_id = xid(e)
@@ -596,4 +666,15 @@ def read_xmi21(path) -> XMI21Model:
                 tail = i.rsplit("-", 2)[-2] + "-" + tail
             obj._vals["name"] = tail
             xmi.derived_names.append((i, tail))
+
+    # A document with content that yielded no metamodel object is a dialect
+    # we cannot read, not an empty model. Refusing loudly is the point: a
+    # silent empty return makes every downstream check pass vacuously.
+    if not xmi.objects and any(isinstance(e.tag, str) for e in root):
+        raise UnsupportedDialect(
+            "no UML element could be constructed from %s: document element "
+            "<%s> in namespace %r with %d top-level element(s); accepted UML "
+            "namespace families are %s"
+            % (path, root_local, root_ns or "(none)", len(root),
+               ", ".join(UML_NS_FAMILIES)))
     return xmi
