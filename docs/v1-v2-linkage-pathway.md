@@ -102,7 +102,13 @@ record as a *cache for one snapshot*, never as identity.
 
 ## 4. Provenance record and sidecar
 
-One JSON sidecar per transformed model (`<name>.v1v2link.json`):
+One JSON sidecar per transformed model (`<name>.v1v2link.json`). The
+`format` value reads `<producer namespace>.<format name>/<format version>`: the
+trailing `/1` is the version of the record format, not a path or a count. The
+reader requires an exact match (`link.py`, `SIDECAR_FORMAT`) rather than a
+compatibility range, because a version bump means the record's meaning changed;
+an incompatible change to the record is therefore `/2`, and sidecars written
+under `/1` are rejected by a `/2` reader rather than reinterpreted.
 
 ```json
 {
