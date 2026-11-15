@@ -1490,7 +1490,7 @@ checks**, all green. The exporter plan (E1-E6) is complete.
 - APE 422 objects (244 Class, 80 DataType, 64 Package, 15
   InstanceSpecification), 18 roots, 585 coercions, 811 dedups, 16 usages.
 - SAF_FFDS 223 objects incl. AssociationClass; MPS 16; maas 8;
-  INGRID Nerdman 11; NIEM.Guide 17; AML 23; DELS 40.  **12/12 import
+  a deployed program model 11; NIEM.Guide 17; AML 23; DELS 40.  **12/12 import
   without error**, 0 corpus files needed hand-holding.
 - check_mdzip_import.py: 18 checks (counts, dedup semantics, provenance
   carry-through, wave-2 recording, name sanity).

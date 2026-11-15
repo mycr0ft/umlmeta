@@ -21,7 +21,10 @@ FILES = {
     "MPS": CORPUS / "GaloisInc__VERSE-OpenSUT" / "MPS.mdzip",
     "maas": CORPUS / "autarchprinceps__Multiagent-Warehouse" / "maas-warehouse.mdzip",
     "SAF": CORPUS / "GfSE__SAF-Cameo-Profile" / "SAF_FFDS.mdzip",
-    "NERDMAN": CORPUS / "gtri__rapid-modeling-tools" / "INGRID Nerdman.mdzip",
+    # Located by pattern rather than by path: the corpus directory and the file
+    # name identify a program and a person, and this file is public.
+    "NERDMAN": next(iter(sorted(CORPUS.glob("*/*[Nn]erdman*.mdzip"))),
+                    CORPUS / "<unset>"),
 }
 missing = [k for k, p in FILES.items() if not p.is_file()]
 

@@ -156,7 +156,7 @@ is the receipt.
    `content-hash, tool-eras, usages, element-count` — all computable,
    all currently absent from the format.
 
-5. **Baseline for the GTRI bug reports.** "No in-file versioning for
+5. **Baseline for reported defects.** "No in-file versioning for
    dependency" stops being an opinion and becomes a demonstration: here
    is the hash, here is the diff, here are two files that Cameo will
    happily open but cannot itself distinguish.
