@@ -29,11 +29,10 @@ All notable changes to this project are documented here. The format follows
 ### Fixed
 
 - Machine-specific absolute paths are gone from the tree. Every check suite,
-  generator and `scripts/mdzip_corpus_tools.py` used to spell `/mnt/TBFox`
-  itself, so a clone carried a mount point that exists on one machine. They now
-  resolve through `umlmeta.corpus` (`$UMLMETA_CORPUS`; `/mnt/TBFox` is still
-  honoured where it exists, for the machine that has it), and a suite whose
-  corpus is absent prints a `SKIP` line plus
+  generator and `scripts/mdzip_corpus_tools.py` used to spell out one mount
+  point, so a clone carried a path that exists on one machine. They now
+  resolve through `umlmeta.corpus` (`$UMLMETA_CORPUS`, default `~/uml-corpus`),
+  and a suite whose corpus is absent prints a `SKIP` line plus
   `RESULT: ... (corpus skipped)` and exits 0 instead of raising
   `OSError: No such file or directory`. The two diagram renderers write to
   `reproduced/` beside the script (`git`-ignored) instead of a sibling

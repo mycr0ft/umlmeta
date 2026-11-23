@@ -9,13 +9,11 @@ location comes from UMLMETA_CORPUS instead:
 
     export UMLMETA_CORPUS=/path/to/models
 
-With the variable unset the root is ~/uml-corpus; on the machine where the
-files were first collected, /mnt/TBFox is used if it happens to exist, so
-existing setups keep working without a change. Every suite that needs a
-corpus skips when the file is not there, so everything that does not need one
-still runs on a machine that has never seen these files. Set UMLMETA_STRICT=1
-to turn that skip into an error: a run that claims to cover the corpus should
-not pass by finding nothing.
+Unset, the root is ~/uml-corpus. Every suite that needs a corpus skips when
+the file is not there, so everything that does not need one still runs on a
+machine that has never seen these files. Set UMLMETA_STRICT=1 to turn that
+skip into an error: a run that claims to cover the corpus should not pass by
+finding nothing.
 """
 import os
 import sys
@@ -24,25 +22,14 @@ from pathlib import Path
 ENV = "UMLMETA_CORPUS"
 STRICT_ENV = "UMLMETA_STRICT"
 DEFAULT_ROOT = Path.home() / "uml-corpus"
-LEGACY_ROOT = Path("/mnt/TBFox")
 
-__all__ = ["ENV", "STRICT_ENV", "DEFAULT_ROOT", "LEGACY_ROOT", "root", "path",
-           "available", "available_all", "missing", "finish_skipped", "strict"]
+__all__ = ["ENV", "STRICT_ENV", "DEFAULT_ROOT", "root", "path", "available",
+           "available_all", "missing", "finish_skipped", "strict"]
 
 
 def root():
-    """The corpus directory: $UMLMETA_CORPUS, else where the files are.
-
-    A clone has no corpus. The collected tree is named by the environment
-    variable; failing that, the historical mount is honoured if it is really
-    there, and otherwise ~/uml-corpus is named so the skip message is useful.
-    """
-    env = os.environ.get(ENV)
-    if env:
-        return Path(env)
-    if LEGACY_ROOT.is_dir():
-        return LEGACY_ROOT
-    return DEFAULT_ROOT
+    """The corpus directory: $UMLMETA_CORPUS, else ~/uml-corpus."""
+    return Path(os.environ.get(ENV) or DEFAULT_ROOT)
 
 
 def path(*parts):

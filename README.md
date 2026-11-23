@@ -98,10 +98,11 @@ generate.py            UML 2.5.1 metamodel generator (OMG UML.xmi -> src/umlmeta
 generate_profiles.py   profile generator (StandardProfile.xmi, sysml.xmi, UAF.xmi -> src/umlmeta/*.py)
 generate_sysml2.py     SysML v2 AS generator (OMG normative CMOF XMI -> src/umlmeta/sysml2.py)
 generate_bpmn.py       CMOF generator (OMG BPMN20.cmof -> src/umlmeta/bpmn.py)
-check*.py               thirty check suites (943 checks pass with no corpus on disk;
-                        corpus suites read $UMLMETA_CORPUS, mdzip suites
-                        MDZIP_CORPUS / MDZIP_REVISIONS, and the two diagram
-                        renderers need diagramboxes + drawille)
+check*.py               thirty-one check suites (959 checks on a host with no corpus:
+                        corpus suites read $UMLMETA_CORPUS and skip when it is
+                        absent, mdzip suites MDZIP_CORPUS / MDZIP_REVISIONS, and
+                        the two diagram renderers need diagramboxes + drawille
+                        and write their output to reproduced/)
 calibrate_v2.py        textual-form calibration harness for sysmlpy
 REPORT.md              build journal: dialect facts, mapping tables, evidence
 PLAN.md                plan for the exporter/QoL waves (E1-E6: XMI/CMOF/EMOF writers, stereotype writing, derived unions, query helpers)
@@ -132,10 +133,8 @@ and they look for the files under one directory:
 export UMLMETA_CORPUS=/path/to/models
 ```
 
-Unset, the root is `~/uml-corpus` (or `/mnt/TBFox` if that directory is really
-there, so the machine where the files were first collected needs no change).
-`scripts/corpus_sync.sh /dev/sdXN [DEST]` copies the tree off a card onto local
-storage.
+Unset, the root is `~/uml-corpus`. `scripts/corpus_sync.sh /dev/sdXN [DEST]`
+copies the tree off a card onto local storage.
 
 Everything below that root is addressed by relative path, so the same tree
 works on any machine:

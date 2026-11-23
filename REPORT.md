@@ -347,7 +347,7 @@ Output kept at `dodaf_library_v2.sysml`.
 python check.py                                      # 45 checks (stdlib only)
 python check_profiles.py                             # 21 checks
 ~/sysmlpy/.venv/bin/python check_v1_to_v2.py         # 47 checks (needs sysmlpy)
-~/sysmlpy/.venv/bin/python check_dodaf.py            # 32 checks (needs sysmlpy + /mnt/TBFox/DoDAFLibrary.xmi)
+~/sysmlpy/.venv/bin/python check_dodaf.py            # 32 checks (needs sysmlpy + $UMLMETA_CORPUS/DoDAFLibrary.xmi)
 ```
 
 # Part 5: v1→v2 wave 3 (FullPort/ProxyPort, FlowProperty,

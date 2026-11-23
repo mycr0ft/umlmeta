@@ -90,6 +90,7 @@ check("exists / count", Q.exists(V, name="wheel")
 
 print("== stereotypes (MeasurementsLibrary corpus) ==")
 ML = corpus.path("uml_xmi", "MeasurementsLibrary.xmi")
+skipped = []
 if corpus.available(ML):
     ml = xmi21.read_xmi21(ML)
     root = ml.roots[0]
@@ -118,6 +119,7 @@ if corpus.available(ML):
           and len(ms) == n_ms, f"{len(ms)} == {n_ms}")
 else:
     print(f"  SKIP  {ML} not on disk; set {corpus.ENV}")
+    skipped.append("MeasurementsLibrary.xmi")
 
 print("== DoDAF corpus ==")
 DODAF = corpus.path("DoDAFLibrary.xmi")
@@ -144,8 +146,11 @@ if corpus.available(DODAF):
           == sum(1 for o in dodaf.objects.values() if isinstance(o, U.DataType)))
 else:
     print(f"  SKIP  {DODAF} not on disk; set {corpus.ENV}")
+    skipped.append("DoDAFLibrary.xmi")
 
 print()
+if len(skipped) == 2:                           # every corpus section skipped
+    corpus.finish_skipped(len(PASS), len(FAIL), " + ".join(skipped))
 print(f"RESULT: {len(PASS)} passed, {len(FAIL)} failed")
 if FAIL:
     print("FAILURES:", FAIL)

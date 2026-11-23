@@ -111,6 +111,7 @@ if CORPUS.exists():
 else:                                            # pragma: no cover
     print(f"  SKIP  {CORPUS} not on disk; set {corpus.ENV}")
     dmodel, drep = None, {"instances": []}
+corpus_absent = dmodel is None
 
 
 # ---------------------------------------------------------------------------
@@ -166,6 +167,8 @@ if drep["instances"]:
 
 
 print()
+if corpus_absent:                               # only the corpus section ran dry
+    corpus.finish_skipped(len(PASS), len(FAIL), "DoDAFLibrary.xmi")
 print(f"RESULT: {len(PASS)} passed, {len(FAIL)} failed")
 if FAIL:
     print("FAILURES:", FAIL)
