@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xmi:XMI xmlns:xmi="http://schema.omg.org/spec/XMI/2.1"
+         xmlns:uml="http://www.omg.org/spec/UML/20090901">
+  <uml:Package xmi:type="uml:Package" xmi:id="pkg">
+    <name>UnlimitedNaturalMultiplicityRepro</name>
+    <packagedElement xmi:type="uml:Class" xmi:id="container">
+      <name>Container</name>
+      <ownedAttribute xmi:type="uml:Property" xmi:id="items">
+        <name>items</name>
+        <upperValue xmi:type="uml:LiteralUnlimitedNatural" xmi:id="upper"
+                    value="*"/>
+      </ownedAttribute>
+    </packagedElement>
+  </uml:Package>
+</xmi:XMI>

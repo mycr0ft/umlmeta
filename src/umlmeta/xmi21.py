@@ -229,6 +229,11 @@ class XMI21Model:
         self.apps = {}           # base xmi:id -> [(profile, stereo, app_id)]
         self.hrefs = []          # (xmi:id, feature, href) external refs
         self.synthetic_types = {}  # href -> synthetic U.DataType
+        # fragment -> declared metaclass for hrefs the reader records but
+        # cannot instantiate (abstract types such as Behavior, Type,
+        # Feature). The href itself stays in self.hrefs; this is the
+        # diagnostic-only record of what the reference was declared to be.
+        self.external_types = {}
         self.unmapped = []       # (xmi:id, tag) not constructible
         self.unmapped_features = []  # (xmi:id, feature) not in the tables
         self.unresolved_refs = []    # (obj_id, feature, ref) dangling idrefs
@@ -302,6 +307,8 @@ def read_xmi21_files(paths) -> XMI21Model:
             owner = m.objects.get(owner_id)
             if target is None or owner is None:
                 scope.hrefs.append((owner_id, feat, href))
+                if frag in m.external_types:
+                    scope.external_types[frag] = m.external_types[frag]
                 continue
             d = owner._props.get(feat)
             cur = owner._vals.get(feat)
@@ -402,6 +409,13 @@ def read_xmi21(path) -> XMI21Model:
                 lit._vals["value"] = U.UnlimitedNatural(0)
 
     def walk(el, obj):
+        # a literal's value arrives as a <value> child or a value=
+        # attribute, never as a modelled feature of its own - read it
+        # wherever the literal was constructed (FeatureValue, Slot value,
+        # default value, guard specification ...), not only through the
+        # VALUE_SPEC branch.
+        if type(obj).__name__ in LITERAL_CLASSES:
+            set_literal_value(obj, el)
         # XMI 2.5.1-era EMF dialect (P10): primitive-valued features and
         # single idrefs can arrive as unprefixed attributes (name=,
         # visibility=, body=, association=, type=). The child form wins if
@@ -455,12 +469,17 @@ def read_xmi21(path) -> XMI21Model:
                 # descriptor when the tables disagree)
                 dref = obj._props.get(feat)
                 single = True
-                if feat in REF_SINGLE:
+                # the descriptor is the truth; the name tables exist only
+                # for features the descriptor cannot describe. Reading a
+                # multi-valued metaclass feature as single (classifier on
+                # an InstanceSpecification, memberEnd, ...) stores a bare
+                # object exactly where every consumer iterates.
+                if dref is not None:
+                    single = not dref.multi
+                elif feat in REF_SINGLE:
                     single = True
                 elif feat in REF_MULTI:
                     single = False
-                elif feat in COMPOSITE and dref is not None:
-                    single = not dref.multi
                 elif feat in COMPOSITE:
                     continue      # never a reference: drop silently is
                     #               wrong, but COMPOSITE-only features
@@ -555,8 +574,18 @@ def read_xmi21(path) -> XMI21Model:
                         tname = d.t if d is not None and isinstance(d.t, str) \
                             else None
                         cls = U.metaclass(tname) if tname else None
+                        # a legal reference may point at a type that IS
+                        # abstract (Behavior, Type, Feature ...): the
+                        # runtime marks those with _ABSTRACT and cannot
+                        # instantiate one, so no marker can stand for it.
+                        # The reference stays recorded in xmi.hrefs and the
+                        # read continues - raising here fails the whole
+                        # file over a legal model.
                         if cls is not None \
-                                and cls.__name__ not in CONSTRUCTIBLE:
+                                and (cls.__name__ not in CONSTRUCTIBLE
+                                     or getattr(cls, "_ABSTRACT", False)):
+                            if tname:
+                                xmi.external_types[frag] = tname
                             cls = None
                     if cls is None:
                         continue

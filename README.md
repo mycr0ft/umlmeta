@@ -53,6 +53,7 @@ python check_bpmn.py            # BPMN 2.0.2 CMOF metamodel: 25 checks (stdlib o
 python check_sysml2.py          # SysML v2 abstract syntax: 26 checks (stdlib only)
 python check_emof_write.py      # EMOF writer: 18 checks (stdlib only)
 python check_ocl.py             # OCL translation: 19 checks (stdlib only)
+python check_instance_spec.py   # instance specs + links (7.7.4.2.13/.14): 22 checks (stdlib only)
 
 # these need the sysmlpy reader and/or the OMG corpora
 $SYSMLPY_PYTHON check_v1_to_v2.py    # v1->v2 emitter: 47 checks

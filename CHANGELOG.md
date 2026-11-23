@@ -22,6 +22,21 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- XMI reference arity comes from the metaclass descriptor before the name
+  tables, so a multi-valued feature the tables omit (`classifier` on an
+  `InstanceSpecification`) is stored as a sequence instead of a bare object
+  where every consumer iterates. A reference typed by an abstract metaclass
+  (`Behavior`, `Type`) is recorded in `hrefs`/`external_types` and the read
+  continues, instead of failing the whole file over a legal model. A literal's
+  `value` is read where the literal is constructed (FeatureValue, Slot value,
+  default value), not only through the `VALUE_SPEC` branch.
+- `v1_to_v2` / `v1_to_v2_as`: an `InstanceSpecification` maps (7.7.4.2.14) to a
+  `PartUsage` typed by its classifier, one unnamed redefining feature per slot
+  value; an association-classified one maps (7.7.4.2.13) to a
+  `ConnectionUsage` whose ends come from `ReferenceSubsetting`. The textual
+  emitter renders the slot body as `redefines f = v;`, the link as
+  `connection l : Assoc connect a to b;`, and a property's multiplicity even
+  when the feature has no type.
 - `_DERIVED_FUNCS_LEGACY` and the eval-environment bindings are built after the
   local lowerings are defined (they resolved names that did not exist yet at
   import), and the legacy oracle excludes every post-v0 operation so the
@@ -29,6 +44,10 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- `check_instance_spec.py` and five `.xmi` fixtures: 22 checks over the XMI
+  reader and both v2 paths for instance specifications, slot values, links, an
+  unlimited upper bound, and an abstract-typed external reference. Wired into
+  `check.yml`.
 - `umlmeta.v2_triage` — the validation gate's findings as a ledger (every
   violation and skip family with an owner: transform / engine / runtime /
   unattributed; 96 rows, 39 attributed on the vehicle model) plus a

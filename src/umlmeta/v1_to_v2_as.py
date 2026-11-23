@@ -186,6 +186,18 @@ def _name(el):
     return n if isinstance(n, str) and n else None
 
 
+def _as_seq(v):
+    """A metamodel feature as a collection, whatever the model holds.
+
+    A multi-valued feature (InstanceSpecification.classifier/slot) is
+    normally a list, but a hand-built model may hold a bare object."""
+    if v is None:
+        return []
+    if isinstance(v, (list, tuple)):
+        return list(v)
+    return [v]
+
+
 # --------------------------------------------------------------------------
 # elision ledger (M4): every v1 element the mapping deliberately does not
 # carry is recorded, never silently dropped. The side channel (opt-in) puts
@@ -362,6 +374,13 @@ def _transform_v1_element_inner(el, index=None):
     if isinstance(el, U.EnumerationLiteral):
         # EnumerationLiteral_Mapping: to EnumerationUsage
         return S2.EnumerationUsage(declaredName=_name(el))
+    if isinstance(el, U.InstanceSpecification):
+        # InstanceSpecification_Mapping (7.7.4.2.14): an ordinary
+        # instance -> PartUsage typed by its classifier, slots ->
+        # FeatureValue; a link (Association classifier, 7.7.4.2.13)
+        # -> ConnectionUsage. Typing and slot targets resolve in pass
+        # 2.5, after every classifier has its features.
+        return _transform_instancespec(el, index)
     if isinstance(el, U.Actor):
         # Actor_Mapping (7.7.13.3.1): to PartDefinition
         return S2.PartDefinition(declaredName=_name(el))
@@ -3020,6 +3039,12 @@ def transform_packages(pkgs, side_channel=False):
             _stereo_metadata(prop, usage)
     index.pop("_prop_uses", None)
 
+    # pass 2.5b: instance specifications (7.7.4.2.14/.13) - typing and
+    # slot values need every classifier's features to exist first
+    for ins, usage in index.get("_instance_specs", []):
+        _populate_instancespec(ins, usage, index)
+    index.pop("_instance_specs", None)
+
     # pass 3: relationship machinery per namespace (7.7.13.3.x imports
     # wired in pass 2; 7.8.8.3.x chain members resolve ends here)
     for ns_v1, ns2 in ns_pairs:
@@ -3099,6 +3124,113 @@ def _binding_connector(*related):
 _SKIP_PASS1 = (S.Satisfy, S.Verify, S.DeriveReqt, S.Allocate,
                U.Abstraction, U.Dependency, U.Include, U.Extend,
                U.PackageImport, U.ElementImport, U.InformationFlow)
+
+
+def _transform_instancespec(el, index):
+    """InstanceSpecification_Mapping (7.7.4.2.14): an InstanceSpecification
+    whose classifiers are Classes becomes a PartUsage named after the
+    instance and typed by the classifier's definition; its slots become
+    FeatureValues on that usage. When a classifier is an Association the
+    specification is a link (7.7.4.2.13) and becomes a ConnectionUsage
+    whose ends reference the slot values' instances.
+
+    Only the shell is built here: classifiers and slot targets are
+    features of definitions that pass 2 has not populated yet, so
+    _populate_instancespec resolves them once the whole level exists."""
+    classifiers = _as_seq(el._vals.get("classifier"))
+    if any(isinstance(c, U.Association) for c in classifiers):
+        usage = S2.ConnectionUsage(declaredName=_name(el))
+    else:
+        # 7.7.4.2.14: 'part inst : B { ... }' - the textual mapping's
+        # rendering of an instance usage, so the AS keeps the same
+        # composite default the textual path emits
+        usage = S2.PartUsage(declaredName=_name(el))
+    index.setdefault("_instance_specs", []).append((el, usage))
+    return usage
+
+
+def _populate_instancespec(ins, usage, index):
+    """Typing + slot values for one mapped InstanceSpecification (pass 2.5).
+    Raises UnmappedFeature rather than guessing when a classifier or slot
+    feature has no v2 counterpart, matching the rest of the transform."""
+    nm = _name(ins) or "?"
+    classifiers = _as_seq(ins._vals.get("classifier"))
+    assocs = [c for c in classifiers if isinstance(c, U.Association)]
+    if assocs:
+        # 7.7.4.2.13: the link's classifier is the association it
+        # instantiates, so the connection usage is typed by it
+        cdef = index.get(id(assocs[0]))
+        if cdef is None:
+            raise UnmappedFeature(
+                f"link InstanceSpecification {nm!r} classified by unmapped "
+                f"{type(assocs[0]).__name__} {_name(assocs[0])!r}")
+        _type_feature(usage, cdef)
+        ends = []
+        for sl in _as_seq(ins._vals.get("slot")):
+            for v in _as_seq(sl._vals.get("value")):
+                inst = v._vals.get("instance") \
+                    if isinstance(v, U.InstanceValue) else None
+                target = index.get(id(inst)) if inst is not None else None
+                if target is None:
+                    raise UnmappedFeature(
+                        f"link InstanceSpecification {nm!r} slot value "
+                        f"without a mapped instance")
+                ru = S2.ReferenceUsage()
+                rs = S2.ReferenceSubsetting()
+                rs.subsettingFeature = ru
+                rs.referencedFeature = target
+                ru.ownedRelationship.append(rs)
+                em = S2.EndFeatureMembership()
+                em.ownedRelatedElement.append(ru)
+                usage.ownedRelationship.append(em)
+                ends.append(ru)
+        if len(ends) != 2:
+            raise UnmappedFeature(
+                f"link InstanceSpecification {nm!r} with {len(ends)} ends")
+        return
+    for c in classifiers:
+        cdef = index.get(id(c))
+        if cdef is None:
+            raise UnmappedFeature(
+                f"InstanceSpecification {nm!r} classified by unmapped "
+                f"{type(c).__name__} {_name(c)!r}")
+        _type_feature(usage, cdef)
+    for sl in _as_seq(ins._vals.get("slot")):
+        feat = sl._vals.get("definingFeature")
+        f2 = index.get(id(feat)) if feat is not None else None
+        if f2 is None:
+            raise UnmappedFeature(
+                f"Slot on {_name(feat)!r} of {nm!r} without a mapped feature")
+        # 7.7.4.2.14: a slot is a redefining feature of the instance whose
+        # FeatureValue carries the slot's value - the graph the textual
+        # form 'redefines <feature> = <value>;' renders. One redefining
+        # feature per value (a Feature may own at most one FeatureValue).
+        values = _as_seq(sl._vals.get("value")) or [None]
+        for v in values:
+            rf = S2.AttributeUsage()
+            rd = S2.Redefinition()
+            rd.redefinedFeature = f2
+            rd.redefiningFeature = rf
+            rf.ownedRelationship.append(rd)
+            if v is not None:
+                fv = S2.FeatureValue()
+                fv.value = _slot_value_expr(v, index, nm, _name(feat))
+                rf.ownedRelationship.append(fv)
+            fm = S2.FeatureMembership()
+            fm.ownedRelatedElement.append(rf)
+            usage.ownedRelationship.append(fm)
+
+
+def _slot_value_expr(v, index, owner_nm, feat_nm):
+    """Slot value -> Expression, through the same literal mapping the rest
+    of the transform uses (7.7.14.3.33). An InstanceValue names another
+    instance, which the v2 textual form cannot render as a slot value, so
+    it is refused by name rather than stood in for."""
+    expr = _map_value_spec(v, index)
+    if expr is None:
+        raise UnmappedFeature(
+            f"Slot {feat_nm!r} of {owner_nm!r} value of {type(v).__name__}")
+    return expr
 
 
 def _populate_namespace(ns_v1, ns2, index, ns_pairs):

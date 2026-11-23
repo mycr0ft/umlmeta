@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xmi:XMI xmlns:xmi="http://schema.omg.org/spec/XMI/2.1"
+         xmlns:uml="http://www.omg.org/spec/UML/20090901">
+  <uml:Package xmi:type="uml:Package" xmi:id="pkg">
+    <name>SlotValueRepro</name>
+    <packagedElement xmi:type="uml:PrimitiveType" xmi:id="integer">
+      <name>Integer</name>
+    </packagedElement>
+    <packagedElement xmi:type="uml:Class" xmi:id="vehicleType">
+      <name>VehicleType</name>
+      <ownedAttribute xmi:type="uml:Property" xmi:id="speed">
+        <name>speed</name>
+        <type xmi:idref="integer"/>
+      </ownedAttribute>
+      <ownedAttribute xmi:type="uml:Property" xmi:id="tag">
+        <name>tag</name>
+        <type xmi:idref="integer"/>
+      </ownedAttribute>
+    </packagedElement>
+    <packagedElement xmi:type="uml:InstanceSpecification" xmi:id="vehicle1">
+      <name>vehicle1</name>
+      <classifier xmi:idref="vehicleType"/>
+      <slot xmi:type="uml:Slot" xmi:id="slotSpeed">
+        <definingFeature xmi:idref="speed"/>
+        <value xmi:type="uml:LiteralInteger" xmi:id="litSpeed" value="42"/>
+      </slot>
+      <slot xmi:type="uml:Slot" xmi:id="slotTag">
+        <definingFeature xmi:idref="tag"/>
+        <value xmi:type="uml:LiteralString" xmi:id="litTag" value="demo"/>
+      </slot>
+    </packagedElement>
+  </uml:Package>
+</xmi:XMI>

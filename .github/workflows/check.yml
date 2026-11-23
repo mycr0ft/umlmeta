@@ -51,3 +51,5 @@ jobs:
         run: python check_emof_write.py
       - name: OCL translation checks (stdlib only)
         run: python check_ocl.py
+      - name: Instance specification and link checks (stdlib only)
+        run: python check_instance_spec.py

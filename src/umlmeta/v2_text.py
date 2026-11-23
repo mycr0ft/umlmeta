@@ -253,6 +253,58 @@ def _feature_suffix(feature):
     return out + _value_suffix(feature)
 
 
+def _slot_rels(feature, tn):
+    """Relationships a slot feature owns directly (7.7.4.2.14).
+
+    The AS transform attaches a slot's Redefinition and FeatureValue to
+    the redefining feature itself, not through a membership, so they are
+    not reachable by _member_pairs.
+    """
+    return [r for r in (getattr(feature, "ownedRelationship", None) or ())
+            if type(r).__name__ == tn]
+
+
+def _anon_feature_body(feature):
+    """Body lines for the anonymous redefining features a usage owns.
+
+    An InstanceSpecification slot maps (UML 7.7.4.2.14) to an unnamed
+    redefining feature per value; the textual form renders that inside
+    the instance's body as 'redefines f = v;'.
+    """
+    out = []
+    for _rel, ch in _member_pairs(feature):
+        if type(ch).__name__ != "AttributeUsage" or _name(ch) is not None:
+            continue
+        reds = _slot_rels(ch, "Redefinition")
+        if not reds:
+            continue
+        names = []
+        for rd in reds:
+            t = rd._vals.get("redefinedFeature")
+            if isinstance(t, list):
+                t = t[0] if t else None
+            nm = _name(t) if t is not None else None
+            if nm is None:
+                raise UnsupportedEmission(
+                    "Redefinition with an unnamed target")
+            names.append(_q(nm))
+        val = ""
+        for fv in _slot_rels(ch, "FeatureValue"):
+            v = fv._vals.get("value")
+            if isinstance(v, list):
+                v = v[0] if v else None
+            if v is None:
+                continue
+            txt = _literal(v)
+            if txt is None:
+                raise UnsupportedEmission(
+                    f"FeatureValue expression {type(v).__name__}")
+            val += " = " + txt
+            break
+        out.append("redefines " + ", ".join(names) + val + ";")
+    return out
+
+
 def _docs(el, pad):
     out = []
     for _rel, ch in _member_pairs(el):
@@ -272,17 +324,22 @@ def _direction(feature):
     return txt + " " if txt in ("in", "out", "inout") else ""
 
 
-def _typed_line(feature, keyword, pad):
+def _types_text(types):
+    """' : T' or ' : A, B' from _type_of's list, '' when untyped."""
+    if not types:
+        return ""
+    return " : " + ("::".join(types) if len(types) == 1 else ", ".join(types))
+
+
+def _typed_line(feature, keyword, pad, body=None):
     nm = _name(feature)
     if nm is None:
         raise UnsupportedEmission(f"unnamed {type(feature).__name__}")
-    types = _type_of(feature)
-    line = f"{pad}{keyword}{_q(nm)}"
-    if types:
-        line += " : " + "::".join(types) if len(types) == 1 else \
-            " : " + ", ".join(types)
-    line += _mult(feature) + _feature_suffix(feature) + ";"
-    return [line]
+    line = f"{pad}{keyword}{_q(nm)}" + _types_text(_type_of(feature))
+    line += _mult(feature) + _feature_suffix(feature)
+    if body:
+        return [line + " {"] + ["  " + pad + b for b in body] + [pad + "}"]
+    return [line + ";"]
 
 
 def _definition(el, keyword, ind):
@@ -437,18 +494,42 @@ def _emit(el, ind):
         return _typed_line(el, _direction(el), pad)
 
     # ---- ordinary features --------------------------------------------
+    if tn == "ConnectionUsage":
+        # 7.7.4.2.13: a link is a connection whose two ends each subset the
+        # part it attaches to, so the ends come from ReferenceSubsetting
+        nm = _name(el)
+        if nm is None:
+            raise UnsupportedEmission("unnamed ConnectionUsage")
+        types = _type_of(el)
+        ends = []
+        for _rel, ch in _member_pairs(el):
+            if type(ch).__name__ != "ReferenceUsage":
+                continue
+            tgt = None
+            for r2 in (getattr(ch, "ownedRelationship", None) or ()):
+                if type(r2).__name__ == "ReferenceSubsetting":
+                    tgt = r2._vals.get("referencedFeature")
+                    if isinstance(tgt, list):
+                        tgt = tgt[0] if tgt else None
+            ends.append(_name(tgt) if tgt is not None else None)
+        if len(ends) != 2 or None in ends:
+            raise UnsupportedEmission(
+                "ConnectionUsage without two bound ends")
+        return [f"{pad}connection {_q(nm)}" + _types_text(types)
+                + f" connect {_q(ends[0])} to {_q(ends[1])};"]
+
     if tn == "PartUsage":
         kw = "part " if el._vals.get("isComposite", True) else "ref part "
-        return _typed_line(el, kw, pad)
+        return _typed_line(el, kw, pad, _anon_feature_body(el))
     if tn == "AttributeUsage":
-        return _typed_line(el, "attribute ", pad)
+        return _typed_line(el, "attribute ", pad, _anon_feature_body(el))
     if tn == "OccurrenceUsage":
         kw = "occurrence " if el._vals.get("isComposite", True) \
             else "ref occurrence "
-        return _typed_line(el, kw, pad)
+        return _typed_line(el, kw, pad, _anon_feature_body(el))
     if tn == "ItemUsage":
         kw = "item " if el._vals.get("isComposite", True) else "ref item "
-        return _typed_line(el, kw, pad)
+        return _typed_line(el, kw, pad, _anon_feature_body(el))
     if tn == "PortUsage":
         return _typed_line(el, "port ", pad)
     if tn == "EnumerationUsage":
@@ -466,7 +547,7 @@ def _emit(el, ind):
               "SubjectMembership", "ActorMembership", "Invariant",
               "IncludeUseCaseUsage", "PerformActionUsage", "MetadataUsage",
               "Flow", "FlowEnd", "BindingConnectorAsUsage",
-              "ConnectionUsage", "AllocationUsage", "ConstraintUsage",
+              "AllocationUsage", "ConstraintUsage",
               "Dependency", "Subsetting", "Redefinition", "FeatureTyping",
               "FeatureValue", "MultiplicityRange", "Subclassification",
               "FeatureReferenceExpression", "FeatureChainExpression",

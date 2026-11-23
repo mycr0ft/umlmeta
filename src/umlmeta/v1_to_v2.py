@@ -124,6 +124,22 @@ def _name(el):
     return n if isinstance(n, str) and n else None
 
 
+def _as_seq(v):
+    """A metamodel feature read as a collection, whatever the model holds.
+
+    The reader normally stores a multi-valued feature as a list, but a
+    hand-built model (and any file read before the descriptor-driven
+    arity fix) may hold a bare object for a feature that is multi in the
+    UML metamodel - InstanceSpecification.classifier is exactly that.
+    Normalizing here keeps one bad store from turning into a TypeError
+    far from its cause."""
+    if v is None:
+        return []
+    if isinstance(v, (list, tuple)):
+        return list(v)
+    return [v]
+
+
 def _mult(prop) -> str:
     """Multiplicity text from lowerValue/upperValue literal values."""
     lo = hi = None
@@ -508,14 +524,14 @@ def emit_instancespec(ins, pad) -> list[str]:
     B { redefines p = "Hello"; }') or, when a classifier is an
     Association (a link), ConnectionUsage (7.7.4.2.13; gold 'connection
     l : Assoc connect a to b;')."""
-    classifiers = list(ins.classifier)
+    classifiers = _as_seq(ins._vals.get("classifier"))
     assocs = [c for c in classifiers if isinstance(c, U.Association)]
     nm = _v2name(_name(ins) or "?")
-    slots = list(ins.slot)
+    slots = _as_seq(ins._vals.get("slot"))
     if assocs:
         roles = []
         for sl in slots:
-            for v in list(sl._vals.get("value") or []):
+            for v in _as_seq(sl._vals.get("value")):
                 if isinstance(v, U.InstanceValue):
                     rn = _name(v._vals.get("instance"))
                 else:
@@ -553,7 +569,7 @@ def _slot_lines(slots, pad) -> list[str]:
         fn = _name(feat)
         if fn is None:
             raise UnmappedFeature("Slot without a named definingFeature")
-        values = [v for v in list(sl._vals.get("value") or [])]
+        values = _as_seq(sl._vals.get("value"))
         if not values:
             out.append(f"{pad}redefines {_v2name(fn)};")
             continue
@@ -1334,7 +1350,7 @@ def emit_property(prop, indent) -> list[str]:
         # target grammar (sysmlpy 0.91.0) has no 'feature <name>;'
         # declaration, so the bare-name feature form is emitted (a
         # keyword-less usage declaration is a Feature in v2)
-        return [f"{pad}{nm}{specs}{dflt};"]
+        return [f"{pad}{nm}{mult}{specs}{dflt};"]
     tn = _name(t)
     if tn is None:
         raise UnmappedFeature(f"Property {nm!r} typed by unnamed element")

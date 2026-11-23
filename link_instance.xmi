@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xmi:XMI xmlns:xmi="http://schema.omg.org/spec/XMI/2.1"
+         xmlns:uml="http://www.omg.org/spec/UML/20090901">
+  <uml:Package xmi:type="uml:Package" xmi:id="pkg">
+    <name>LinkRepro</name>
+    <packagedElement xmi:type="uml:Class" xmi:id="node">
+      <name>Node</name>
+    </packagedElement>
+    <packagedElement xmi:type="uml:Association" xmi:id="linkType">
+      <name>Link</name>
+      <memberEnd xmi:idref="srcEnd"/>
+      <memberEnd xmi:idref="tgtEnd"/>
+      <ownedEnd xmi:type="uml:Property" xmi:id="srcEnd">
+        <name>src</name>
+        <type xmi:idref="node"/>
+        <association xmi:idref="linkType"/>
+      </ownedEnd>
+      <ownedEnd xmi:type="uml:Property" xmi:id="tgtEnd">
+        <name>tgt</name>
+        <type xmi:idref="node"/>
+        <association xmi:idref="linkType"/>
+      </ownedEnd>
+    </packagedElement>
+    <packagedElement xmi:type="uml:InstanceSpecification" xmi:id="nodeA">
+      <name>nodeA</name>
+      <classifier xmi:idref="node"/>
+    </packagedElement>
+    <packagedElement xmi:type="uml:InstanceSpecification" xmi:id="nodeB">
+      <name>nodeB</name>
+      <classifier xmi:idref="node"/>
+    </packagedElement>
+    <packagedElement xmi:type="uml:InstanceSpecification" xmi:id="link1">
+      <name>link1</name>
+      <classifier xmi:idref="linkType"/>
+      <slot xmi:type="uml:Slot" xmi:id="slotSrc">
+        <definingFeature xmi:idref="srcEnd"/>
+        <value xmi:type="uml:InstanceValue" xmi:id="ivSrc">
+          <instance xmi:idref="nodeA"/>
+        </value>
+      </slot>
+      <slot xmi:type="uml:Slot" xmi:id="slotTgt">
+        <definingFeature xmi:idref="tgtEnd"/>
+        <value xmi:type="uml:InstanceValue" xmi:id="ivTgt">
+          <instance xmi:idref="nodeB"/>
+        </value>
+      </slot>
+    </packagedElement>
+  </uml:Package>
+</xmi:XMI>
