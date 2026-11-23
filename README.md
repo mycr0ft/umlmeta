@@ -140,6 +140,9 @@ from umlmeta import derived, query
   emitter (AMS GRA v14.0 SysML v2 model, built via this toolchain)
 - [mycr0ft/ams-gra-sysml](https://github.com/mycr0ft/ams-gra-sysml) — the
   SysML v2 model itself
+- [mycr0ft/uml-ontology](https://github.com/mycr0ft/uml-ontology) — the OWL 2
+  ontology and SHACL shapes generated from these metamodels; grew here and
+  moved out so it could be used without the toolchain
 
 ## License
 
