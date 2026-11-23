@@ -16,8 +16,11 @@ from umlmeta import uml25 as U  # noqa: E402
 from umlmeta import canon  # noqa: E402
 from umlmeta import xmi21  # noqa: E402
 from umlmeta import xmi_write as W  # noqa: E402
+from umlmeta import corpus  # noqa: E402
+from umlmeta import uaf as UA  # noqa: E402
+from umlmeta import sysml as SY  # noqa: E402
 
-DODAF = "/mnt/TBFox/DoDAFLibrary.xmi"
+DODAF = corpus.path("DoDAFLibrary.xmi")
 RT = "/tmp/dodaf_e1_roundtrip.xmi"
 
 PASS, FAIL = [], []
@@ -58,6 +61,10 @@ def graph_equal(m1, m2):
             if s1.get(i) != s2.get(i):
                 return i, s1.get(i), s2.get(i)
     return None
+
+
+if not corpus.available(DODAF):
+    corpus.finish_skipped(len(PASS), len(FAIL), "DoDAFLibrary.xmi")
 
 
 print("== read / write / determinism ==")
@@ -193,80 +200,81 @@ except W.WriteError:
 check("dangling reference raises WriteError", raised)
 
 print("== E2: MeasurementsLibrary.xmi (XMI 2.5.1-era EMF dialect, P10) ==")
-from umlmeta import uaf as UA  # noqa: E402
-from umlmeta import sysml as SY  # noqa: E402
-
-ML = "/mnt/TBFox/uml_xmi/MeasurementsLibrary.xmi"
+ML = corpus.path("uml_xmi", "MeasurementsLibrary.xmi")
 MLRT = "/tmp/ml_e1_roundtrip.xmi"
-ml1 = xmi21.read_xmi21(ML)
-mlapps = W.apps_from_model(ml1)
-mldata = W.write_xmi(ml1.roots, apps=mlapps, nsmap=ml1.nsmap,
-                     profile_applications=ml1.profiles)
-mldata2 = W.write_xmi(ml1.roots, apps=mlapps, nsmap=ml1.nsmap,
-                      profile_applications=ml1.profiles)
-check("ML write is deterministic (byte-identical)", mldata == mldata2)
-open(MLRT, "wb").write(mldata)
-ml2 = xmi21.read_xmi21(MLRT)
-check("ML round-trip object count (221)",
-      len(ml1.objects) == len(ml2.objects) == 221,
-      f"{len(ml1.objects)} -> {len(ml2.objects)}")
-check("ML applications preserved (76, prefixed dialect)",
-      sum(len(v) for v in ml1.apps.values())
-      == sum(len(v) for v in ml2.apps.values()) == 76)
-check("ML app metas preserved", ml1.app_metas == ml2.app_metas)
-bad = graph_equal(ml1, ml2)
-check("ML full graph signature equal", bad is None,
-      "" if bad is None else f"{bad[0]}: {bad[1]} != {bad[2]}")
-mid = next(o._xmi_id for o in ml1.objects.values()
-           if type(o).__name__ == "Model")
-check("Model URI feature read and round-tripped",
-      ml1.objects[mid]._vals.get("URI")
-      == "https://www.omg.org/spec/UAF/20211201/MeasurementsLibrary"
-      and ml2.objects[mid]._vals.get("URI")
-      == "https://www.omg.org/spec/UAF/20211201/MeasurementsLibrary")
-check("packageImport imported via href marker",
-      any(feat == "importedPackage"
-          and "spec/UML/20161101/UML.xmi#_0" in ref
-          for _, feat, ref in ml1.hrefs)
-      and ml1.hrefs == ml2.hrefs)
-check("only unmapped feature is the MagicDraw header reference",
-      ml1.unmapped_features == [(mid, "metamodelReference")]
-      and not ml2.unmapped_features)
-check("profile applications: one element per applied profile",
-      sum(1 for c in ml2.roots[0]._vals["packageImport"] if False) == 0
-      and len(ml1.profiles) == 2)
-diffs = canon.compare(ML, MLRT,
-                      drop_names_at={i for i, _ in ml1.derived_names},
-                      drop_feats_at={mid: {"metamodelReference"}})
-check("ML canonical parity vs OMG original", not diffs, str(diffs[:1]))
-# P10 serialization conventions
-from lxml import etree  # noqa: E402
-X31 = "{http://www.omg.org/spec/XMI/20131001}"
-tr = etree.parse(MLRT).getroot()
-check("ML written root is 20131001 xmi:XMI",
-      tr.tag == f"{X31}XMI")
-app0 = next(c for c in tr if etree.QName(c).namespace
-            and "UAF" in etree.QName(c).namespace)
-check("P10 applications: prefixed elements with base_<Meta> attributes",
-      etree.QName(app0).localname == "Measurement"
-      and app0.get("base_Property") is not None
-      and not [c for c in app0])
-model0 = next(c for c in tr if etree.QName(c).localname == "Model")
-check("P10 primitives as attributes (name, visibility); URI as text child",
-      model0.get("name") == "Measurements Library"
-      and any(c.tag == "URI" and (c.text or "").strip()
-              for c in model0))
-up0 = next(e for e in tr.iter()
-           if e.get(X31 + "type") == "uml:LiteralUnlimitedNatural"
-           and e.get("value"))
-check("P10 literal values as attributes; 0-default omitted",
-      up0.get("value") == "*"
-      and not any(etree.QName(c).localname == "value" for c in up0))
-check("one profileApplication per applied profile",
-      sum(1 for e in tr.iter()
-          if etree.QName(e).localname == "profileApplication") == 2
-      and ml1.profiles == ["http://www.omg.org/spec/UAF/20211110/UAF.xmi#UAF",
-                           "http://www.omg.org/spec/SysML/20181001/SysML.xmi#SysML"])
+if corpus.available(ML):
+    ml1 = xmi21.read_xmi21(ML)
+    mlapps = W.apps_from_model(ml1)
+    mldata = W.write_xmi(ml1.roots, apps=mlapps, nsmap=ml1.nsmap,
+                         profile_applications=ml1.profiles)
+    mldata2 = W.write_xmi(ml1.roots, apps=mlapps, nsmap=ml1.nsmap,
+                          profile_applications=ml1.profiles)
+    check("ML write is deterministic (byte-identical)", mldata == mldata2)
+    open(MLRT, "wb").write(mldata)
+    ml2 = xmi21.read_xmi21(MLRT)
+    check("ML round-trip object count (221)",
+          len(ml1.objects) == len(ml2.objects) == 221,
+          f"{len(ml1.objects)} -> {len(ml2.objects)}")
+    check("ML applications preserved (76, prefixed dialect)",
+          sum(len(v) for v in ml1.apps.values())
+          == sum(len(v) for v in ml2.apps.values()) == 76)
+    check("ML app metas preserved", ml1.app_metas == ml2.app_metas)
+    bad = graph_equal(ml1, ml2)
+    check("ML full graph signature equal", bad is None,
+          "" if bad is None else f"{bad[0]}: {bad[1]} != {bad[2]}")
+    mid = next(o._xmi_id for o in ml1.objects.values()
+               if type(o).__name__ == "Model")
+    check("Model URI feature read and round-tripped",
+          ml1.objects[mid]._vals.get("URI")
+          == "https://www.omg.org/spec/UAF/20211201/MeasurementsLibrary"
+          and ml2.objects[mid]._vals.get("URI")
+          == "https://www.omg.org/spec/UAF/20211201/MeasurementsLibrary")
+    check("packageImport imported via href marker",
+          any(feat == "importedPackage"
+              and "spec/UML/20161101/UML.xmi#_0" in ref
+              for _, feat, ref in ml1.hrefs)
+          and ml1.hrefs == ml2.hrefs)
+    check("only unmapped feature is the MagicDraw header reference",
+          ml1.unmapped_features == [(mid, "metamodelReference")]
+          and not ml2.unmapped_features)
+    check("profile applications: one element per applied profile",
+          sum(1 for c in ml2.roots[0]._vals["packageImport"] if False) == 0
+          and len(ml1.profiles) == 2)
+    diffs = canon.compare(ML, MLRT,
+                          drop_names_at={i for i, _ in ml1.derived_names},
+                          drop_feats_at={mid: {"metamodelReference"}})
+    check("ML canonical parity vs OMG original", not diffs, str(diffs[:1]))
+    # P10 serialization conventions
+    from lxml import etree  # noqa: E402
+    X31 = "{http://www.omg.org/spec/XMI/20131001}"
+    tr = etree.parse(MLRT).getroot()
+    check("ML written root is 20131001 xmi:XMI",
+          tr.tag == f"{X31}XMI")
+    app0 = next(c for c in tr if etree.QName(c).namespace
+                and "UAF" in etree.QName(c).namespace)
+    check("P10 applications: prefixed elements with base_<Meta> attributes",
+          etree.QName(app0).localname == "Measurement"
+          and app0.get("base_Property") is not None
+          and not [c for c in app0])
+    model0 = next(c for c in tr if etree.QName(c).localname == "Model")
+    check("P10 primitives as attributes (name, visibility); URI as text child",
+          model0.get("name") == "Measurements Library"
+          and any(c.tag == "URI" and (c.text or "").strip()
+                  for c in model0))
+    up0 = next(e for e in tr.iter()
+               if e.get(X31 + "type") == "uml:LiteralUnlimitedNatural"
+               and e.get("value"))
+    check("P10 literal values as attributes; 0-default omitted",
+          up0.get("value") == "*"
+          and not any(etree.QName(c).localname == "value" for c in up0))
+    check("one profileApplication per applied profile",
+          sum(1 for e in tr.iter()
+              if etree.QName(e).localname == "profileApplication") == 2
+          and ml1.profiles == ["http://www.omg.org/spec/UAF/20211110/UAF.xmi#UAF",
+                               "http://www.omg.org/spec/SysML/20181001/SysML.xmi#SysML"])
+
+else:
+    print(f"  SKIP  {ML} not on disk; set {corpus.ENV}")
 
 print("== E2: programmatic application writing ==")
 P10NS = {"xmi": "http://www.omg.org/spec/XMI/20131001",

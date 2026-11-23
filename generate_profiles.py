@@ -31,16 +31,17 @@ import sys
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE / "src"))
 from umlmeta import uml25 as U  # noqa: E402
+from umlmeta import corpus  # noqa: E402
 
 PROFILES = [
-    (Path("/mnt/TBFox/surfacebackup_512GB/uml_xmi/StandardProfile.xmi"), None),
-    (Path("/mnt/TBFox/surfacebackup_512GB/uml_xmi/sysml.xmi"), None),
-    (Path("/mnt/TBFox/uml_xmi/UAF.xmi"), None),        # OMG UAF 1.2 UAFML profile
+    (corpus.path("surfacebackup_512GB", "uml_xmi", "StandardProfile.xmi"), None),
+    (corpus.path("surfacebackup_512GB", "uml_xmi", "sysml.xmi"), None),
+    (corpus.path("uml_xmi", "UAF.xmi"), None),        # OMG UAF 1.2 UAFML profile
     # OMG UAF 1.3 (formal/25-10-03 era; dtc/24-11-06 machine-readable).  Same
     # profile name "UAF" as 1.2, so the module name is overridden to uaf13;
     # the profile URI (http://www.omg.org/spec/UAF/20241101/UAF) carries the
     # version identity in the emitted module.
-    (Path("/mnt/TBFox/uml_xmi/UAF13.xml"), "uaf13"),
+    (corpus.path("uml_xmi", "UAF13.xml"), "uaf13"),
 ]
 
 PRIMITIVES = {"Boolean": "bool", "Integer": "int", "Real": "float",
@@ -592,6 +593,10 @@ def emit_module(d, metaclasses, warns):
 
 def gen():
     all_data = []
+    absent = [str(p) for p, _ in PROFILES if not p.is_file()]
+    if absent:
+        sys.exit("no profile XMI at:\n  " + "\n  ".join(absent)
+                 + f"\nset {corpus.ENV} to the corpus root")
     for p, mod_override in PROFILES:
         d = parse_profile(p)
         d["_mod_override"] = mod_override

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Reproducible mdzip corpus tooling: scour GitHub, bulk-fetch, sweep.
 
-Subcommands (all take --corpus DIR, default /mnt/TBFox/mdzip_corpus):
+Subcommands (all take --corpus DIR, default $UMLMETA_CORPUS/mdzip_corpus):
 
     scour   GitHub code search for 'mdzip' -> repo tree walk -> candidates JSON
     fetch   download every candidate file (LFS-aware URL resolution, dedup)
@@ -13,6 +13,9 @@ script documents provenance and makes the whole pipeline reproducible.
 import argparse, json, os, re, subprocess, sys, time
 from collections import Counter
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+from umlmeta import corpus  # noqa: E402
 
 
 def gh(*a):
@@ -125,7 +128,7 @@ def cmd_sweep(args):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument('--corpus', default='/mnt/TBFox/mdzip_corpus')
+    ap.add_argument('--corpus', default=str(corpus.path('mdzip_corpus')))
     ap.add_argument('command', choices=['scour', 'fetch', 'sweep'])
     a = ap.parse_args()
     {'scour': cmd_scour, 'fetch': cmd_fetch, 'sweep': cmd_sweep}[a.command](a)

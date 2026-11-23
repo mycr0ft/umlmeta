@@ -20,6 +20,8 @@ from lxml import etree
 
 XMI = "{http://www.omg.org/spec/XMI/20131001}"
 HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE / "src"))
+from umlmeta import corpus  # noqa: E402
 
 PRIMITIVES = {"Boolean": "bool", "Integer": "int", "Real": "float",
               "String": "str", "UnlimitedNatural": "UnlimitedNatural"}
@@ -351,8 +353,10 @@ def gen_op(o):
 
 
 def gen():
-    src = Path(sys.argv[1] if len(sys.argv) > 1 else
-               "/mnt/TBFox/surfacebackup_512GB/uml_xmi/UML.xmi")
+    src = (Path(sys.argv[1]) if len(sys.argv) > 1 else
+           corpus.path("surfacebackup_512GB", "uml_xmi", "UML.xmi"))
+    if not src.is_file():
+        sys.exit(f"no metamodel at {src}; set {corpus.ENV} or pass a path")
     m = parse(src)
     attr_by_id = m["attr_by_id"]
     classes, enums = m["classes"], m["enums"]

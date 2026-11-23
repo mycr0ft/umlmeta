@@ -107,7 +107,7 @@ def main():
     check('svg render', all(k in svg for k in
                             ('Vehicle', 'engine : Engine', '<polygon')))
 
-    out = Path('/home/jfox/proj/sysml-distilled/reproduced')
+    out = Path(__file__).resolve().parent / 'reproduced'
     out.mkdir(parents=True, exist_ok=True)
     (out / 'figBDD_blocks.txt').write_text(txt)
     (out / 'figBDD_blocks.svg').write_text(svg)

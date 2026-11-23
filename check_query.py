@@ -12,6 +12,7 @@ from umlmeta import uml25 as U  # noqa: E402
 from umlmeta import derived as D  # noqa: E402
 from umlmeta import query as Q  # noqa: E402
 from umlmeta import xmi21  # noqa: E402
+from umlmeta import corpus  # noqa: E402
 
 PASS, FAIL = [], []
 
@@ -88,53 +89,61 @@ check("exists / count", Q.exists(V, name="wheel")
       and Q.count(V, metaclass=U.Package) == 2)
 
 print("== stereotypes (MeasurementsLibrary corpus) ==")
-ml = xmi21.read_xmi21("/mnt/TBFox/uml_xmi/MeasurementsLibrary.xmi")
-root = ml.roots[0]
-taxonomy = next(o for o in ml.objects.values()
-                if isinstance(o, U.Property) and o._vals.get("name") == "taxonomy")
-check("stereotypes() resolves full labels",
-      Q.stereotypes(taxonomy) == ["UAF::Parameters::Measurement"],
-      Q.stereotypes(taxonomy))
-by_label = Q.find(root, stereotype="Measurement")
-by_pair = Q.find(root, stereotype=("UAF", "Measurement"))
-check("stereotype filter: label form == (profile, name) form",
-      by_label == by_pair and len(by_label) > 0, f"{len(by_label)} found")
-app_count = sum(1 for o in ml.objects.values()
-                for a in getattr(o, "_applied_stereotypes", ())
-                if a[1] == "Measurement")
-check("count matches the reader's application records",
-      len(by_label) == app_count, f"{len(by_label)} == {app_count}")
-ms = [o for o in ml.objects.values()
-      if any(a[1] == "MeasurementSet"
-             for a in getattr(o, "_applied_stereotypes", ()))]
-n_ms = sum(1 for o in ml.objects.values()
-           for a in getattr(o, "_applied_stereotypes", ())
-           if a[1] == "MeasurementSet")
-check("full-label form targets the right stereotype",
-      Q.find(root, stereotype="UAF::Parameters::MeasurementSet") == ms
-      and len(ms) == n_ms, f"{len(ms)} == {n_ms}")
+ML = corpus.path("uml_xmi", "MeasurementsLibrary.xmi")
+if corpus.available(ML):
+    ml = xmi21.read_xmi21(ML)
+    root = ml.roots[0]
+    taxonomy = next(o for o in ml.objects.values()
+                    if isinstance(o, U.Property) and o._vals.get("name") == "taxonomy")
+    check("stereotypes() resolves full labels",
+          Q.stereotypes(taxonomy) == ["UAF::Parameters::Measurement"],
+          Q.stereotypes(taxonomy))
+    by_label = Q.find(root, stereotype="Measurement")
+    by_pair = Q.find(root, stereotype=("UAF", "Measurement"))
+    check("stereotype filter: label form == (profile, name) form",
+          by_label == by_pair and len(by_label) > 0, f"{len(by_label)} found")
+    app_count = sum(1 for o in ml.objects.values()
+                    for a in getattr(o, "_applied_stereotypes", ())
+                    if a[1] == "Measurement")
+    check("count matches the reader's application records",
+          len(by_label) == app_count, f"{len(by_label)} == {app_count}")
+    ms = [o for o in ml.objects.values()
+          if any(a[1] == "MeasurementSet"
+                 for a in getattr(o, "_applied_stereotypes", ()))]
+    n_ms = sum(1 for o in ml.objects.values()
+               for a in getattr(o, "_applied_stereotypes", ())
+               if a[1] == "MeasurementSet")
+    check("full-label form targets the right stereotype",
+          Q.find(root, stereotype="UAF::Parameters::MeasurementSet") == ms
+          and len(ms) == n_ms, f"{len(ms)} == {n_ms}")
+else:
+    print(f"  SKIP  {ML} not on disk; set {corpus.ENV}")
 
 print("== DoDAF corpus ==")
-dodaf = xmi21.read_xmi21("/mnt/TBFox/DoDAFLibrary.xmi")
-droot = dodaf.roots[0]
-reach = Q.walk(droot)
-rootless = {id(o) for o in dodaf.objects.values() if o.owner is None}
-owned_ids = set(map(id, dodaf.objects.values())) - rootless
-walked = set(map(id, reach))
-check("walk: owned xmi:id objects all reached; every walked element is "
-      "the root, reader-synthesized (owner unwired), or owned by a "
-      "walked element",
-      owned_ids <= walked
-      and all(o is droot or o.owner is None or id(o.owner) in walked
-              for o in reach)
-      and all(isinstance(o, U.LiteralUnlimitedNatural)
-              for o in reach
-              if o is not droot and o.owner is None))
-check("DoDAF comments and datatypes by metaclass",
-      Q.count(droot, metaclass=U.Comment)
-      == sum(1 for o in dodaf.objects.values() if isinstance(o, U.Comment))
-      and Q.count(droot, metaclass=U.DataType)
-      == sum(1 for o in dodaf.objects.values() if isinstance(o, U.DataType)))
+DODAF = corpus.path("DoDAFLibrary.xmi")
+if corpus.available(DODAF):
+    dodaf = xmi21.read_xmi21(DODAF)
+    droot = dodaf.roots[0]
+    reach = Q.walk(droot)
+    rootless = {id(o) for o in dodaf.objects.values() if o.owner is None}
+    owned_ids = set(map(id, dodaf.objects.values())) - rootless
+    walked = set(map(id, reach))
+    check("walk: owned xmi:id objects all reached; every walked element is "
+          "the root, reader-synthesized (owner unwired), or owned by a "
+          "walked element",
+          owned_ids <= walked
+          and all(o is droot or o.owner is None or id(o.owner) in walked
+                  for o in reach)
+          and all(isinstance(o, U.LiteralUnlimitedNatural)
+                  for o in reach
+                  if o is not droot and o.owner is None))
+    check("DoDAF comments and datatypes by metaclass",
+          Q.count(droot, metaclass=U.Comment)
+          == sum(1 for o in dodaf.objects.values() if isinstance(o, U.Comment))
+          and Q.count(droot, metaclass=U.DataType)
+          == sum(1 for o in dodaf.objects.values() if isinstance(o, U.DataType)))
+else:
+    print(f"  SKIP  {DODAF} not on disk; set {corpus.ENV}")
 
 print()
 print(f"RESULT: {len(PASS)} passed, {len(FAIL)} failed")

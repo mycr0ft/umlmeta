@@ -53,3 +53,11 @@ jobs:
         run: python check_ocl.py
       - name: Instance specification and link checks (stdlib only)
         run: python check_instance_spec.py
+      - name: Corpus suites skip cleanly when the corpus is absent
+        env:
+          UMLMETA_CORPUS: /nonexistent-corpus
+        run: |
+          python check_xmi_write.py
+          python check_query.py
+          python check_stereotype.py
+          python check_derived.py

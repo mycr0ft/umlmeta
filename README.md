@@ -98,7 +98,10 @@ generate.py            UML 2.5.1 metamodel generator (OMG UML.xmi -> src/umlmeta
 generate_profiles.py   profile generator (StandardProfile.xmi, sysml.xmi, UAF.xmi -> src/umlmeta/*.py)
 generate_sysml2.py     SysML v2 AS generator (OMG normative CMOF XMI -> src/umlmeta/sysml2.py)
 generate_bpmn.py       CMOF generator (OMG BPMN20.cmof -> src/umlmeta/bpmn.py)
-check*.py               eighteen check suites (481 checks; corpus suites need /mnt/TBFox, mdzip suites need MDZIP_CORPUS / MDZIP_REVISIONS)
+check*.py               thirty check suites (943 checks pass with no corpus on disk;
+                        corpus suites read $UMLMETA_CORPUS, mdzip suites
+                        MDZIP_CORPUS / MDZIP_REVISIONS, and the two diagram
+                        renderers need diagramboxes + drawille)
 calibrate_v2.py        textual-form calibration harness for sysmlpy
 REPORT.md              build journal: dialect facts, mapping tables, evidence
 PLAN.md                plan for the exporter/QoL waves (E1-E6: XMI/CMOF/EMOF writers, stereotype writing, derived unions, query helpers)
@@ -118,6 +121,41 @@ readers, writers and generators.
 from umlmeta import uml25
 from umlmeta import derived, query
 ```
+
+## Corpora
+
+The library never opens a corpus. The check suites that compare against
+OMG-published models and the generators that build the metamodel modules do,
+and they look for the files under one directory:
+
+```bash
+export UMLMETA_CORPUS=/path/to/models
+```
+
+Unset, the root is `~/uml-corpus` (or `/mnt/TBFox` if that directory is really
+there, so the machine where the files were first collected needs no change).
+`scripts/corpus_sync.sh /dev/sdXN [DEST]` copies the tree off a card onto local
+storage.
+
+Everything below that root is addressed by relative path, so the same tree
+works on any machine:
+
+```text
+DoDAFLibrary.xmi                  UPDM example (instance reader, emitter)
+uml_xmi/MeasurementsLibrary.xmi   UAF profile applications (stereotypes)
+uml_xmi/BPMN20.cmof               BPMN 2.0.2 metamodel (CMOF writer, generator)
+uml_xmi/UAF.xmi, UAF13.xml ...    profile generators
+surfacebackup_512GB/uml_xmi/UML.xmi   UML 2.5.1 metamodel (uml25 generator)
+mdzip_corpus/                     .mdzip corpus (mdzip suites, tools)
+```
+
+A suite whose corpus is not there prints a `SKIP` line and a
+`RESULT: N passed, M failed (corpus skipped)` summary, then exits 0, so a
+clone with no corpus still runs everything that does not need one. Set
+`UMLMETA_STRICT=1` to make a missing corpus an error instead, for a run that
+claims to cover it. `UMLMETA_CORPUS` is read by `umlmeta.corpus`; the
+`MDZIP_CORPUS` and `MDZIP_REVISIONS` variables still override their own
+subdirectories.
 
 ## Clean-room discipline
 

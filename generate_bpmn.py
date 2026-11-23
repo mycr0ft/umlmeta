@@ -31,12 +31,16 @@ Writes: src/umlmeta/bpmn.py and bpmn_stats.json
 """
 import json
 import re
+import sys
 from pathlib import Path
 
 from lxml import etree
 
 HERE = Path(__file__).resolve().parent
-CMOF = Path("/mnt/TBFox/uml_xmi/BPMN20.cmof")
+sys.path.insert(0, str(HERE / "src"))
+from umlmeta import corpus  # noqa: E402
+
+CMOF = corpus.path("uml_xmi", "BPMN20.cmof")
 
 X_TYPE = "{http://schema.omg.org/spec/XMI/2.1}type"
 X_ID = "{http://schema.omg.org/spec/XMI/2.1}id"
@@ -503,6 +507,8 @@ def emit_module(classes, assocs, warns, meta):
 
 
 def gen():
+    if not CMOF.is_file():
+        sys.exit(f"no CMOF at {CMOF}; set {corpus.ENV}")
     classes, assocs, warns, meta = parse_cmof(CMOF)
     warns = emit_module(classes, assocs, warns, meta)
     stats = dict(source="OMG BPMN 2.0.2 CMOF (BPMN20.cmof)",

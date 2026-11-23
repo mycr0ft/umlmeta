@@ -3,7 +3,7 @@
 # snapshots; NOT committed).  Uses /tmp/mdzip_history.json from the scour
 # step or re-derives pairs from scripts/mdzip_corpus_tools.py scour data.
 set -euo pipefail
-DEST="${MDZIP_REVISIONS:-/mnt/TBFox/mdzip_corpus/_revisions}"
+DEST="${MDZIP_REVISIONS:-${UMLMETA_CORPUS:-$HOME/uml-corpus}/mdzip_corpus/_revisions}"
 echo "Revision pairs are fetched via the GitHub API per-commit."
 echo "See scripts/mdzip_corpus_tools.py scour output + /tmp/fetch_pairs.py"
 echo "pattern: for each mdzip path with >=2 commits, download old/new blobs."

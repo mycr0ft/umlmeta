@@ -17,8 +17,9 @@ from umlmeta import canon  # noqa: E402
 import generate_bpmn as G  # noqa: E402
 from umlmeta import bpmn as B  # noqa: E402
 from umlmeta import mm_write  # noqa: E402
+from umlmeta import corpus  # noqa: E402
 
-SRC = "/mnt/TBFox/uml_xmi/BPMN20.cmof"
+SRC = corpus.path("uml_xmi", "BPMN20.cmof")
 RT = "/tmp/bpmn20_roundtrip.cmof"
 
 PASS, FAIL = [], []
@@ -58,6 +59,10 @@ data = mm_write.write_cmof(B)
 data2 = mm_write.write_cmof(B)
 check("writer is deterministic (byte-identical)", data == data2)
 open(RT, "wb").write(data)
+
+if not corpus.available(SRC):
+    corpus.finish_skipped(len(PASS), len(FAIL), "BPMN20.cmof")
+
 
 print("== canonical parity vs the OMG original ==")
 diffs = canon.compare(SRC, RT, multiset_features={"ownedMember"})

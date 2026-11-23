@@ -15,8 +15,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 from umlmeta import uml25 as U  # noqa: E402
 from umlmeta import v1_to_v2 as M  # noqa: E402
 from umlmeta import xmi21  # noqa: E402
+from umlmeta import corpus  # noqa: E402
 
-DODAF = "/mnt/TBFox/DoDAFLibrary.xmi"
+DODAF = corpus.path("DoDAFLibrary.xmi")
 
 PASS, FAIL = [], []
 
@@ -24,6 +25,10 @@ PASS, FAIL = [], []
 def check(name, cond, detail=""):
     (PASS if cond else FAIL).append(name)
     print(f"  {'PASS' if cond else 'FAIL'}  {name}" + (f"  [{detail}]" if detail else ""))
+
+
+if not corpus.available(DODAF):
+    corpus.finish_skipped(len(PASS), len(FAIL), "DoDAFLibrary.xmi")
 
 
 # ---- read -------------------------------------------------------------------

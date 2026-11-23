@@ -25,6 +25,7 @@ from umlmeta import ocl_translator as T  # noqa: E402
 from umlmeta import stereotype as S  # noqa: E402
 from umlmeta import uml25 as U  # noqa: E402
 from umlmeta import xmi21  # noqa: E402
+from umlmeta import corpus  # noqa: E402
 
 PASS, FAIL = [], []
 
@@ -95,7 +96,7 @@ check("the base element keeps its instances",
 # ---------------------------------------------------------------------------
 
 print("== a real corpus (DoDAF / UPDM) ==")
-CORPUS = Path("/mnt/TBFox/DoDAFLibrary.xmi")
+CORPUS = corpus.path("DoDAFLibrary.xmi")
 if CORPUS.exists():
     dmodel = xmi21.read_xmi21(str(CORPUS))
     drep = S.materialize(dmodel, IDX)
@@ -108,7 +109,7 @@ if CORPUS.exists():
               for i in drep["instances"]
               if i.stereotype == "Measurement"))
 else:                                            # pragma: no cover
-    print("  SKIP  corpus not on disk")
+    print(f"  SKIP  {CORPUS} not on disk; set {corpus.ENV}")
     dmodel, drep = None, {"instances": []}
 
 

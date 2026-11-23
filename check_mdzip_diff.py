@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """check_mdzip_diff.py - semantic diff checks over the revision pairs.
 
-Pairs live in $MDZIP_REVISIONS (default /mnt/TBFox/mdzip_corpus/_revisions);
+Pairs live in $MDZIP_REVISIONS (default $UMLMETA_CORPUS/mdzip_corpus/_revisions);
 they are third-party model snapshots, NOT committed (see
 scripts/fetch_mdzip_revisions.sh).  Skips cleanly when absent.
 
@@ -17,9 +17,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 from umlmeta.mdzip_diff import import_records, diff_records  # noqa: E402
+from umlmeta import corpus  # noqa: E402
 
-REV = Path(os.environ.get("MDZIP_REVISIONS",
-                          "/mnt/TBFox/mdzip_corpus/_revisions"))
+REV = Path(os.environ.get("MDZIP_REVISIONS") or
+           corpus.path("mdzip_corpus", "_revisions"))
 missing = [d.name for d in REV.iterdir()
            if d.is_dir() and not (d / "old.mdzip").is_file()] \
     if REV.is_dir() else ["(no revisions dir)"]

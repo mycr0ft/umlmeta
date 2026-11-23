@@ -3,7 +3,7 @@
 
 Corpus files are NOT committed (see scripts/fetch_mdzip_corpus.sh and
 scripts/mdzip_corpus_tools.py).  MDZIP_CORPUS selects the directory
-(default /mnt/TBFox/mdzip_corpus).  Skips cleanly when absent.
+(default $UMLMETA_CORPUS/mdzip_corpus).  Skips cleanly when absent.
 """
 import json
 import os
@@ -12,8 +12,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 from umlmeta.mdzip_import import import_mdzip, MdZipImportError  # noqa: E402
+from umlmeta import corpus  # noqa: E402
 
-CORPUS = Path(os.environ.get("MDZIP_CORPUS", "/mnt/TBFox/mdzip_corpus"))
+CORPUS = Path(os.environ.get("MDZIP_CORPUS") or
+              corpus.path("mdzip_corpus"))
 PROBE = Path(os.environ.get("MDZIP_PROBE", "/tmp/mdzip_probe"))
 
 FILES = {

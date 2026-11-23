@@ -95,7 +95,8 @@ def main():
     check('svg has cube facets',
           'nodecube' in svg)
 
-    out = Path('/home/jfox/proj/sysml-distilled/reproduced')
+    out = Path(__file__).resolve().parent / 'reproduced'
+    out.mkdir(parents=True, exist_ok=True)
     (out / 'figUML_deployment.txt').write_text(txt)
     (out / 'figUML_deployment.svg').write_text(svg)
     print(f"render -> {out}/figUML_deployment.{{txt,svg}}")

@@ -20,6 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 from umlmeta import uml25 as U  # noqa: E402
 from umlmeta import derived as D  # noqa: E402
 from umlmeta import xmi21  # noqa: E402
+from umlmeta import corpus  # noqa: E402
 
 PASS, FAIL = [], []
 
@@ -233,8 +234,11 @@ print("== OMG corpora: DoDAFLibrary + MeasurementsLibrary ==")
 # UAF.xmi is a P10 profile file: its root <uml:Profile> is not yet in the
 # reader's root dispatch (profile-defined stereotypes are not umlmeta.uml25
 # metaclasses), so the instance-level corpus set is DoDAF + ML (E2-verified).
-CORPORA = [("DoDAF", "/mnt/TBFox/DoDAFLibrary.xmi"),
-           ("ML", "/mnt/TBFox/uml_xmi/MeasurementsLibrary.xmi")]
+CORPORA = [("DoDAF", corpus.path("DoDAFLibrary.xmi")),
+           ("ML", corpus.path("uml_xmi", "MeasurementsLibrary.xmi"))]
+if not corpus.available_all(p for _, p in CORPORA):
+    corpus.finish_skipped(len(PASS), len(FAIL),
+                          "DoDAFLibrary.xmi + MeasurementsLibrary.xmi")
 models = {k: xmi21.read_xmi21(path) for k, path in CORPORA}
 
 # (1) derived unions equal the runtime aggregation everywhere

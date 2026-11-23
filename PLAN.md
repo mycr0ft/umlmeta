@@ -55,12 +55,13 @@ Close the write-path and QoL gaps identified in the OpenAPI-coverage survey:
 ## Corpus & normative sources
 
 Repo stays OMG-corpus-clean; spec texts live locally (gitignored, like
-transition.txt), downloaded to `/mnt/TBFox/` or `~/umlmeta/*.txt`:
+transition.txt), downloaded to `$UMLMETA_CORPUS/` (see `umlmeta.corpus`) or
+`~/umlmeta/*.txt`:
 
-- **Instance corpora** (already on disk): `/mnt/TBFox/DoDAFLibrary.xmi`,
-  `/mnt/TBFox/uml_xmi/MeasurementsLibrary.xmi` (UAF applications),
+- **Instance corpora** (already on disk): `$UMLMETA_CORPUS/DoDAFLibrary.xmi`,
+  `$UMLMETA_CORPUS/uml_xmi/MeasurementsLibrary.xmi` (UAF applications),
   metamodel refs `UML.xmi`, `PrimitiveTypes.xmi`, `sysml.xmi`, `UAF.xmi`.
-- **CMOF corpus**: `/mnt/TBFox/uml_xmi/BPMN20.cmof` (+ DC/DI/BPMNDI.cmof as
+- **CMOF corpus**: `$UMLMETA_CORPUS/uml_xmi/BPMN20.cmof` (+ DC/DI/BPMNDI.cmof as
   external-href cases).
 - **To fetch (normative prose)**:
   - UML 2.5.1 spec (formal/2017-12-05) — OCL for Element/NamedElement/

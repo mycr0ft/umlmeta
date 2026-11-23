@@ -15,6 +15,12 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- `umlmeta.corpus`: one place that answers where the corpora live
+  (`UMLMETA_CORPUS`, default `~/uml-corpus`) and whether a given file is there.
+  `UMLMETA_STRICT=1` turns a missing corpus from a skip into an error, so a run
+  that claims corpus coverage cannot pass vacuously. `scripts/corpus_sync.sh`
+  copies a corpus off a card onto local storage (it replaces the personal
+  `tbfox_sync.sh`).
 - OCL helper operations: `effectiveName`, `effectiveShortName`, `escapedName`,
   `directionOf`, `subSequence`, `including`. Gate coverage on transformed
   models rises from 51% to 59% (skips 1848 -> 1318; helper-operation skips
@@ -22,6 +28,16 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- Machine-specific absolute paths are gone from the tree. Every check suite,
+  generator and `scripts/mdzip_corpus_tools.py` used to spell `/mnt/TBFox`
+  itself, so a clone carried a mount point that exists on one machine. They now
+  resolve through `umlmeta.corpus` (`$UMLMETA_CORPUS`; `/mnt/TBFox` is still
+  honoured where it exists, for the machine that has it), and a suite whose
+  corpus is absent prints a `SKIP` line plus
+  `RESULT: ... (corpus skipped)` and exits 0 instead of raising
+  `OSError: No such file or directory`. The two diagram renderers write to
+  `reproduced/` beside the script (`git`-ignored) instead of a sibling
+  checkout. CI proves the no-corpus path on every interpreter.
 - XMI reference arity comes from the metaclass descriptor before the name
   tables, so a multi-valued feature the tables omit (`classifier` on an
   `InstanceSpecification`) is stored as a sequence instead of a bare object
